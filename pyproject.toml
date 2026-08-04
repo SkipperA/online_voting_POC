@@ -1,0 +1,13 @@
+[project]
+name = "ovpoc"
+version = "0.1.0"
+description = "Proof of concept for an anonymous authenticated ballot system"
+requires-python = ">=3.11"
+dependencies = ["cryptography>=42.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
