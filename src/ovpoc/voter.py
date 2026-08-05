@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from . import keys, rsabssa
 from .ballotbox import BallotBox
+from .handles import AdHocKeyHandle, VerificationHandle
 from .messages import Ballot, AuthRequest, b64
 
 
@@ -68,19 +69,19 @@ class Voter:
         return ballot
 
     # ---- verification ------------------------------------------------
-    def verify_recorded_ballot(self, box: BallotBox, expected: int) -> bool:
-        """The cast-as-intended check, performed from an independent device.
+    @property
+    def handle(self) -> VerificationHandle:
+        """The voter's private means of finding their own ballot.
 
-        In this variant the voter's handle on their ballot is the ad-hoc public
-        key they control -- point B on the paper's diagram.  That makes the
-        check transferable: whoever holds k_s^a can prove authorship to an
-        adjudicator, and equally well to a vote buyer.  The coercion-resistant
-        variant (point A, an anonymous random tracker) is a separate
-        implementation of this method and is not yet written.
+        See `handles.py` for why only variant B exists, and why an anonymous
+        lookup index would not by itself make the ballot unprovable.
         """
-        assert self.adhoc
-        recorded = box.find_ballot(self.adhoc.public_bytes)
-        return recorded is not None and recorded["selection"] == expected
+        assert self.adhoc, "no ad-hoc key yet -- call build_auth_request first"
+        return AdHocKeyHandle(self.adhoc)
+
+    def verify_recorded_ballot(self, box: BallotBox, expected: int) -> bool:
+        """The cast-as-intended check, performed from an independent device."""
+        return self.handle.confirms(box, expected)
 
     def record_head(self, head: bytes) -> None:
         """Keep the ledger head seen at submission time, to detect later deletion."""

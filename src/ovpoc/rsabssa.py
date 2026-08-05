@@ -3,27 +3,39 @@
 This module is the cryptographic heart of the scheme.  It maps onto the
 notation of the paper as follows:
 
-    m                the message to be blind-signed: the voter's ad-hoc
-                     public key  k_p^a
-    r                the voter's blinding secret.  The paper's "blinding
-                     encryption key pair" (k_e, k_d) is, concretely, r^e
-                     and r^{-1}.
+    k_p^a            the message to be blind-signed: the voter's ad-hoc
+                     public key
+    enc(.)           the padded encoding (EMSA-PSS with SHA-384), applied by
+                     the voter before blinding
+    r                the voter's secret blinding factor, fresh per election
+    S(x) = x^d_R     the raw private-key operation, distinct from signing:
+                     sig_{k_s}(m) = S(enc(m))
 
-    blind      ->    c         = f_{k_e}(k_p^a)   = PSS(m) * r^e   mod n
-    blind_sign ->    s_c       = sig_{k_s^(R)}(c) = c^d            mod n
-    finalize   ->    s_{k_p^a} = f_{k_d}(s_c)     = s_c * r^{-1}   mod n
+    blind      ->    c         = enc(k_p^a) * r^e_R  mod n_R
+    blind_sign ->    s_c       = S(c)                mod n_R
+    finalize   ->    s_{k_p^a} = s_c * r^-1          mod n_R
 
-The homomorphism the paper requires is exactly RSA's multiplicativity:
+Note that `blind_sign` applies S and NOT the full signature scheme.  The value
+c already contains the encoding the voter applied; encoding it a second time
+would destroy the blinding, since enc is not multiplicative.
 
-    (PSS(m) * r^e)^d  ==  PSS(m)^d * r    (mod n)
+The property the construction relies on is the multiplicativity of S:
 
-so multiplying by r^{-1} leaves an *ordinary* RSASSA-PSS signature over m.
-That is a load-bearing property for this project: the independent verifier
-needs no bespoke cryptography, only a standard RSA-PSS verify.
+    S(enc(m) * r^e_R)  ==  S(enc(m)) * r    (mod n_R)
 
-Why PSS encoding rather than signing m directly: raw RSA is multiplicative,
-so a voter given signatures on m1 and m2 could produce one on m1*m2 without
-the VRO.  PSS encoding destroys that structure.  See tests/test_forgery.py,
+because (r^e_R)^d_R = r.  So blinding multiplies by r^e_R while unblinding
+divides by r: the two do not cancel, and the factor is transformed by passing
+through the exponentiation.  Reading them as inverse mappings is the mistake
+that makes the false identity S(f_d(f_e(m))) = S(m) look plausible.
+
+Multiplying by r^-1 leaves an *ordinary* RSASSA-PSS signature over k_p^a.  That
+is load-bearing for this project: the independent verifier needs no bespoke
+cryptography, only a standard RSA-PSS verify.
+
+Why PSS encoding rather than signing k_p^a directly: raw RSA is multiplicative,
+so a voter given signatures on two keys could derive one on their product
+without the VRO.  PSS encoding destroys that structure.  See
+tests/test_attacks.py::test_multiplicative_forgery_is_defeated_by_pss_encoding,
 which exercises the attack and shows it failing.
 
 SECURITY NOTE.  This is proof-of-concept code written to demonstrate a

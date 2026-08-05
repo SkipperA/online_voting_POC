@@ -128,22 +128,55 @@ MUTATIONS = [
 ]
 
 
+class SuiteDidNotRun(RuntimeError):
+    """pytest failed to execute, as opposed to executing and reporting failures.
+
+    This distinction is the whole point of the tool. If a broken environment
+    produced an empty failure list, every mutation would look undetected and the
+    report would be confidently wrong.
+    """
+
+
 def failing_tests() -> list[str]:
     result = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "--no-header", "-rf"],
         cwd=ROOT, capture_output=True, text=True,
     )
+    # pytest: 0 = all passed, 1 = tests failed. Anything else means it did not
+    # get as far as running the suite (2 interrupted, 3 internal error,
+    # 4 usage error, 5 no tests collected), as does a missing pytest.
+    if result.returncode not in (0, 1):
+        raise SuiteDidNotRun(
+            f"pytest exited {result.returncode}\n"
+            f"--- stdout ---\n{result.stdout[-2000:]}\n"
+            f"--- stderr ---\n{result.stderr[-2000:]}"
+        )
+
     names = []
     for line in result.stdout.splitlines():
         if line.startswith("FAILED "):
             names.append(line.split()[1].split("::")[-1])
         elif line.startswith("ERROR "):
             names.append("ERROR " + line.split()[1])
+
+    # A non-zero exit with nothing parsed means the output format changed and we
+    # would silently under-report. Refuse rather than guess.
+    if result.returncode == 1 and not names:
+        raise SuiteDidNotRun(
+            "pytest reported failures but none could be parsed; "
+            f"output format may have changed:\n{result.stdout[-2000:]}"
+        )
     return sorted(set(names))
 
 
 def main() -> int:
-    baseline = failing_tests()
+    try:
+        baseline = failing_tests()
+    except SuiteDidNotRun as exc:
+        print("Cannot run the sabotage suite: the test suite itself did not run.")
+        print("Install the dev extras first:  pip install -e \".[dev]\"\n")
+        print(exc)
+        return 2
     if baseline:
         print("Baseline suite is not green; fix that first:", baseline)
         return 1

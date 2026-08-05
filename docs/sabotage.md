@@ -12,7 +12,7 @@ confident the surrounding comments sound.
 | Defence removed | Tests that caught it |
 |---|---|
 | token_verification_disabled | `test_a_valid_token_cannot_be_reused_with_a_different_key`<br>`test_finalize_rejects_a_dishonest_vro_response`<br>`test_forged_token_is_rejected_by_the_ballot_box`<br>`test_multiplicative_forgery_is_defeated_by_pss_encoding`<br>`test_signature_does_not_transfer_to_another_message` |
-| ed25519_verification_disabled | `test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_an_unauthenticated_release_query_is_refused`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_tampering_with_the_selection_breaks_the_signature` |
+| ed25519_verification_disabled | `test_a_bystander_cannot_forge_such_a_proof`<br>`test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_an_unauthenticated_release_query_is_refused`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_tampering_with_the_selection_breaks_the_signature` |
 | eligibility_check_removed | `test_unregistered_voter_gets_no_token` |
 | one_token_per_voter_removed | `test_a_second_token_request_is_refused` |
 | wallet_signature_check_removed | `test_impersonation_fails_without_the_wallet_key` |
@@ -47,6 +47,7 @@ All Ed25519 signature checks pass unconditionally -- wallet signatures and vote 
 Patched in `src/ovpoc/keys.py`.
 
 Caught by:
+- `test_a_bystander_cannot_forge_such_a_proof`
 - `test_a_rejected_ballot_does_not_supersede_a_genuine_one`
 - `test_an_unauthenticated_release_query_is_refused`
 - `test_impersonation_fails_without_the_wallet_key`
