@@ -39,3 +39,12 @@ def election(vro_keypair):
 def register(vro, voter):
     """Run steps 1-8 for one voter."""
     voter.accept_token(vro.issue_token(voter.build_auth_request()))
+
+
+def query(vro, voter):
+    """Run an authenticated step-12 release query on the voter's behalf."""
+    from ovpoc.vro import release_query_payload
+
+    return vro.query_token_release(
+        voter.voter_id, voter.wallet.sign(release_query_payload(voter.voter_id))
+    )

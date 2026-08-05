@@ -64,6 +64,15 @@ route handler.
   does supersede. Conflating these lets a coercer erase a genuine vote.
 - **Supersession is applied at tally time**, not by overwriting. The full
   submission history stays auditable.
+- **The release log publishes commitments, not voter ids.** `H(id || nonce)`,
+  with the nonce disclosed only on a step-12 query carrying `sig(id)`. A
+  plaintext log would be a public participation register, and while absence of an
+  entry does not show how anyone voted, it is conclusive proof of *non*-voting --
+  which is what a coercer demanding turnout needs. The published count still
+  supports the aggregate `ballots <= tokens` audit, so both properties are kept.
+- **Negative answers to step-12 queries are signed.** This does not stop a
+  dishonest VRO denying a token it minted; it makes the denial attributable if
+  later contradicted. Do not describe it as prevention.
 - **Ed25519 for the ad-hoc and wallet keys.** A real wallet would use ECDSA
   P-256 in a secure element; `keys.py` keeps the interface narrow so it can be
   swapped.
@@ -92,6 +101,11 @@ route handler.
 - Every attack the design claims to defeat gets a test that names it and shows
   it failing. Attacks the design does *not* defeat go in `docs/threats.md`, so
   their absence is deliberate.
+- **Add a mutation to `tools/sabotage.py` for every new defence, and re-run it.**
+  A passing negative test can pass for the wrong reason; the sabotage run is what
+  shows a test actually constrains the check it names. Adding the key-pinning
+  mutation is how the missing pinning test was found. `docs/sabotage.md` is
+  generated -- never hand-edit it.
 - Keep `docs/protocol.md` in step with the code; it is what the article cites.
 - Comments explain *why*, especially where a naive implementation would be
   insecure. Assume a reviewer looking for weaknesses.
@@ -102,6 +116,7 @@ route handler.
 
 ```
 pip install -e ".[dev]"
-python -m pytest -q          # full suite
+python -m pytest -q          # full suite (29 tests)
 python demo.py               # narrated end-to-end run
+python tools/sabotage.py     # regenerate docs/sabotage.md
 ```

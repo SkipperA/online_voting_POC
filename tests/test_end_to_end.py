@@ -59,7 +59,7 @@ def test_an_outsider_can_recompute_the_result_from_the_public_ledger(election):
     assert box.valid.verify_chain()
 
     # 3. No more ballots than tokens released.
-    assert len(latest) <= len(vro.release_log)
+    assert len(latest) <= vro.release_count()
 
     # 4. The independently computed result matches the announced one.
     independent = {i: sum(1 for s in latest.values() if s == i) for i in (1, 2, 3)}
@@ -85,6 +85,7 @@ def test_the_vro_cannot_link_its_signature_to_a_published_ballot(election):
     for blinded in seen_by_vro:
         assert not any(key in blinded for key in published_keys)
 
-    # The release log records ids only -- no cryptographic material at all.
+    # The release log publishes commitments only -- neither ids nor any
+    # cryptographic material that could be matched against the ballot box.
     for entry in vro.release_log.entries:
-        assert set(entry.payload) == {"voter_id"}
+        assert set(entry.payload) == {"commitment"}

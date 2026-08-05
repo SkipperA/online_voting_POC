@@ -20,7 +20,9 @@ surprises them.
 | Forging a third token from two genuine ones | PSS encoding destroys RSA's multiplicative structure | `test_multiplicative_forgery_is_defeated_by_pss_encoding` |
 | Coercer's malformed ballot erasing a genuine one | Rejected ballots do not supersede | `test_a_rejected_ballot_does_not_supersede_a_genuine_one` |
 | Ballot box dropping or editing a ballot | Hash chain over the ledger | `test_deleting_a_ballot_breaks_the_hash_chain` |
-| Token minted in an absent voter's name | Public release log, checkable independently | `test_a_token_minted_without_the_voter_is_detectable` |
+| Third party learning who registered | Release log publishes commitments; queries need `sig(id)` | `test_the_release_log_publishes_no_voter_identities`, `test_an_unauthenticated_release_query_is_refused` |
+| VRO minting tokens *without logging* them | Aggregate audit: distinct ad-hoc keys ≤ tokens released | `test_the_aggregate_audit_bounds_ballots_by_tokens` |
+| A voter having to trust the VRO's answer | Nonce discloses the commitment; voter checks the public log | `test_a_voter_can_verify_the_answer_against_the_published_log` |
 | VRO linking its signature to a published ballot | Blinding | `test_the_vro_cannot_link_its_signature_to_a_published_ballot` |
 
 ## Not defended
@@ -44,10 +46,26 @@ few do. No amount of implementation work changes that; it is a design and
 communications problem.
 
 **Single point of trust at the VRO.** One office can mint tokens for citizens who
-never voted, and those tokens are indistinguishable from genuine ones. The public
-release log makes this *detectable by the affected voter*, which is a real
-constraint but not a prevention. Threshold issuance across mutually distrusting
-bodies is required and not implemented.
+never voted, and those tokens are indistinguishable from genuine ones. The
+release log constrains this only partly, and it is worth being precise about how
+little it does.
+
+A VRO that mints *without* logging is caught by the aggregate audit, since
+distinct ad-hoc keys in the ballot box would exceed the number of released
+tokens. A VRO that mints *and* logs is not caught by any public check: a logged
+release for a citizen who never voted is indistinguishable from a citizen who
+took a token and abstained. Detection then depends on that specific
+non-participant running a step-12 query — the worst conceivable uptake problem,
+since it asks people who did not vote to audit the election.
+
+Worse, the authenticated query gives the VRO the ability to *deny*. A dishonest
+office can answer "no token released for you" to a voter whose token it minted,
+and the voter cannot disprove it, since they cannot open a commitment whose nonce
+they were never given. The signed denial makes the lie attributable after the
+fact if it is ever contradicted, which is accountability rather than prevention.
+
+Threshold issuance across mutually distrusting bodies is therefore not an
+optional hardening step. It is the only real answer, and it is not implemented.
 
 **Traffic analysis.** Signing protects integrity, not anonymity. The network
 layer sees which wallet contacts the VRO and which address submits which ballot,
@@ -59,6 +77,15 @@ addressed.
 
 **Coercion at the wallet.** If an attacker controls the voter's wallet, nothing
 downstream helps. The design inherits the wallet's security assumptions whole.
+
+**Proof of abstention.** Even with commitments, the *count* of released tokens is
+public, and a voter can be compelled to run a step-12 query in front of a
+coercer and show the result. A token release proves nothing — the voter may have
+abstained — but its absence is conclusive proof of non-voting. This serves a
+coercer demanding turnout rather than a particular choice, and it is not
+addressed. Note that many jurisdictions already publish turnout per elector, so
+this is not obviously worse than existing practice; what differs is that the
+check is remote, automatic, and free of the friction a records request imposes.
 
 ### In this implementation specifically
 

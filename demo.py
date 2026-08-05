@@ -86,8 +86,17 @@ def main():
 
     rule("Csilla verifies  ·  from a different device, over an anonymous channel")
     csilla = dict(voters)["Csilla"]
-    print(f"  Token-request check — was a token released for {csilla.voter_id}?")
-    print(f"    → {vro.token_released(csilla.voter_id)} (she did request one, so this is expected)")
+    from ovpoc.vro import release_query_payload, verify_release_answer
+
+    answer = vro.query_token_release(
+        csilla.voter_id, csilla.wallet.sign(release_query_payload(csilla.voter_id))
+    )
+    published_log = [e.payload for e in vro.release_log.entries]
+    print(f"  Token-request check — the query carries sig(id), so only she can ask.")
+    print(f"    → released: {answer.released}  (she did request one, so this is expected)")
+    print(f"    → verified against the published log: "
+          f"{verify_release_answer(published_log, csilla.voter_id, answer)}")
+    print(f"    the log itself names nobody: {published_log[answer.index]}")
     ok = csilla.verify_recorded_ballot(box, choices["Csilla"])
     print(f"  Ballot-value check — is the recorded choice the intended one?")
     print(f"    → {ok}")
@@ -98,7 +107,7 @@ def main():
 
     rule("ANYONE  ·  independent verification from the public ledger alone")
     published = [e.payload for e in box.valid.entries]
-    print(f"  {len(published)} published ballots, {len(vro.release_log)} tokens released")
+    print(f"  {len(published)} published ballots, {vro.release_count()} tokens released")
 
     latest = {}
     for payload in published:
@@ -112,7 +121,7 @@ def main():
     print("  every ballot carries a genuine VRO token           ✓")
     print("  every selection is signed by the certified key      ✓")
     print(f"  hash chain intact (nothing removed or reordered)    {'✓' if box.valid.verify_chain() else '✗'}")
-    print(f"  ballots ≤ tokens released ({len(latest)} ≤ {len(vro.release_log)})              ✓")
+    print(f"  ballots ≤ tokens released ({len(latest)} ≤ {vro.release_count()})              ✓")
 
     counts = {i: sum(1 for s in latest.values() if s == i) for i in OPTIONS}
     print("\n  Independently computed result:")

@@ -13,10 +13,10 @@ import secrets
 
 import pytest
 
-from conftest import register
+from conftest import query, register
 from ovpoc import keys, rsabssa
 from ovpoc.messages import Ballot
-from ovpoc.vro import RegistrationError
+from ovpoc.vro import RegistrationError, release_query_payload, verify_release_answer
 
 
 # --------------------------------------------------------------------------
@@ -58,6 +58,27 @@ def test_forged_token_is_rejected_by_the_ballot_box(election):
     assert not result.accepted
     assert result.reason == "token not signed by VRO"
     assert len(box.valid) == 0 and len(box.rejected) == 1
+
+
+def test_a_substituted_vro_key_is_refused_by_the_voter_app(election):
+    """The voter app must enforce the pinned VRO fingerprint.
+
+    This is the defence Section 3.2 of the paper rests on. A VRO free to use a
+    different signing key per voter gains nothing from blinding: it can later
+    determine which of its keys verifies a given ballot in the public box and
+    re-link that ballot to the identified requester. Blinding hides the ad-hoc
+    key from the signer; it does not constrain which key the signer uses. Only
+    the client-side pinning check does that, so it must be exercised.
+    """
+    _, voters, _ = election
+    voter = voters[0]
+
+    # The VRO presents a second, unpublished key pair to this voter alone.
+    _, singling_out_key = rsabssa.generate_vro_keypair(2048)
+    voter.vro_public_key = singling_out_key
+
+    with pytest.raises(ValueError, match="pinned fingerprint"):
+        voter.build_auth_request()
 
 
 # --------------------------------------------------------------------------
@@ -213,20 +234,84 @@ def test_altering_a_recorded_ballot_breaks_the_hash_chain(election):
 
 
 # --------------------------------------------------------------------------
-# Step 12 -- the independent check
+# Step 12 -- the release log and the authenticated check
 # --------------------------------------------------------------------------
 
-def test_a_token_minted_without_the_voter_is_detectable(election):
-    """The stolen-identity attack, and the check that catches it.
+def test_the_release_log_records_exactly_who_took_a_token(election):
+    """The log is accurate and specific: one entry per token, no others.
 
-    A voter who never registered asks the public release log whether a token
-    exists in their name.  A 'yes' is proof that something happened without
-    them.  This works only because the log is public.
+    This is a building block for step 12, not a detection result. It shows the
+    log says 'yes' for a voter who took a token and 'no' for one who did not.
+    Whether a *dishonest VRO* can be caught minting tokens is a separate
+    question, addressed only partially and only in aggregate -- see
+    test_the_aggregate_audit_bounds_ballots_by_tokens and docs/threats.md.
     """
     vro, voters, _ = election
-    victim, other = voters[0], voters[1]
+    took, abstained = voters[0], voters[1]
 
-    assert not vro.token_released(victim.voter_id)
-    register(vro, victim)                       # stands in for the attacker's request
-    assert vro.token_released(victim.voter_id)
-    assert not vro.token_released(other.voter_id)
+    assert vro.release_count() == 0
+    register(vro, took)
+    assert vro.release_count() == 1
+
+    assert query(vro, took).released
+    assert not query(vro, abstained).released
+
+
+def test_the_release_log_publishes_no_voter_identities(election):
+    """Published entries are commitments; the ids do not appear.
+
+    A plaintext log would be a public register of who registered. Absence of an
+    entry is proof of non-voting, which is what a coercer demanding turnout
+    needs, so the log must not be enumerable by third parties.
+    """
+    vro, voters, _ = election
+    for voter in voters:
+        register(vro, voter)
+
+    for entry in vro.release_log.entries:
+        assert set(entry.payload) == {"commitment"}
+        for voter in voters:
+            assert voter.voter_id not in entry.payload["commitment"]
+
+
+def test_an_unauthenticated_release_query_is_refused(election):
+    """Step 12 requires sig(id). Without it the log becomes public."""
+    vro, voters, _ = election
+    victim, snoop = voters[0], voters[1]
+    register(vro, victim)
+
+    # The snoop knows the victim's id but holds only their own wallet key.
+    forged = snoop.wallet.sign(release_query_payload(victim.voter_id))
+    with pytest.raises(RegistrationError, match="not signed by the wallet"):
+        vro.query_token_release(victim.voter_id, forged)
+
+
+def test_a_voter_can_verify_the_answer_against_the_published_log(election):
+    """The affirmative answer rests on the public log, not on the VRO's word."""
+    vro, voters, _ = election
+    voter = voters[0]
+    register(vro, voter)
+
+    answer = query(vro, voter)
+    published = [e.payload for e in vro.release_log.entries]
+    assert verify_release_answer(published, voter.voter_id, answer)
+
+    # The same nonce does not open the commitment for a different id.
+    assert not verify_release_answer(published, voters[1].voter_id, answer)
+
+
+def test_the_aggregate_audit_bounds_ballots_by_tokens(election):
+    """What a third party *can* check without learning who anyone is.
+
+    Distinct ad-hoc keys in the ballot box must not exceed released tokens. A
+    VRO minting tokens without logging them is caught here; one that logs a
+    release for a citizen who never voted is not, since that is
+    indistinguishable from a citizen who took a token and abstained.
+    """
+    vro, voters, box = election
+    for voter in voters:
+        register(vro, voter)
+        box.submit(voter.cast(1))
+
+    distinct_keys = len(box.effective_ballots())
+    assert distinct_keys <= vro.release_count()
