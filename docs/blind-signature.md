@@ -392,21 +392,8 @@ or is enforced by a test in `tests/`.
 
 ---
 
-## 9. Mapping to the code
 
-| Specification step | Module | Function |
-|---|---|---|
-| §3.1 encoding | `rsabssa.py` | `emsa_pss_encode` |
-| §4 (1) blinding | `rsabssa.py` | `blind` |
-| §4 (3) blind signing | `rsabssa.py`, `vro.py` | `blind_sign`, `issue_token` |
-| §4 (4) unblinding + verify | `rsabssa.py` | `finalize` |
-| §4 (5) casting | `voter.py` | `cast` |
-| §4 (5) acceptance | `ballotbox.py` | `submit` |
-| §2.1 key pinning | `keys.py` | — |
-
----
-
-## 10. References
+## 9. References
 
 - D. Chaum (1983). *Blind Signatures for Untraceable Payments.* CRYPTO '82, 199–203.
 - A. Fujioka, T. Okamoto, K. Ohta (1993). *A Practical Secret Voting Scheme for Large Scale Elections.* AUSCRYPT '92, LNCS 718, 244–251.
