@@ -144,9 +144,9 @@ $`\text{emLen} = \lceil \text{emBits}/8 \rceil`$:
 
 ```math
 \begin{aligned}
-1.\quad & \text{mHash} = \text{SHA-384}(k_p^a) && \text{48 bytes}\\
-2.\quad & \text{salt} \xleftarrow{\ R\ } \{0,1\}^{384} && \text{48 fresh bytes}\\
-3.\quad & M' = \texttt{00}^{\,8} \,\Vert\, \text{mHash} \,\Vert\, \text{salt} && \text{eight zero bytes}\\
+1.\quad & \text{mHash} = \text{SHA-384}(k_p^a)\\
+2.\quad & \text{salt} \xleftarrow{\ R\ } \{0,1\}^{384}\\
+3.\quad & M' = \texttt{00}^{\,8} \,\Vert\, \text{mHash} \,\Vert\, \text{salt}\\
 4.\quad & H = \text{SHA-384}(M')\\
 5.\quad & \text{PS} = \texttt{00}^{\,\text{emLen} - s_{\text{Len}} - h_{\text{Len}} - 2}\\
 6.\quad & \text{DB} = \text{PS} \,\Vert\, \texttt{01} \,\Vert\, \text{salt}\\
@@ -156,6 +156,9 @@ $`\text{emLen} = \lceil \text{emBits}/8 \rceil`$:
 9.\quad & \text{EM} = \text{maskedDB} \,\Vert\, H \,\Vert\, \texttt{bc}
 \end{aligned}
 ```
+
+Sizes: `mHash` and `salt` are 48 bytes each; the prefix in step 3 is eight zero
+bytes.
 
 ```math
 \bar{m} \;=\; \mathrm{enc}(k_p^a) \;=\; \text{OS2IP}(\text{EM})
