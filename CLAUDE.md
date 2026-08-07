@@ -56,6 +56,11 @@ route handler.
   defeats blinding entirely, since it could later tell which key verifies a
   given ballot. `Voter.build_auth_request` refuses to proceed on a fingerprint
   mismatch. This is load-bearing.
+- **The PSS salt is chosen by the client, not the signer.** RFC 9474 puts
+  `EMSA-PSS-ENCODE` inside `Blind()`, so the VRO never sees an unencoded
+  message and cannot choose the salt. The article's §4.1 says otherwise; that
+  is a known erratum, recorded in `docs/blind-signature.md` §2.3. Do not
+  "correct" the documentation back to the article's wording.
 - **Token release is logged before the signature is returned**, so no token can
   exist outside the public log.
 - **Rejected ≠ invalid.** A ballot failing its cryptographic checks is
@@ -93,6 +98,12 @@ route handler.
   anonymity: the network layer sees who contacts the ballot box and when.
 - **Post-close verification with out-of-band return codes**, to close the
   silent-override window after a voter's final check.
+- **Signature check after blind signing.** The VRO should verify
+  `s_c^e == c (mod n)` before releasing `s_c`. It is nearly free at `e = 65537`
+  and catches a fault during CRT exponentiation, where a single faulty
+  signature leaks `p` (Boneh–DeMillo–Lipton). Specified in
+  `docs/blind-signature.md` §4(3); not yet in `vro.py`, and not yet in the
+  article's §5.3.
 
 ## Working style
 
@@ -107,10 +118,42 @@ route handler.
   mutation is how the missing pinning test was found. `docs/sabotage.md` is
   generated -- never hand-edit it.
 - Keep `docs/protocol.md` in step with the code; it is what the article cites.
+  `docs/blind-signature.md` is the normative reference for the blind-signature
+  core -- `rsabssa.py` and the token-issuance path in `vro.py` and `voter.py`.
+  Its §9 maps specification steps to functions, so a rename there is a change to
+  both.
 - Comments explain *why*, especially where a naive implementation would be
   insecure. Assume a reviewer looking for weaknesses.
 - Do not add dependencies without asking. The trust story is better the
   shorter the list.
+
+## Markdown and math in `docs/`
+
+GitHub renders math with KaTeX but runs its Markdown pass over the content
+first. That pass strips backslash-escapes and pairs `_` and `*` as emphasis, so
+plain `$...$` and `$$...$$` corrupt LaTeX *silently*: `\;` arrives as `;`, `\!`
+as `!`, `\,` as `,`, and `\{` vanishes into a grouping brace. The equation still
+renders, just wrongly -- `S\!(x)` reaches the reader as `S!(x)`, which can be
+taken for a factorial.
+
+Use only the protected delimiters, which take their content literally:
+
+- Display: ` ```math ` fenced blocks
+- Inline: `` $`...`$ ``
+
+Two further constraints:
+
+- `\operatorname` is blocklisted by KaTeX. Use `\mathrm`.
+- Keep `aligned` blocks to two columns. A third annotation column overflows
+  GitHub's content width and is clipped without warning.
+
+Do not treat a rendering fault as a content fault. Stripping spacing macros,
+avoiding braces, or flattening notation to make something display is fixing the
+symptom; the delimiters are the cause.
+
+The protected syntax is GitHub-specific -- `` $`...`$ `` shows literal backticks
+in VS Code's preview, Obsidian, and Pandoc. A document that must read well off
+GitHub should be compiled, not reformatted.
 
 ## Commands
 
