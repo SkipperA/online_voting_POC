@@ -35,11 +35,11 @@ anonymity argument of §6.1. The Wallet is separate from the VA (article §3.5).
 $$
 p_R,\, q_R \ \text{prime},\qquad
 n_R = p_R\, q_R,\qquad
-\lambda(n_R) = \operatorname{lcm}(p_R - 1,\; q_R - 1)
+\lambda(n_R) = \mathrm{lcm}(p_R - 1,\; q_R - 1)
 $$
 
 $$
-\gcd\!\left(e_R,\, \lambda(n_R)\right) = 1,
+\gcd\left(e_R,\, \lambda(n_R)\right) = 1,
 \qquad
 d_R \equiv e_R^{-1} \pmod{\lambda(n_R)}
 $$
