@@ -117,11 +117,12 @@ route handler.
   shows a test actually constrains the check it names. Adding the key-pinning
   mutation is how the missing pinning test was found. `docs/sabotage.md` is
   generated -- never hand-edit it.
-- Keep `docs/protocol.md` in step with the code; it is what the article cites.
-  `docs/blind-signature.md` is the normative reference for the blind-signature
-  core -- `rsabssa.py` and the token-issuance path in `vro.py` and `voter.py`.
-  Its §9 maps specification steps to functions, so a rename there is a change to
-  both.
+- Keep `docs/protocol.md` in step with the code. It is the only place that maps
+  diagram step to paper notation to function, so every rename lands there and
+  nowhere else -- `VRO.token_released` sat in that table long after the method
+  became `VRO.query_token_release`. `docs/blind-signature.md` is the normative
+  reference for the blind-signature core and deliberately names no functions, so
+  it does not move when code is renamed.
 - Comments explain *why*, especially where a naive implementation would be
   insecure. Assume a reviewer looking for weaknesses.
 - Do not add dependencies without asking. The trust story is better the
