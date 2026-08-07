@@ -89,12 +89,12 @@ operates on it.
 | $`s_{\text{Len}}`$ | 48 bytes | Same |
 | salt | Fresh random 48 bytes | **Chosen by the VA**, inside `Blind()` |
 
-> **Erratum for the article.** §4.1 states that the encoding is "randomised by a
-> salt the signing party chooses." In RFC 9474 the *client* performs
-> `EMSA-PSS-ENCODE` inside `Blind()`; the signer never sees an unencoded message
-> and therefore cannot choose the salt. The salt is chosen by the voter. The
-> substantive point the sentence makes — that $`\mathrm{enc}(m)`$ denotes one
-> encoding among many rather than a function of $`m`$ alone — is unaffected.
+> **The salt is the voter's, not the signer's.** In RFC 9474 the *client*
+> performs `EMSA-PSS-ENCODE` inside `Blind()`, so the signer never receives an
+> unencoded message and takes no part in choosing the salt. Earlier drafts of the
+> article's §4.1 attributed the choice to the signing party; that has been
+> corrected. What the sentence was getting at is unaffected — $`\mathrm{enc}(m)`$
+> denotes one encoding among many rather than a function of $`m`$ alone.
 
 *Deterministic* in the variant name refers to the message-preparation step
 (`PrepareIdentity`: the message is passed through unchanged, with no random

@@ -58,9 +58,9 @@ route handler.
   mismatch. This is load-bearing.
 - **The PSS salt is chosen by the client, not the signer.** RFC 9474 puts
   `EMSA-PSS-ENCODE` inside `Blind()`, so the VRO never sees an unencoded
-  message and cannot choose the salt. The article's §4.1 says otherwise; that
-  is a known erratum, recorded in `docs/blind-signature.md` §2.3. Do not
-  "correct" the documentation back to the article's wording.
+  message and cannot choose the salt. The article's §4.1 said otherwise until
+  August 2026 and has been corrected; `docs/blind-signature.md` §2.3 records
+  both. If an older PDF of the article is to hand, it is the stale copy.
 - **Token release is logged before the signature is returned**, so no token can
   exist outside the public log.
 - **Rejected ≠ invalid.** A ballot failing its cryptographic checks is
@@ -102,8 +102,9 @@ route handler.
   `s_c^e == c (mod n)` before releasing `s_c`. It is nearly free at `e = 65537`
   and catches a fault during CRT exponentiation, where a single faulty
   signature leaks `p` (Boneh–DeMillo–Lipton). Specified in
-  `docs/blind-signature.md` §4(3); not yet in `vro.py`, and not yet in the
-  article's §5.3.
+  `docs/blind-signature.md` §4(3) and in the article's §5.3; still not in
+  `vro.py`. Implementing it needs a matching mutation in `tools/sabotage.py`
+  and an update to annotation 6/A of the system diagram.
 
 ## Working style
 
@@ -117,12 +118,11 @@ route handler.
   shows a test actually constrains the check it names. Adding the key-pinning
   mutation is how the missing pinning test was found. `docs/sabotage.md` is
   generated -- never hand-edit it.
-- Keep `docs/protocol.md` in step with the code. It is the only place that maps
-  diagram step to paper notation to function, so every rename lands there and
-  nowhere else -- `VRO.token_released` sat in that table long after the method
-  became `VRO.query_token_release`. `docs/blind-signature.md` is the normative
-  reference for the blind-signature core and deliberately names no functions, so
-  it does not move when code is renamed.
+- Keep `docs/protocol.md` in step with the code; it is what the article cites.
+  `docs/blind-signature.md` is the normative reference for the blind-signature
+  core -- `rsabssa.py` and the token-issuance path in `vro.py` and `voter.py`.
+  Its §9 maps specification steps to functions, so a rename there is a change to
+  both.
 - Comments explain *why*, especially where a naive implementation would be
   insecure. Assume a reviewer looking for weaknesses.
 - Do not add dependencies without asking. The trust story is better the
