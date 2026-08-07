@@ -60,7 +60,7 @@ it. See article §3.2, *A single signing key for all voters*, and `CLAUDE.md`.
 ### 2.2 Ad-hoc key pair — fresh per voter per election
 
 $$
-k_s^a \xleftarrow{\ \$\ } \{0,1\}^{256},
+k_s^a \xleftarrow{R} \lbrace 0,1 \rbrace^{256},
 \qquad
 k_p^a = \text{Ed25519-PublicKey}(k_s^a)
 $$
@@ -97,7 +97,7 @@ prefix), not to the salt.
 ### 2.4 Blinding factor
 
 $$
-r \xleftarrow{\ \$\ } \mathbb{Z}_{n_R}^{*}
+r \xleftarrow{R} \mathbb{Z}_{n_R}^{*}
 \qquad\text{i.e.}\qquad
 r \in [1,\, n_R - 1] \ \text{ with } \ \gcd(r,\, n_R) = 1
 $$
@@ -136,15 +136,15 @@ With $\text{modBits} = \lvert n_R \rvert$, $\text{emBits} = \text{modBits} - 1$,
 $\text{emLen} = \lceil \text{emBits}/8 \rceil$:
 
 1. $\text{mHash} = \text{SHA-384}(k_p^a)$, 48 bytes
-2. $\text{salt} \xleftarrow{\$} \{0,1\}^{384}$, 48 bytes
-3. $M' = \underbrace{\texttt{00}\cdots\texttt{00}}_{8 \text{ bytes}} \,\Vert\, \text{mHash} \,\Vert\, \text{salt}$
+2. $\text{salt} \in \lbrace 0,1 \rbrace^{384}$ — 48 bytes, drawn afresh from the CSPRNG
+3. $M' = \texttt{0000000000000000} \Vert \text{mHash} \Vert \text{salt}$ (eight zero bytes)
 4. $H = \text{SHA-384}(M')$
-5. $\text{PS} = \texttt{00}^{\,\text{emLen} - s_{\text{Len}} - h_{\text{Len}} - 2}$
-6. $\text{DB} = \text{PS} \,\Vert\, \texttt{01} \,\Vert\, \text{salt}$
+5. $\text{PS} = \texttt{00}^{ \text{emLen} - s_{\text{Len}} - h_{\text{Len}} - 2}$
+6. $\text{DB} = \text{PS} \Vert \texttt{01} \Vert \text{salt}$
 7. $\text{dbMask} = \text{MGF1}(H,\ \text{emLen} - h_{\text{Len}} - 1)$
 8. $\text{maskedDB} = \text{DB} \oplus \text{dbMask}$, then zero the leftmost
    $8 \cdot \text{emLen} - \text{emBits}$ bits
-9. $\text{EM} = \text{maskedDB} \,\Vert\, H \,\Vert\, \texttt{bc}$
+9. $\text{EM} = \text{maskedDB} \Vert H \Vert \texttt{bc}$
 
 $$
 \bar{m} \;=\; \mathrm{enc}(k_p^a) \;=\; \text{OS2IP}(\text{EM})
@@ -163,7 +163,7 @@ $$
 \boxed{\;c \;=\; \mathrm{enc}(k_p^a) \cdot r^{\,e_R} \;=\; \bar{m} \cdot r^{\,e_R} \pmod{n_R}\;}
 $$
 
-**Guard before sending:** $\gcd(\bar{m},\, n_R) = 1$. If it fails, restart with a
+**Guard before sending:** $\gcd(\bar{m}, n_R) = 1$. If it fails, restart with a
 new $k_s^a$ — do not send.
 
 ### (2) Authentication request — VA, Wallet, VRO
@@ -172,7 +172,7 @@ $$
 s \;=\; \text{sig}_{k_s^{(v)}}\!\left(\text{hash}([\,id,\, c\,])\right)
 $$
 
-The package $[\,id,\, c,\, s\,]$ goes to the VRO. The VRO checks that $id$ is on
+The package $[ id, c, s ]$ goes to the VRO. The VRO checks that $id$ is on
 the electoral register, that $s$ verifies under the registered wallet key
 $k_p^{(v)}$, and that no token has yet been released for $id$.
 
@@ -189,7 +189,7 @@ $$
 **Guards inside the VRO:**
 
 - $0 \leq c < n_R$, and $c$ is exactly $\lceil \lvert n_R \rvert / 8 \rceil$ bytes.
-- After computing $s_c$, verify $s_c^{\,e_R} \equiv c \pmod{n_R}$ before
+- After computing $s_c$, verify $s_c^{ e_R} \equiv c \pmod{n_R}$ before
   releasing it. This is cheap ($e_R = 65537$) and catches a fault during the
   CRT exponentiation; a single faulty CRT signature leaks $p_R$
   (Boneh–DeMillo–Lipton).
@@ -205,7 +205,7 @@ $$
 $$
 
 Equivalently, and preferably in code: run a stock `RSASSA-PSS-VERIFY` over
-$(k_p^{(R)},\, k_p^a,\, s_{k_p^a})$ using an unmodified library. The point of
+$(k_p^{(R)}, k_p^a, s_{k_p^a})$ using an unmodified library. The point of
 RFC 9474 is that this works.
 
 **The verification is mandatory, not advisory.** It is the only moment at which
@@ -250,7 +250,7 @@ $$
 
 $\blacksquare$
 
-The step $r^{\,e_R d_R} = r$ is the one that is routinely misread. The voter
+The step $r^{ e_R d_R} = r$ is the one that is routinely misread. The voter
 multiplies by $r^{e_R}$ and divides by $r$, *not* by $r^{e_R}$: the exponent is
 consumed by the signing operation. Blinding and unblinding are therefore not
 inverse operations, and the identity must not be read as though the blinding
@@ -364,7 +364,7 @@ or is enforced by a test in `tests/`.
 - [ ] VA checks $\gcd(\bar{m}, n_R) = 1$ before blinding.
 - [ ] VA draws $r$ from the OS CSPRNG, fresh per registration, never from an
       application-seeded PRNG.
-- [ ] VRO range-checks $c$ and verifies $s_c^{\,e_R} \equiv c$ before release.
+- [ ] VRO range-checks $c$ and verifies $s_c^{ e_R} \equiv c$ before release.
 - [ ] VA verifies the unblinded signature before discarding $r$.
 - [ ] $d_R$ is single-purpose and non-exportable; CRT exponentiation is blinded
       and constant-time.
