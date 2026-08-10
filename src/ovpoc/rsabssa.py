@@ -4,16 +4,16 @@ This module is the cryptographic heart of the scheme.  It maps onto the
 notation of the paper as follows:
 
     k_p^a            the message to be blind-signed: the voter's ad-hoc
-                     public key
+                     public key, fresh per election
     enc(.)           the padded encoding (EMSA-PSS with SHA-384), applied by
                      the voter before blinding
     r                the voter's secret blinding factor, fresh per election
-    S(x) = x^d_R     the raw private-key operation, distinct from signing:
-                     sig_{k_s}(m) = S(enc(m))
+    S(x) = x^d_R     the raw private-key operation, by VRO, distinct from signing:
+                     sig_{k_s}(m) = S(enc(m)) #performed by the VRO
 
-    blind      ->    c         = enc(k_p^a) * r^e_R  mod n_R
-    blind_sign ->    s_c       = S(c)                mod n_R
-    finalize   ->    s_{k_p^a} = s_c * r^-1          mod n_R
+    blind      ->    c         = enc(k_p^a) * r^e_R  mod n_R    #blind by voter
+    blind_sign ->    s_c       = S(c)                mod n_R    #sign by VRO
+    finalize   ->    s_{k_p^a} = s_c * r^-1          mod n_R    #unblind by voter
 
 Note that `blind_sign` applies S and NOT the full signature scheme.  The value
 c already contains the encoding the voter applied; encoding it a second time
