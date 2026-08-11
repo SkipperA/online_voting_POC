@@ -4,7 +4,7 @@ Run with:  python demo.py
 
 Each step prints what happens and, where it matters, what the party in question
 can and cannot see. The final section runs the independent verification an
-ordinary citizen could perform. XX
+ordinary citizen could perform.
 """
 
 import sys
