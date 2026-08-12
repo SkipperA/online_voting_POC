@@ -192,6 +192,27 @@ def test_a_protest_ballot_is_counted_as_invalid_not_rejected(election):
     assert tally["counts"] == {1: 0, 2: 0, 3: 0}
 
 
+def test_distinct_protest_codes_are_not_merged(election):
+    """Two out-of-range selections must stay distinguishable in the tally.
+
+    A single scalar 'invalid' count would make an organised bloc voting
+    under one ad-hoc code indistinguishable from an unrelated bloc using a
+    different one -- exactly the distinction paper ballots cannot offer.
+    """
+    vro, voters, box = election
+    left, right, other = voters[0], voters[1], voters[2]
+    for voter in (left, right, other):
+        register(vro, voter)
+
+    box.submit(left.cast(-1))
+    box.submit(right.cast(-2))
+    box.submit(other.cast(-1))
+
+    tally = box.tally()
+    assert tally["invalid"] == 3
+    assert tally["invalid_breakdown"] == {-1: 2, -2: 1}
+
+
 def test_a_rejected_ballot_does_not_supersede_a_genuine_one(election):
     """A coercer's malformed submission must not erase an earlier real vote."""
     vro, voters, box = election

@@ -67,6 +67,23 @@ route handler.
   *rejected* and does not supersede an earlier ballot. A properly signed ballot
   with an out-of-range selection is an *invalid vote*, is counted as such, and
   does supersede. Conflating these lets a coercer erase a genuine vote.
+- - **Protest selections stay unofficial and undifferentiated by the system.**
+  `tally()` reports the exact distribution of out-of-range selections
+  (`invalid_breakdown`), not one scalar count — but the system never
+  interprets, endorses, or pre-registers what any code means. Two reasons,
+  not one: (1) requiring voters to agree on a shared code in advance would
+  force organised protest to declare itself before voting opens, which in
+  a fragile or locally captured election is when a hostile authority is
+  best placed to retaliate; (2) some protest messages — e.g. an extremist
+  group signalling numeric strength — are ones no legitimate authority
+  could officially register without appearing to endorse them, and Requirement
+  7 does not permit content-based rejection of protest ballots. A protest
+  selection is a message to the public, never a legally supported choice.
+  Coordination on a shared code happens through informal channels the
+  system has no visibility into and is never asked to judge. This adds no
+  new exposure — each ballot's `selection` was already public in the
+  ledger; the change only stops the summary from discarding a distinction
+  the ledger exposed all along.
 - **Supersession is applied at tally time**, not by overwriting. The full
   submission history stays auditable.
 - **The release log publishes commitments, not voter ids.** `H(id || nonce)`,
