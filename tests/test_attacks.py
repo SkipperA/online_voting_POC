@@ -210,7 +210,7 @@ def test_distinct_protest_codes_are_not_merged(election):
 
     tally = box.tally()
     assert tally["invalid"] == 3
-    assert tally["invalid_breakdown"] == {-1: 2, -2: 1}
+    assert tally["protest_codes"] == {-1: 2, -2: 1}
 
 
 def test_a_rejected_ballot_does_not_supersede_a_genuine_one(election):

@@ -23,7 +23,7 @@ def test_three_voters_cast_and_verify(election):
     assert tally == {
         "counts": {1: 2, 2: 0, 3: 1},
         "invalid": 0,
-        "invalid_breakdown": {},
+        "protest_codes": {},
         "voters": 3,
         "rejected": 0,
         "ledger_head": box.valid.head().hex(),

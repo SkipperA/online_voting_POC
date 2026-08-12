@@ -69,7 +69,7 @@ route handler.
   does supersede. Conflating these lets a coercer erase a genuine vote.
 - - **Protest selections stay unofficial and undifferentiated by the system.**
   `tally()` reports the exact distribution of out-of-range selections
-  (`invalid_breakdown`), not one scalar count — but the system never
+  (`protest_codes`), not one scalar count — but the system never
   interprets, endorses, or pre-registers what any code means. Two reasons,
   not one: (1) requiring voters to agree on a shared code in advance would
   force organised protest to declare itself before voting opens, which in

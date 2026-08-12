@@ -22,7 +22,7 @@ Conflating the two would let a coercer's malformed submission wipe out a
 voter's genuine earlier ballot.
 *Protest selections stay unofficial and undifferentiated by the system.**
   `tally()` reports the exact distribution of out-of-range selections
-  (`invalid_breakdown`), not one scalar count — but the system never
+  (`protest_codes`), not one scalar count — but the system never
   interprets, endorses, or pre-registers what any code means. Two reasons,
   not one: (1) requiring voters to agree on a shared code in advance would
   force organised protest to declare itself before voting opens, which in
@@ -108,17 +108,17 @@ class BallotBox:
         number -- see the module docstring for why.
         """
         counts = Counter()
-        invalid_breakdown = Counter()
+        protest_codes = Counter()
         for payload in self.effective_ballots().values():
             selection = payload["selection"]
             if 1 <= selection <= self.num_choices:
                 counts[selection] += 1
             else:
-                invalid_breakdown[selection] += 1
+                protest_codes[selection] += 1
         return {
             "counts": {i: counts.get(i, 0) for i in range(1, self.num_choices + 1)},
-            "invalid": sum(invalid_breakdown.values()),
-            "invalid_breakdown": dict(invalid_breakdown),
+            "invalid": sum(protest_codes.values()),
+            "protest_codes": dict(protest_codes),
             "voters": len(self.effective_ballots()),
             "rejected": len(self.rejected),
             "ledger_head": self.valid.head().hex(),

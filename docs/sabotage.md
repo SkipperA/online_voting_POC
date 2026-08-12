@@ -20,7 +20,7 @@ confident the surrounding comments sound.
 | chain_verification_disabled | `test_altering_a_recorded_ballot_breaks_the_hash_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain` |
 | ledger_chaining_removed | `test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_deleting_a_ballot_breaks_the_hash_chain` |
 | rejected_ballots_supersede | `test_a_rejected_ballot_does_not_supersede_a_genuine_one` |
-| selection_range_check_removed | `test_a_protest_ballot_is_counted_as_invalid_not_rejected` |
+| selection_range_check_removed | `test_a_protest_ballot_is_counted_as_invalid_not_rejected`<br>`test_distinct_protest_codes_are_not_merged` |
 | vro_key_pinning_removed | `test_a_substituted_vro_key_is_refused_by_the_voter_app` |
 | release_log_publishes_ids | `test_a_voter_can_verify_the_answer_against_the_published_log`<br>`test_the_release_log_publishes_no_voter_identities`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_vro_cannot_link_its_signature_to_a_published_ballot` |
 | release_query_auth_removed | `test_an_unauthenticated_release_query_is_refused` |
@@ -126,6 +126,7 @@ Patched in `src/ovpoc/ballotbox.py`.
 
 Caught by:
 - `test_a_protest_ballot_is_counted_as_invalid_not_rejected`
+- `test_distinct_protest_codes_are_not_merged`
 
 ### `vro_key_pinning_removed`
 
