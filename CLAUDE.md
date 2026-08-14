@@ -180,5 +180,6 @@ GitHub should be compiled, not reformatted.
 pip install -e ".[dev]"
 python -m pytest -q          # full suite (29 tests)
 python demo.py               # narrated end-to-end run
+python ext_demo.py           # narrated end-to-end run with all tests
 python tools/sabotage.py     # regenerate docs/sabotage.md
 ```
