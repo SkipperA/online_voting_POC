@@ -121,7 +121,7 @@ class BallotBox:
             entry = self.rejected.append(
                 {**ballot.to_dict(), "reason": "token not signed by VRO"}
             )
-            return SubmissionResult(False, "token not signed by VRO", entry.entry_hash)
+            return SubmissionResult(False, "token not signed by VRO", entry.entry_hash, entry.index)
 
         # 10/2 -- is the selection authenticated by that key?
         if not keys.verify_signature(
@@ -130,7 +130,7 @@ class BallotBox:
             entry = self.rejected.append(
                 {**ballot.to_dict(), "reason": "vote signature invalid"}
             )
-            return SubmissionResult(False, "vote signature invalid", entry.entry_hash)
+            return SubmissionResult(False, "vote signature invalid", entry.entry_hash, entry.index)
 
         # 11/A -- accepted.  Appending, not replacing: the supersession rule is
         # applied at tally time, so the full history stays auditable.
@@ -141,7 +141,7 @@ class BallotBox:
                 {"after_accepted": len(self.accepted), **self._count()}
             )
 
-        return SubmissionResult(True, "accepted", entry.entry_hash)
+        return SubmissionResult(True, "accepted", entry.entry_hash, entry.index)
 
     # ------------------------------------------------------------------
     # Publication
