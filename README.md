@@ -90,7 +90,7 @@ src/ovpoc/
   voter.py      the voter's whole flow — read this first
 driver/         infrastructure the design *depends on*, not part of it
 tests/          including the adversarial suite
-docs/           protocol mapping and threat model
+docs/           protocol mapping, wire contract, and threat model
 ```
 
 Protocol logic is pure Python with no HTTP or database layer. That is

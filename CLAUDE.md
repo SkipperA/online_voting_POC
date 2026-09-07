@@ -189,6 +189,10 @@ register is `VRO.register` — a set of ids, and nothing else.
   shows a test actually constrains the check it names. Adding the key-pinning
   mutation is how the missing pinning test was found. `docs/sabotage.md` is
   generated -- never hand-edit it.
+- Keep `docs/wire-contract.md` in step with the code: it maps every field on
+  the wire to the clause it discharges, and ends with two lists worth
+  re-reading before any paper edit -- fields with no clause behind them, and
+  requirements with no field.
 - Keep `docs/protocol.md` in step with the code. It is the only place that maps
   diagram step to paper notation to function, so every rename lands there and
   nowhere else -- `VRO.token_released` sat in that table long after the method
