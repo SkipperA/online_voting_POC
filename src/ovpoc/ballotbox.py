@@ -76,6 +76,7 @@ class SubmissionResult:
     accepted: bool
     reason: str = ""
     ledger_head: bytes = b""
+    index: int | None = None      # position of the entry in the registry
 
 
 @dataclass
