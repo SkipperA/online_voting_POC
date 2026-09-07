@@ -196,6 +196,7 @@ classDiagram
         +accepted: bool
         +reason: str
         +ledger_head: bytes
+        +index: int
     }
 
     class Ledger {
