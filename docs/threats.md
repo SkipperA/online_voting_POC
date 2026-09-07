@@ -11,8 +11,14 @@ surprises them.
 
 | Attack | Defence | Test |
 |---|---|---|
-| Ineligible person votes | VRO checks the electoral register | `test_unregistered_voter_gets_no_token` |
-| Voting as someone else, knowing only their `id` | Wallet signature over `hash([id, c])` | `test_impersonation_fails_without_the_wallet_key` |
+| Ineligible person votes | VRO checks its electoral register | `test_an_identified_person_not_on_the_electoral_register_is_told_so` |
+| Voting as someone else, knowing only their `id` | Signature over `hash([id, c])`, verified under the certified key | `test_impersonation_fails_without_the_wallet_key` |
+| Probing the electoral roll through the token endpoint | One opaque `NOT_IDENTIFIED` for every pre-identity failure | `test_eligibility_is_never_revealed_before_identity`, `test_an_unknown_id_is_not_identified` |
+| Confirming a citizen's certificate status without being them | Revocation and expiry reported only after the signature verifies | `test_a_revoked_certificate_is_reported_only_after_the_signature` |
+| Forging an office statement through the blind-signing oracle | Office statements signed under a separate key; the token key signs only tokens | `test_any_voter_can_forge_an_office_statement_under_the_token_key`, `test_release_denials_are_signed_under_a_separate_office_key` |
+| A faulted CRT exponentiation leaking the modulus | `s_c^e == c` checked before `s_c` is released | `test_a_faulty_blind_signature_is_not_released` |
+| A running result visible during the poll | Records withheld until the close; commitments published meanwhile | `test_no_record_is_published_while_voting_is_open`, `test_a_running_tally_is_published_only_when_configured` |
+| A ballot cast after the result is known | Submissions refused once the box is closed | `test_a_ballot_arriving_after_the_close_is_not_recorded` |
 | Self-minted token | Token is an RSA-PSS signature under the pinned VRO key | `test_forged_token_is_rejected_by_the_ballot_box` |
 | One voter, two tokens | Release recorded before signing; one per `id` | `test_a_second_token_request_is_refused` |
 | Ballot altered in flight | `s_vote` covers `[i, k_p^a]` | `test_tampering_with_the_selection_breaks_the_signature` |
@@ -78,6 +84,19 @@ addressed.
 **Coercion at the wallet.** If an attacker controls the voter's wallet, nothing
 downstream helps. The design inherits the wallet's security assumptions whole.
 
+**The identity infrastructure is trusted whole.** Eligibility rests on the
+population register: a certificate naming the wrong person, or a compromised
+certification authority, is not detectable anywhere in this design. That is the
+trust boundary the article states plainly in §3.2, and `driver/` exists to keep
+it visible in the code. A compromised register does not, however, let anyone
+vote *twice* -- the one-token-per-id rule is the office's own.
+
+**The office learns who checked.** Because step-12 queries are answered by the
+Registration Office, that office learns which voters audited it, and when: a
+record of who is scrutinising it, held by the party being scrutinised. It
+discloses nothing about any vote, and a coercer cannot read it without the
+office's collusion. It is one more reason to distribute the office's powers.
+
 **Proof of abstention.** Even with commitments, the *count* of released tokens is
 public, and a voter can be compelled to run a step-12 query in front of a
 coercer and show the result. A token release proves nothing — the voter may have
@@ -93,6 +112,18 @@ check is remote, automatic, and free of the friction a records request imposes.
   EUDI wallet would use ECDSA P-256 with hardware key storage and its own
   attestation. The interface is narrow so it can be replaced; the substitution
   has not been done.
+- **Mock population register.** `driver/population_register.py` is a dictionary.
+  Real certificates are X.509 structures with a chain to a trust anchor, and
+  revocation is an OCSP or CRL question rather than a boolean. The protocol is
+  unaffected; the operational difficulty is entirely in the omission.
+- **The wallet relays rather than transmits.** In the article (§5.3) the wallet
+  conducts the exchange with the office itself, so that the voting application
+  never holds both `id` and `k_p^a`. In this POC one `Voter` object holds both,
+  which is a modelling simplification rather than a design change -- and it
+  means the code does not demonstrate the property §5.3 argues for.
+- **`close()` is reversible.** A real deployment needs closing to be one-way;
+  here it is a mutable flag, and the demonstration of a late ballot being
+  refused would not survive an operator who simply reopened the box.
 - **No persistence.** Everything is in memory. Nothing survives a restart, and
   there is no story about how the published ledger is actually published.
 - **Ledger head is not gossiped.** The hash chain makes deletion detectable only
@@ -110,9 +141,14 @@ check is remote, automatic, and free of the friction a records request imposes.
 Ordered roughly by how much a reviewer would want to see them:
 
 1. Ballot box equivocation — two verifiers shown different ledgers.
-2. VRO using a per-voter signing key, and the pinned-fingerprint check catching it.
-3. Replaying a ballot verbatim (currently accepted and idempotent — confirm that
+2. Replaying a ballot verbatim (currently accepted and idempotent — confirm that
    is the intended semantics, and document it either way).
-4. A voter attempting to obtain two tokens through two wallets.
-5. Selection encoded outside the option list but crafted to collide with a valid
+3. A voter holding two qualified certificates, and whether the office should
+   accept a request signed under either (the article's §3.2 says it must; this
+   POC returns exactly one certificate per `id`, which is enough to run the
+   protocol but does not exercise the question).
+4. Selection encoded outside the option list but crafted to collide with a valid
    one after serialisation — a canonicalisation attack.
+5. A certificate that is valid, unrevoked, and names a *different* subject than
+   the `id` requested — currently impossible by construction, since `lookup`
+   is keyed by `id`, but worth an assertion so the invariant is explicit.

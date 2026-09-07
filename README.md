@@ -26,18 +26,24 @@ Running `python demo.py` shows, in one pass:
 
 - a voter proving eligibility through a Digital Identity Wallet without
   revealing anything about their choice;
-- the Voter Registration Office certifying that eligibility **blindly**, so that
-  it cannot later connect the certificate to the citizen who requested it;
-- a ballot published in a public, hash-chained ballot box;
-- the voter checking their own recorded choice from an independent device;
-- and an outsider — with no privileged access, using only the published ledger
+- the Voter Registration Office looking that voter's qualified certificate up in
+  an external population register, and certifying eligibility **blindly**, so
+  that it cannot later connect the token to the citizen who requested it;
+- a ballot recorded in a hash-chained, append-only ballot box, which publishes
+  commitments while voting is open and the records themselves at the close;
+- the voter checking their own recorded choice from an independent device, while
+  the records are still withheld from everybody else;
+- and an outsider — with no privileged access, using only the published records
   and the VRO's public key — recomputing the result and getting the same answer.
 
 `tests/test_attacks.py` is the more important half: each attack the design
 claims to defeat is named and shown failing. Impersonation, forged tokens,
 double token issue, in-flight tampering, token theft, multiplicative forgery
-against the blind signature, ledger deletion, VRO key substitution, and the
-release-log privacy properties that step 12 of the design depends on.
+against the blind signature, ledger deletion, VRO key substitution, the
+release-log privacy properties that step 12 depends on, and three that turn on
+the shape of the protocol rather than on cryptography: probing the electoral
+roll through the token endpoint, forging an office statement through the
+blind-signing oracle, and reading a result before the poll closes.
 
 Passing negative tests are weak evidence on their own, so
 [docs/sabotage.md](docs/sabotage.md) records what happens when each defence is
@@ -53,7 +59,7 @@ published ballot is bound to.
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q        # 33 tests
+python -m pytest -q        # 46 tests
 python tools/sabotage.py   # disable each defence, confirm the suite notices
 python demo.py          # narrated end-to-end run
 ```
@@ -80,15 +86,73 @@ src/ovpoc/
   ledger.py     hash-chained append-only log
   handles.py    the verification handle -- where the coercion trade-off is set
   vro.py        Voter Registration Office
-  ballotbox.py  validation, storage, tally
+  ballotbox.py  validation, storage, publication schedule, tally
   voter.py      the voter's whole flow — read this first
+driver/         infrastructure the design *depends on*, not part of it
 tests/          including the adversarial suite
 docs/           protocol mapping and threat model
 ```
 
 Protocol logic is pure Python with no HTTP or database layer. That is
-deliberate: the validity rules are testable in isolation, and a web layer added
-later cannot quietly change them.
+deliberate: the acceptance rules are testable in isolation, and a web layer
+added later cannot quietly change them.
+
+**`driver/` is outside the library on purpose.** It holds the population
+register: an external identity service that answers `id` with a qualified
+certificate. Under eIDAS that certificate already binds a signing key to a
+named person, so the election needs no registration or binding step of its
+own, and the *electoral* register reduces to a set of identifiers. Keeping the
+lookup out of `src/ovpoc/` is what stops the code claiming to build
+infrastructure it only consults (article §3.2).
+
+## Three words that are not interchangeable
+
+The article is exact about this and so is the code:
+
+- **rejected** — a cryptographic check failed. Not attributable to anyone, and
+  it supersedes *nothing*: otherwise any reader of the box could copy a voter's
+  public key and token, attach a meaningless signature, and annul their vote.
+- **accepted** — both signatures verify, so the ballot demonstrably comes from
+  an eligible voter. It supersedes that voter's earlier accepted ballot.
+- **valid** / **invalid** — a property of the selection *within* the accepted
+  ballots: in range, or outside it. An invalid vote is a protest or a mistake,
+  is counted as invalid, and supersedes like any other accepted ballot.
+
+So `BallotBox.accepted` names the ledger, and `tally()["valid"]` names a count
+within it.
+
+## What is published, and when
+
+The ballot box has an open phase and a closed one, and `published_view()` is
+the whole of what a citizen can see:
+
+- **while open** — for every submission, a commitment to the entry and its
+  position, plus the chain head and running counts. Not the records. A voter
+  can still retrieve *their own* record by presenting `k_p^a`, which before the
+  close is known only to their application and to the box.
+- **from the close** — every record in clear, accepted and rejected alike.
+
+Nothing moves backwards: what was published stays published, and what changes
+does so only by disclosing more.
+
+Whether a running tally is published at all is the administering body's
+decision, not the design's, so it is a constructor argument:
+
+```python
+BallotBox(vro_public_key=..., num_choices=3)                     # article default
+BallotBox(vro_public_key=..., num_choices=3, tally_interval=10)  # running tally
+```
+
+Left unset, `tally()` refuses until the box closes — the operator gets no
+privileged early sight of the result either. Set to a count, a snapshot is
+published after every that-many accepted ballots; `demo.py` and `ext_demo.py`
+use ten. The article's example is every fifteen minutes, and the difference is
+deliberate: this POC counts ballots rather than minutes, because a fake clock
+would add a moving part that demonstrates nothing. The article also notes that
+if no running tally is published, the selection should be encrypted under a
+Shamir-shared election key so that not even the operator can read a ballot
+before the close. That is out of scope here, and no encryption work is
+implemented.
 
 ## Verifiability variant
 

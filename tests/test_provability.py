@@ -87,7 +87,7 @@ def test_an_anonymous_lookup_index_does_not_remove_provability(election):
     box.submit(voter.cast(2))
 
     anonymous_tracker = secrets.token_bytes(16)   # never leaves the voter
-    published = [entry.payload for entry in box.valid.entries][0]
+    published = [entry.payload for entry in box.accepted.entries][0]
 
     challenge = b"buyer-nonce:" + secrets.token_bytes(16)
     proof = voter.adhoc.sign(challenge)

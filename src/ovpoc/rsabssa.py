@@ -196,6 +196,35 @@ def blind_sign(private_key: rsa.RSAPrivateKey, blinded_msg: bytes) -> bytes:
     return pow(c, d, n).to_bytes(k, "big")
 
 
+def check_blind_signature(
+    public_key: rsa.RSAPublicKey, blinded_msg: bytes, blind_sig: bytes
+) -> bool:
+    """VRO side, before releasing s_c: does s_c^e == c (mod n)?
+
+    One public-key operation at e = 65537, and it is the standard defence
+    against fault attacks.  An error arising during a signing operation
+    performed by the Chinese Remainder Theorem yields a faulty value from
+    which the modulus can be factored (Boneh-DeMillo-Lipton), so a signature
+    that has not been checked against its own input is a liability to the
+    *office* rather than to the voter -- which is why the check belongs here
+    and not on the voter's device, where `finalize` already verifies.
+
+    Note that this is a check on the office's own arithmetic, not on anything
+    the requester supplied.  A failure means the hardware misbehaved; it is
+    not a protocol outcome and must not be reported as one.
+    """
+    numbers = public_key.public_numbers()
+    n, e = numbers.n, numbers.e
+    k = (n.bit_length() + 7) // 8
+    if len(blind_sig) != k or len(blinded_msg) != k:
+        return False
+    s = int.from_bytes(blind_sig, "big")
+    c = int.from_bytes(blinded_msg, "big")
+    if s >= n or c >= n:
+        return False
+    return pow(s, e, n) == c
+
+
 def finalize(
     public_key: rsa.RSAPublicKey,
     msg: bytes,

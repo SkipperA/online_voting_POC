@@ -19,7 +19,7 @@ access beyond what the named party would hold.
 
 Run with:
 
-    python ext_demo.py                 # everything, 2048-bit VRO key
+    python ext_demo.py                 # everything, 3072-bit VRO key
     python ext_demo.py --bits 1024     # shorter numbers, easier to read on a projector
     python ext_demo.py --list          # the section ids
     python ext_demo.py --only forged-token stolen-token
@@ -51,11 +51,16 @@ from ovpoc.ballotbox import BallotBox
 from ovpoc.ledger import GENESIS, compute_entry_hash
 from ovpoc.messages import Ballot, b64, canonical_bytes, digest, unb64
 from ovpoc.voter import Voter
+from driver import PopulationRegister
 from ovpoc.vro import (
     VRO,
-    RegistrationError,
+    FaultDetected,
+    Outcome,
+    ReleaseOutcome,
     commit,
+    denial_payload,
     release_query_payload,
+    verify_denial,
     verify_release_answer,
 )
 
@@ -156,26 +161,49 @@ class Election:
     fingerprint: str
     box: BallotBox
     voters: dict[str, Voter]
+    population: PopulationRegister
 
 
 def new_election(keypair, names=NAMES) -> Election:
-    """A fresh election reusing one VRO key pair, so scenarios stay comparable."""
+    """A fresh election reusing one VRO key pair, so scenarios stay comparable.
+
+    Two registers, and it matters which party holds each. The population
+    register is external identity infrastructure: it enrols a certificate
+    binding a signing key to a named person. The electoral register belongs
+    to the VRO and holds ids alone.
+    """
     priv, pub = keypair
-    vro = VRO(private_key=priv, public_key=pub)
+    population = PopulationRegister()
+    vro = VRO(
+        private_key=priv,
+        public_key=pub,
+        population_register=population,
+        office_key=keys.SigningKeyPair.generate(),
+    )
     fingerprint = rsabssa.public_key_fingerprint(pub)
     voters = {}
     for i, name in enumerate(names):
         wallet = keys.SigningKeyPair.generate()
         voter_id = f"HU-WALLET-{i:03d}"
-        vro.register_voter(voter_id, wallet.public_bytes)
+        population.enrol(voter_id, wallet.public_bytes)
+        vro.enrol(voter_id)
         voters[name] = Voter(voter_id, wallet, pub, fingerprint)
-    box = BallotBox(vro_public_key=pub, num_choices=len(OPTIONS))
-    return Election(vro, fingerprint, box, voters)
+    box = BallotBox(
+        vro_public_key=pub, num_choices=len(OPTIONS), tally_interval=10
+    )
+    return Election(vro, fingerprint, box, voters, population)
 
 
 def register(election: Election, voter: Voter) -> None:
     """Steps 1-8 for one voter, without narration."""
-    voter.accept_token(election.vro.issue_token(voter.build_auth_request()))
+    response = election.vro.issue_token(voter.build_auth_request())
+    assert response.issued, response.outcome
+    voter.accept_token(response.blind_signature)
+
+
+def cert_key(election: Election, voter_id: str) -> bytes:
+    """The certified signing key for an id, from the external register."""
+    return election.population.lookup(voter_id).public_key
 
 
 @dataclass
@@ -242,12 +270,18 @@ def walkthrough(ctx: Context) -> None:
     ctx.main = election
     anna = election.voters["Anna"]
 
-    head("The electoral register")
+    head("Two registers, held by different parties")
     for name, voter in election.voters.items():
         print(f"  {name:<8} id = {voter.voter_id}")
-        blob("wallet public key  k_p^(v)", election.vro.roll[voter.voter_id])
-    say("""The register holds an identifier and a wallet public key, and nothing
-        else. It is never consulted again after a token is issued.""", indent=2)
+        blob("k_p^(v) in the qualified certificate", cert_key(election, voter.voter_id))
+    say("""The electoral register holds identifiers and nothing else: the VRO
+        administers who may vote. The signing keys above are not its copy — they
+        live in qualified certificates maintained by a certification authority,
+        which the office looks up per request and does not store. Under eIDAS
+        that certificate already binds the key to a named person, so a second
+        election-specific binding step would be redundant.""", indent=2)
+    check("the electoral register holds ids alone",
+          election.vro.register == {v.voter_id for v in election.voters.values()})
 
     # ---------------------------------------------------------------- 1/A
     rule("PART 1 · STEPS 1–4 — Anna's device prepares the request")
@@ -292,21 +326,37 @@ def walkthrough(ctx: Context) -> None:
     blob("hash([id, c])  SHA-256", request.signed_payload())
     blob("s = sig_{k_s^(v)}(hash([id,c]))", request.wallet_signature)
     check("the wallet signature verifies under k_p^(v)",
-          keys.verify_signature(election.vro.roll[anna.voter_id],
+          keys.verify_signature(cert_key(election, anna.voter_id),
                                 request.wallet_signature, request.signed_payload()))
     say("""Note what travels to the VRO: the identifier, the blinded value, and a
         signature. Nothing about the choice, and nothing that reveals k_p^a.""")
 
     # ---------------------------------------------------------------- 5-7
     rule("PART 1 · STEPS 5–7 — the VRO validates, logs, then signs blindly")
-    head("Step 5 — the two checks, 5/1 and 5/2")
-    field_("5/1  id on the register?", anna.voter_id in election.vro.roll)
-    field_("5/2  signed by that id's wallet?",
-           keys.verify_signature(election.vro.roll[anna.voter_id],
+    head("Step 5 — the checks, in the order that keeps the roll private")
+    cert = election.population.lookup(anna.voter_id)
+    field_("5/1  certificate found for this id?", cert is not None)
+    field_("5/2  signature verifies under the certified key?",
+           keys.verify_signature(cert.public_key,
                                  request.wallet_signature, request.signed_payload()))
+    say("""Those two are all that may be answered before identity is
+        established, and both failures return one opaque result,
+        NOT_IDENTIFIED. Otherwise the token endpoint would let anybody who can
+        spell an identifier discover whether that citizen holds a certificate
+        or appears on the electoral roll.""")
+    print()
+    field_("     — identity established; specific reasons permitted below —", "")
+    field_("     certificate revoked?", cert.revoked)
+    field_("     certificate expired?", cert.is_expired())
+    field_("     on the electoral register?", anna.voter_id in election.vro.register)
     field_("     token already released?", anna.voter_id in election.vro._released)
+    say("""Revocation sits below the boundary deliberately: a revoked
+        certificate still verifies mathematically, so by the time the office
+        can see revocation it already knows who it is speaking to.""")
 
-    blind_sig = election.vro.issue_token(request)
+    response = election.vro.issue_token(request)
+    blind_sig = response.blind_signature
+    field_("outcome", response.outcome.name)
     entry = election.vro.release_log.entries[-1]
     nonce = election.vro._nonces[anna.voter_id]
 
@@ -378,7 +428,7 @@ def walkthrough(ctx: Context) -> None:
     head("Steps 10/1, 10/2 and 11/A — the ballot box decides")
     result = election.box.submit(ballot)
     anna.record_head(result.ledger_head)
-    ledger_entry = election.box.valid.entries[-1]
+    ledger_entry = election.box.accepted.entries[-1]
     field_("10/1  token signed by the VRO?", rsabssa.verify(pub, ballot.adhoc_public_key, ballot.token))
     field_("10/2  selection authenticated by k_p^a?",
            keys.verify_signature(ballot.adhoc_public_key, ballot.vote_signature,
@@ -460,7 +510,7 @@ def anonymity(ctx: Context) -> None:
     big("s_c (what it returned)", trace["s_c"], k)
 
     head("The public ballot box, first entry")
-    entry = election.box.valid.entries[0].payload
+    entry = election.box.accepted.entries[0].payload
     for key, value in entry.items():
         field_(key, value if not isinstance(value, str) or len(value) < 44 else value[:44] + "…")
 
@@ -502,7 +552,7 @@ def scenario_no_auth(ctx: Context) -> None:
     field_("reason", result.reason)
     check("rejected at check 10/1, before the selection is even considered",
           not result.accepted and result.reason == "token not signed by VRO")
-    check("nothing entered the valid ledger", len(election.box.valid) == 0)
+    check("nothing entered the accepted ledger", len(election.box.accepted) == 0)
     check("the attempt is published in the rejected ledger", len(election.box.rejected) == 1)
     head("The rejected-ledger entry (public, so the attempt is visible)")
     field_("payload", election.box.rejected.entries[0].payload)
@@ -556,8 +606,8 @@ def scenario_stolen_token(ctx: Context) -> None:
 
     register(election, honest)
     election.box.submit(honest.cast(1))
-    stolen = unb64(election.box.valid.entries[0].payload["token"])
-    victim_key = unb64(election.box.valid.entries[0].payload["adhoc_public_key"])
+    stolen = unb64(election.box.accepted.entries[0].payload["token"])
+    victim_key = unb64(election.box.accepted.entries[0].payload["adhoc_public_key"])
 
     head("Copied from the published ledger")
     blob("victim's k_p^a", victim_key)
@@ -671,17 +721,24 @@ def scenario_impersonation(ctx: Context) -> None:
     field_("claimed id", request.voter_id)
     blob("hash([id, c])", request.signed_payload())
     blob("s  (attacker's wallet)", request.wallet_signature)
-    blob("k_p^(v) on the register for that id", election.vro.roll[victim.voter_id])
+    blob("k_p^(v) certified for that id", cert_key(election, victim.voter_id))
     blob("k_p^(v) the attacker actually holds", attacker.wallet.public_bytes)
 
     head("Step 5/2")
-    try:
-        election.vro.issue_token(request)
-        check("refused", False)
-    except RegistrationError as exc:
-        field_("RegistrationError", str(exc))
-        check("refused: the signature is not from that id's wallet", True)
+    response = election.vro.issue_token(request)
+    field_("outcome returned", response.outcome.name)
+    field_("blind signature returned", response.blind_signature)
+    check("refused: the signature does not verify under the certified key",
+          response.outcome is Outcome.NOT_IDENTIFIED)
     check("no token was released", election.vro.release_count() == 0)
+
+    head("What the office wrote down, and did not say")
+    entry = election.vro.audit_log[-1]
+    field_("audit outcome", entry.outcome.name)
+    field_("audit reason", entry.reason)
+    say("""The requester learns only NOT_IDENTIFIED. The office's private log
+        records which of the pre-boundary situations actually occurred, which is
+        what an investigation needs and what an attacker must not have.""")
 
 
 @section("unregistered", "A citizen not on the electoral register")
@@ -694,13 +751,34 @@ def scenario_unregistered(ctx: Context) -> None:
     request = outsider.build_auth_request()
     head("The request")
     field_("id", request.voter_id)
-    field_("on the register", request.voter_id in election.vro.roll)
-    try:
-        election.vro.issue_token(request)
-        check("refused", False)
-    except RegistrationError as exc:
-        field_("RegistrationError", str(exc))
-        check("refused at step 5/1", True)
+    field_("certificate found?", election.population.lookup(request.voter_id) is not None)
+    field_("on the electoral register?", request.voter_id in election.vro.register)
+    unknown = election.vro.issue_token(request)
+    field_("outcome", unknown.outcome.name)
+    check("refused before the identity boundary",
+          unknown.outcome is Outcome.NOT_IDENTIFIED)
+
+    head("Now a citizen who *is* identifiable but is not entitled to vote")
+    say("""The distinction the state machine turns on. This person holds a valid
+        certificate and signs correctly, so the office knows who it is talking
+        to and may give the real reason. The previous case could not be told
+        anything, because nobody had proved to be anybody.""")
+    stranger_wallet = keys.SigningKeyPair.generate()
+    election.population.enrol("HU-WALLET-404", stranger_wallet.public_bytes)
+    outsider.voter_id = "HU-WALLET-404"
+    outsider.wallet = stranger_wallet
+    identified = election.vro.issue_token(outsider.build_auth_request())
+    field_("certificate found?", True)
+    field_("on the electoral register?", "HU-WALLET-404" in election.vro.register)
+    field_("outcome", identified.outcome.name)
+    check("refused with a reason, past the boundary",
+          identified.outcome is Outcome.NOT_ELIGIBLE)
+
+    head("The two answers side by side")
+    say("""An unauthenticated party sees NOT_IDENTIFIED in both of the first two
+        cases and cannot distinguish a citizen who does not exist from one who
+        exists and is eligible. That is the privacy property: the token endpoint
+        is not an electoral-roll lookup service.""")
 
 
 @section("double-token", "A second token request from the same id")
@@ -718,12 +796,10 @@ def scenario_double_token(ctx: Context) -> None:
     blob("first token", first_token)
     field_("release count", election.vro.release_count())
 
-    try:
-        election.vro.issue_token(voter.build_auth_request())
-        check("refused", False)
-    except RegistrationError as exc:
-        field_("RegistrationError", str(exc))
-        check("the second request is refused", True)
+    second = election.vro.issue_token(voter.build_auth_request())
+    field_("outcome", second.outcome.name)
+    check("the second request is refused",
+          second.outcome is Outcome.TOKEN_ALREADY_ISSUED)
     check("the release log did not grow", election.vro.release_count() == 1)
 
 
@@ -851,30 +927,55 @@ def scenario_release_query(ctx: Context) -> None:
     head("The snoop queries the victim's id with their own wallet key")
     forged_query = snoop.wallet.sign(release_query_payload(victim.voter_id))
     blob("sig(id) offered", forged_query)
-    try:
-        election.vro.query_token_release(victim.voter_id, forged_query)
-        check("refused", False)
-    except RegistrationError as exc:
-        field_("RegistrationError", str(exc))
-        check("an unauthenticated query is refused", True)
+    refused = election.vro.query_token_release(victim.voter_id, forged_query)
+    field_("outcome", refused.outcome.name)
+    field_("nonce disclosed", refused.nonce)
+    check("an unauthenticated query is refused",
+          refused.outcome is ReleaseOutcome.NOT_IDENTIFIED)
+
+    head("And an identifier nobody holds a certificate for")
+    unknown = election.vro.query_token_release(
+        "HU-WALLET-555", snoop.wallet.sign(release_query_payload("HU-WALLET-555")))
+    field_("outcome", unknown.outcome.name)
+    check("answered identically, so neither register can be probed here",
+          unknown.outcome is refused.outcome)
 
     head("A voter who did not register asks about themselves")
     answer = election.vro.query_token_release(
         absentee.voter_id, absentee.wallet.sign(release_query_payload(absentee.voter_id)))
-    field_("released", answer.released)
+    field_("outcome", answer.outcome.name)
     blob("signed denial", answer.signed_denial)
-    denial_bytes = canonical_bytes({"voter_id": absentee.voter_id, "released": False})
-    try:
-        ctx.keypair[1].verify(
-            answer.signed_denial, denial_bytes,
-            padding.PSS(mgf=padding.MGF1(hashes.SHA384()), salt_length=48), hashes.SHA384())
-        ok = True
-    except Exception:
-        ok = False
-    check("the denial is signed by the office, so a false 'no' is attributable", ok)
+    check("the denial is signed by the office, so a false 'no' is attributable",
+          verify_denial(election.vro.office_public_key,
+                        absentee.voter_id, answer.signed_denial))
+    check("and it does not transfer to another citizen's statement",
+          not verify_denial(election.vro.office_public_key,
+                            victim.voter_id, answer.signed_denial))
     say("""This does not prevent a dishonest office from denying a token it minted.
         It leaves evidence of the denial. That distinction is deliberate and
         should not be described as prevention.""")
+
+    head("Why the denial is not signed with the token key")
+    say("""A blind signer applies its private key to values it cannot inspect, so
+        an ordinary token request is a signing oracle. Any registered voter can
+        drive it over a message of their choosing — including the office's own
+        denial about somebody else.""")
+    target = denial_payload(victim.voter_id)
+    blinded, state = rsabssa.blind(election.vro.public_key, target)
+    oracle_request = snoop.build_auth_request()
+    oracle_request.blinded_key = blinded
+    oracle_request.wallet_signature = snoop.wallet.sign(oracle_request.signed_payload())
+    oracle_response = election.vro.issue_token(oracle_request)
+    forged_statement = rsabssa.finalize(
+        election.vro.public_key, target, oracle_response.blind_signature, state)
+    blob("statement the snoop wanted signed", target)
+    blob("forged signature over it, under k_p^(R)", forged_statement)
+    check("an ordinary token request forges an office statement under the token key",
+          rsabssa.verify(election.vro.public_key, target, forged_statement))
+    check("but the real denial verifies under the separate office key, not that one",
+          not rsabssa.verify(election.vro.public_key, target, answer.signed_denial))
+    say("""Hence the office holds a second, ordinary signing key for statements,
+        and the token key signs nothing but tokens — for one election.""")
 
 
 # ==========================================================================
@@ -898,10 +999,10 @@ def scenario_revote(ctx: Context) -> None:
               f"head {result.ledger_head.hex()[:32]}…")
 
     head("The public ledger keeps all three")
-    for ent in election.box.valid.entries:
+    for ent in election.box.accepted.entries:
         field_(f"entry {ent.index}", f"selection {ent.payload['selection']}  "
                                      f"key {ent.payload['adhoc_public_key'][:24]}…")
-    check("three submissions retained", len(election.box.valid) == 3)
+    check("three submissions retained", len(election.box.accepted) == 3)
     check("one effective ballot", election.box.tally()["voters"] == 1)
     check("the last one counts", election.box.tally()["counts"] == {1: 0, 2: 1, 3: 0})
     say("""Supersession is applied when counting, not by overwriting, so the whole
@@ -947,7 +1048,7 @@ def scenario_supersession(ctx: Context) -> None:
         signature, and annul someone's genuine vote.""")
 
     election.box.submit(voter.cast(2))
-    published = election.box.valid.entries[0].payload
+    published = election.box.accepted.entries[0].payload
     head("What an attacker copies from the ledger")
     field_("k_p^a", published["adhoc_public_key"][:44] + "…")
     field_("token", published["token"][:44] + "…")
@@ -985,15 +1086,15 @@ def scenario_ledger(ctx: Context) -> None:
         election.box.submit(voter.cast(selection))
 
     head("The intact chain")
-    for ent in election.box.valid.entries:
+    for ent in election.box.accepted.entries:
         print(f"  {ent.index}  prev {ent.prev_hash.hex()[:24]}…  hash {ent.entry_hash.hex()[:24]}…")
-    check("chain verifies", election.box.valid.verify_chain())
+    check("chain verifies", election.box.accepted.verify_chain())
 
     head("Case 1 — a ballot is altered in place")
-    election.box.valid.entries[0].payload["selection"] = 3
+    election.box.accepted.entries[0].payload["selection"] = 3
     prev = GENESIS
     first_bad = None
-    for i, ent in enumerate(election.box.valid.entries):
+    for i, ent in enumerate(election.box.accepted.entries):
         expected = compute_entry_hash(i, ent.payload, prev)
         if expected != ent.entry_hash and first_bad is None:
             first_bad = (i, expected, ent.entry_hash)
@@ -1001,18 +1102,99 @@ def scenario_ledger(ctx: Context) -> None:
     field_("first mismatching entry", first_bad[0])
     blob("hash the payload now implies", first_bad[1])
     blob("hash that was published", first_bad[2])
-    check("chain verification fails", not election.box.valid.verify_chain())
-    election.box.valid.entries[0].payload["selection"] = 1     # restore
-    check("chain verifies again once the edit is undone", election.box.valid.verify_chain())
+    check("chain verification fails", not election.box.accepted.verify_chain())
+    election.box.accepted.entries[0].payload["selection"] = 1     # restore
+    check("chain verifies again once the edit is undone", election.box.accepted.verify_chain())
 
     head("Case 2 — a ballot is deleted")
-    removed = election.box.valid.entries.pop(1)
+    removed = election.box.accepted.entries.pop(1)
     field_("removed entry", f"index {removed.index}, selection {removed.payload['selection']}")
-    check("chain verification fails", not election.box.valid.verify_chain())
+    check("chain verification fails", not election.box.accepted.verify_chain())
     say("""A voter who recorded the head returned in their receipt can show that
         the published ledger no longer reproduces it. Equivocation — showing
         different chains to different people — needs the head published somewhere
         the operator does not control.""")
+
+
+# ==========================================================================
+# PART 5b -- what is published, and when
+# ==========================================================================
+
+@section("publication", "The publication schedule: commitments, then records")
+def scenario_publication(ctx: Context) -> None:
+    """Twelve voters, so that a running tally has something to report."""
+    names = tuple(f"Voter{i:02d}" for i in range(12))
+    election = new_election(ctx.keypair, names=names)
+
+    rule("PART 5b · WHILE VOTING IS OPEN, AND FROM THE CLOSE")
+    say("""Publishing selections as they arrive would broadcast a running result
+        for the whole poll. Worse, because a later ballot supersedes an earlier
+        one, an observer watching the totals move learns that somebody reversed
+        a choice — and in a small enough population that approaches learning
+        who. So the box publishes commitments while it is open, and the records
+        themselves only at the close.""")
+
+    for i, name in enumerate(names):
+        voter = election.voters[name]
+        register(election, voter)
+        election.box.submit(voter.cast((i % 3) + 1))
+
+    view = election.box.published_view()
+    head("The open view, in full")
+    field_("phase", view["phase"])
+    field_("accepted commitments", len(view["commitments"]["accepted"]))
+    field_("chain head", view["heads"]["accepted"][:32] + "…")
+    field_("counts", view["counts"])
+    field_("records present?", "records" in view)
+    check("no record is published while voting is open", "records" not in view)
+    check("no selection appears anywhere in the open view",
+          "selection" not in repr(view) and "adhoc_public_key" not in repr(view))
+
+    head("The running tally, one snapshot every 10 accepted ballots")
+    for snap in view["running_tally"]:
+        field_(f"after {snap['after_accepted']} accepted", snap["counts"])
+    check("one snapshot at ten ballots, none at twelve",
+          [s["after_accepted"] for s in view["running_tally"]] == [10])
+    say("""Whether to publish a running tally at all, and at what resolution, is
+        the administering body's decision rather than the design's — the article
+        gives fifteen minutes as its example. Left unset, no tally exists for
+        anybody, the operator included, until the box closes. This POC counts
+        ballots rather than minutes: a fake clock would demonstrate nothing.""")
+
+    head("A voter's own check, available throughout")
+    someone = election.voters[names[0]]
+    check("the voter finds their own ballot while the records are withheld",
+          someone.handle.locate(election.box) is not None)
+    say("""k_p^a is a lookup secret as well as a locating handle: before the
+        close it is known to the voter's application and to the box and to
+        nobody else. Presenting it is therefore sufficient authentication for
+        retrieval, and no private key need leave the voter's device.""")
+
+    head("The close")
+    election.box.close()
+    closed = election.box.published_view()
+    field_("phase", closed["phase"])
+    field_("records released", len(closed["records"]["accepted"]))
+    check("the commitments published earlier are unchanged",
+          closed["commitments"] == view["commitments"])
+    check("every released record hashes to the commitment published for it",
+          all(announced["commitment"] == ent.entry_hash.hex()
+              and announced["index"] == ent.index
+              for announced, ent in zip(closed["commitments"]["accepted"],
+                                        election.box.accepted.entries)))
+    say("""No row moves backwards: nothing available while voting was open is
+        withdrawn at the close, and what changes does so only by disclosing
+        more.""")
+
+    head("And a ballot arriving after the close")
+    late = election.voters[names[0]]
+    before = (len(election.box.accepted), len(election.box.rejected))
+    result = election.box.submit(late.cast(3))
+    field_("accepted", result.accepted)
+    field_("reason", result.reason)
+    check("it is not recorded at all — it is not a ballot",
+          not result.accepted
+          and (len(election.box.accepted), len(election.box.rejected)) == before)
 
 
 # ==========================================================================
@@ -1036,7 +1218,7 @@ def scenario_provability(ctx: Context) -> None:
     blob("challenge (chosen by the coercer)", challenge)
     blob("proof = sig_{k_s^a}(challenge)", proof)
 
-    published = election.box.valid.entries[0].payload
+    published = election.box.accepted.entries[0].payload
     check("the proof verifies against the k_p^a in the published ballot",
           keys.verify_signature(unb64(published["adhoc_public_key"]), proof, challenge))
     field_("the selection thereby proved", published["selection"])
@@ -1065,10 +1247,15 @@ def scenario_recount(ctx: Context) -> None:
     say("""Everything below uses only the published ledger and the VRO's public
         key. No privileged access, and no election-specific cryptography — an
         ordinary RSA-PSS verify and an ordinary Ed25519 verify.""")
+    if not election.box.closed:
+        election.box.close()
+        say("""The poll is closed first: ballot-by-ballot verification of
+            eligibility and authentication needs the tokens and signatures
+            themselves, which are released only at the close.""")
 
     head("Every published ballot, verified one at a time")
     latest: dict[str, int] = {}
-    for ent in election.box.valid.entries:
+    for ent in election.box.accepted.entries:
         ballot = Ballot.from_dict(ent.payload)
         token_ok = rsabssa.verify(pub, ballot.adhoc_public_key, ballot.token)
         vote_ok = keys.verify_signature(ballot.adhoc_public_key, ballot.vote_signature,
@@ -1083,10 +1270,10 @@ def scenario_recount(ctx: Context) -> None:
             latest[ent.payload["adhoc_public_key"]] = ballot.selection
 
     head("Aggregate checks")
-    field_("published ballots", len(election.box.valid))
+    field_("published ballots", len(election.box.accepted))
     field_("distinct ad-hoc keys", len(latest))
     field_("tokens released (public count)", election.vro.release_count())
-    check("hash chain intact end to end", election.box.valid.verify_chain())
+    check("hash chain intact end to end", election.box.accepted.verify_chain())
     check("distinct ballots ≤ tokens released",
           len(latest) <= election.vro.release_count())
     say("""That inequality is what a third party can check without learning who
@@ -1116,8 +1303,9 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(
         description="Extended demonstration of the Anonymous Authenticated Ballot System.")
-    parser.add_argument("--bits", type=int, default=2048,
-                        help="VRO modulus size (default 2048; 1024 for shorter output). "
+    parser.add_argument("--bits", type=int, default=rsabssa.DEFAULT_MODULUS_BITS,
+                        help="VRO modulus size (default 3072, the article's minimum; "
+                             "1024 for shorter output on a projector). "
                              "The PSS parameters need at least 800 bits.")
     parser.add_argument("--width", type=int, default=64,
                         help="hex characters per line (default 64)")

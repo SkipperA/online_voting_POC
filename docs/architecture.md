@@ -13,6 +13,13 @@ that introduced this file. If the modules change, regenerate rather than
 hand-edit -- the class diagram in particular is easy to let drift from the
 actual field and method names.
 
+**Two registers, two parties.** `PopulationRegister` is not part of the system:
+it stands in for national identity infrastructure and lives in `driver/`,
+outside the library, because the design consults it rather than builds it
+(article §3.2). The library declares only the shape it needs, as the
+`Certificate` and `CertificateLookup` protocols. The *electoral* register is
+`VRO.register` -- a set of identifiers, and nothing else.
+
 ---
 
 ## 1. Class diagram
@@ -86,37 +93,103 @@ classDiagram
     class VRO {
         +private_key: RSAPrivateKey
         +public_key: RSAPublicKey
-        +roll: Dict[str, bytes]
+        +population_register: CertificateLookup
+        +office_key: SigningKeyPair
+        +register: set~str~
         +release_log: Ledger
         -_released: set~str~
         -_nonces: Dict[str, bytes]
-        +create(bits: int) VRO
-        +register_voter(voter_id, wallet_public_key)
-        +issue_token(request: AuthRequest) bytes
+        -_audit: list~AuditEntry~
+        +create(population_register, bits) VRO
+        +enrol(voter_id)
+        +office_public_key() bytes
+        +audit_log() tuple~AuditEntry~
+        +issue_token(request, now) TokenResponse
         +query_token_release(voter_id, signature) ReleaseAnswer
         +release_count() int
     }
 
+    class Certificate {
+        <<interface>>
+        +subject: str
+        +public_key: bytes
+        +revoked: bool
+        +is_expired(now) bool
+    }
+
+    class CertificateLookup {
+        <<interface>>
+        +lookup(person_id: str) Certificate
+    }
+
+    class PopulationRegister {
+        +lookup(person_id) Certificate
+        +enrol(person_id, public_key, ...) Certificate
+        +revoke(person_id) Certificate
+        +expire(person_id) Certificate
+        +withdraw(person_id)
+    }
+
+    class TokenResponse {
+        +outcome: Outcome
+        +blind_signature: bytes
+        +issued() bool
+    }
+
+    class Outcome {
+        <<enumeration>>
+        ISSUED
+        NOT_IDENTIFIED
+        CERTIFICATE_REVOKED
+        CERTIFICATE_EXPIRED
+        NOT_ELIGIBLE
+        TOKEN_ALREADY_ISSUED
+    }
+
+    class AuditEntry {
+        +voter_id: str
+        +outcome: Outcome
+        +reason: str
+    }
+
     class ReleaseAnswer {
-        +released: bool
+        +outcome: ReleaseOutcome
         +nonce: bytes
         +index: int
         +signed_denial: bytes
+        +released() bool
     }
 
-    class RegistrationError {
+    class ReleaseOutcome {
+        <<enumeration>>
+        RELEASED
+        NOT_RELEASED
+        NOT_IDENTIFIED
+    }
+
+    class FaultDetected {
         <<exception>>
     }
 
     class BallotBox {
         +vro_public_key: RSAPublicKey
         +num_choices: int
-        +valid: Ledger
+        +tally_interval: int
+        +accepted: Ledger
         +rejected: Ledger
+        -_closed: bool
+        -_snapshots: list~dict~
+        +closed() bool
+        +close()
         +submit(ballot: Ballot) SubmissionResult
+        +published_view() dict
         +effective_ballots() dict
         +tally() dict
         +find_ballot(adhoc_public_key: bytes) dict
+    }
+
+    class BoxStillOpen {
+        <<exception>>
     }
 
     class SubmissionResult {
@@ -168,13 +241,24 @@ classDiagram
     AdHocKeyHandle ..> BallotBox : locate() / confirms()
 
     VRO "1" *-- "1" Ledger : release_log
+    VRO "1" o-- "1" CertificateLookup : population_register (external)
+    VRO "1" *-- "1" SigningKeyPair : office_key (statements, not tokens)
+    VRO "1" *-- "*" AuditEntry : private log
     VRO ..> AuthRequest : issue_token() consumes
+    VRO ..> TokenResponse : issue_token() returns
     VRO ..> ReleaseAnswer : query_token_release() returns
-    VRO ..> RegistrationError : raises
-    VRO ..> RSABSSA : blind_sign()
+    VRO ..> FaultDetected : raises on s_c^e != c
+    VRO ..> RSABSSA : blind_sign() / check_blind_signature()
     VRO ..> Keys : verify_signature()
 
-    BallotBox "1" *-- "2" Ledger : valid, rejected
+    PopulationRegister ..|> CertificateLookup : implements
+    PopulationRegister ..> Certificate : lookup() returns
+    TokenResponse o-- Outcome
+    AuditEntry o-- Outcome
+    ReleaseAnswer o-- ReleaseOutcome
+
+    BallotBox ..> BoxStillOpen : tally() raises while open
+    BallotBox "1" *-- "2" Ledger : accepted, rejected
     BallotBox ..> Ballot : submit() consumes
     BallotBox ..> SubmissionResult : submit() returns
     BallotBox ..> RSABSSA : verify()
@@ -195,6 +279,7 @@ sequenceDiagram
     autonumber
     actor V as Voter
     participant W as Wallet (SigningKeyPair)
+    participant P as PopulationRegister (external)
     participant O as VRO
     participant B as BallotBox
     participant L as Ledger
@@ -209,21 +294,33 @@ sequenceDiagram
 
     V->>O: issue_token(request)
     activate O
-    O->>O: roll.get(voter_id) -- 5/1 eligible?
-    O->>O: verify_signature(wallet_key, s, ...) -- 5/2
-    alt id unknown or signature invalid
-        O-->>V: RegistrationError
-    else id already released a token
-        O-->>V: RegistrationError("already released")
-    else valid request
-        O->>O: nonce = token_bytes(32)
-        O->>L: release_log.append({commitment}) -- step 7
-        O->>O: rsabssa.blind_sign(private_key, c) -- 6/A
-        O-->>V: s_c (blind signature)
+    O->>P: lookup(voter_id) -- 5/1
+    P-->>O: Certificate or None
+    alt no certificate for this id
+        O->>O: audit: "no entry for this id"
+        O-->>V: TokenResponse(NOT_IDENTIFIED)
+    else signature does not verify under cert.public_key -- 5/2
+        O->>O: audit: "signature does not verify"
+        O-->>V: TokenResponse(NOT_IDENTIFIED)
+    else identity established
+        Note over O: the identity boundary: only below it may<br/>the office give a specific reason
+        alt cert.revoked / cert expired
+            O-->>V: TokenResponse(CERTIFICATE_REVOKED / _EXPIRED)
+        else voter_id not in register
+            O-->>V: TokenResponse(NOT_ELIGIBLE)
+        else already released a token
+            O-->>V: TokenResponse(TOKEN_ALREADY_ISSUED)
+        else
+            O->>O: nonce = token_bytes(32)
+            O->>L: release_log.append({commitment}) -- step 7
+            O->>O: rsabssa.blind_sign(private_key, c) -- 6/A
+            O->>O: check_blind_signature: s_c^e == c ?
+            O-->>V: TokenResponse(ISSUED, s_c)
+        end
     end
     deactivate O
 
-    V->>V: accept_token(s_c)<br/>rsabssa.finalize(...) -- step 8
+    V->>V: accept_token(response.blind_signature)<br/>rsabssa.finalize(...) -- step 8
     Note right of V: token = s_{k_p^a}<br/>blind_state discarded
     end
 
@@ -244,7 +341,8 @@ sequenceDiagram
             B->>L: rejected.append(ballot, reason)
             B-->>V: SubmissionResult(False, "vote signature invalid")
         else accepted
-            B->>L: valid.append(ballot) -- 11/A
+            B->>L: accepted.append(ballot) -- 11/A
+            B->>B: snapshot if tally_interval reached
             B-->>V: SubmissionResult(True, ledger_head)
         end
     end
@@ -256,8 +354,16 @@ sequenceDiagram
     Note over V,B: Independent verification, from any device -- steps 12-13
     V->>O: query_token_release(voter_id, sig(id))
     activate O
-    O->>O: verify_signature(wallet_key, sig, ...)
-    O-->>V: ReleaseAnswer(released, nonce, index)
+    O->>P: lookup(voter_id)
+    P-->>O: Certificate or None
+    O->>O: verify_signature(cert.public_key, sig, ...)
+    alt unknown id or bad signature
+        O-->>V: ReleaseAnswer(NOT_IDENTIFIED)
+    else no token released
+        O-->>V: ReleaseAnswer(NOT_RELEASED, signed under office_key)
+    else
+        O-->>V: ReleaseAnswer(RELEASED, nonce, index)
+    end
     deactivate O
     V->>V: verify_release_answer(published_log, id, answer)<br/>checks nonce against O's own public log
 

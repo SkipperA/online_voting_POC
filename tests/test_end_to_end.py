@@ -1,7 +1,10 @@
 """The full protocol, end to end, plus independent verification of the result."""
 
+import pytest
+
 from conftest import register
 from ovpoc import keys, rsabssa
+from ovpoc.ballotbox import BoxStillOpen
 from ovpoc.messages import Ballot, unb64
 
 
@@ -19,14 +22,22 @@ def test_three_voters_cast_and_verify(election):
     for index, voter in enumerate(voters):
         assert voter.verify_recorded_ballot(box, intended[index])
 
+    # The full count is a post-close operation: no running tally is
+    # configured for this election, so nobody -- the operator included --
+    # can read a result while voting is open.
+    with pytest.raises(BoxStillOpen):
+        box.tally()
+
+    box.close()
     tally = box.tally()
     assert tally == {
         "counts": {1: 2, 2: 0, 3: 1},
+        "valid": 3,
         "invalid": 0,
         "protest_codes": {},
         "voters": 3,
         "rejected": 0,
-        "ledger_head": box.valid.head().hex(),
+        "ledger_head": box.accepted.head().hex(),
     }
 
 
@@ -42,7 +53,13 @@ def test_an_outsider_can_recompute_the_result_from_the_public_ledger(election):
         register(vro, voter)
         box.submit(voter.cast(index + 1))
 
-    published = [entry.payload for entry in box.valid.entries]
+    box.close()
+
+    # Everything below comes from the published view and the VRO's public
+    # key.  Note that the records are readable only because the box has
+    # closed; before that the view carries commitments alone.
+    view = box.published_view()
+    published = view["records"]["accepted"]
     vro_public_key = vro.public_key
 
     # 1. Every published ballot carries a genuine VRO token and a matching
@@ -57,7 +74,7 @@ def test_an_outsider_can_recompute_the_result_from_the_public_ledger(election):
         latest[payload["adhoc_public_key"]] = ballot.selection
 
     # 2. The chain is intact, so nothing was removed or reordered.
-    assert box.valid.verify_chain()
+    assert box.accepted.verify_chain()
 
     # 3. No more ballots than tokens released.
     assert len(latest) <= vro.release_count()
@@ -65,6 +82,12 @@ def test_an_outsider_can_recompute_the_result_from_the_public_ledger(election):
     # 4. The independently computed result matches the announced one.
     independent = {i: sum(1 for s in latest.values() if s == i) for i in (1, 2, 3)}
     assert independent == box.tally()["counts"]
+
+    # 5. Every released record hashes to the commitment published while
+    #    voting was open, at the position published for it.
+    for entry, announced in zip(box.accepted.entries, view["commitments"]["accepted"]):
+        assert announced["index"] == entry.index
+        assert announced["commitment"] == entry.entry_hash.hex()
 
 
 def test_the_vro_cannot_link_its_signature_to_a_published_ballot(election):
@@ -79,10 +102,10 @@ def test_the_vro_cannot_link_its_signature_to_a_published_ballot(election):
     for voter in voters:
         request = voter.build_auth_request()
         seen_by_vro.append(request.blinded_key)
-        voter.accept_token(vro.issue_token(request))
+        voter.accept_token(vro.issue_token(request).blind_signature)
         box.submit(voter.cast(1))
 
-    published_keys = {unb64(e.payload["adhoc_public_key"]) for e in box.valid.entries}
+    published_keys = {unb64(e.payload["adhoc_public_key"]) for e in box.accepted.entries}
     for blinded in seen_by_vro:
         assert not any(key in blinded for key in published_keys)
 

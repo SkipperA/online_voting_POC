@@ -43,12 +43,47 @@ route handler.
 | `keys.py` | Wallet and ad-hoc Ed25519 keys | 1/A, 3 |
 | `messages.py` | Wire objects, canonical serialisation | 4, 9 |
 | `ledger.py` | Hash-chained append-only log | 7, 11/A, 11/B |
-| `vro.py` | Registration, eligibility, token issue | 5, 6, 7, 12 |
-| `ballotbox.py` | Validation, storage, tally | 10, 11 |
-| `voter.py` | The voter's whole flow in one file | 1–4, 8, 9 |
+| `vro.py` | Eligibility, token issue, release log | 5, 6, 7, 12 |
+| `ballotbox.py` | Acceptance, storage, publication, tally | 10, 11 |
+| `voter.py` | The voter's whole flow in one file | 1–4, 8, 9, 13 |
+| `driver/population_register.py` | **Not a component.** External identity service | — |
+
+**`driver/` is outside the library deliberately.** The population register
+answers `id` with a qualified certificate; the design consults it and does not
+build it (§3.2). If a lookup table for identity ever appears inside
+`src/ovpoc/`, the code has started contradicting the paper. The *electoral*
+register is `VRO.register` — a set of ids, and nothing else.
 
 ## Design decisions already settled — do not silently revisit
 
+- **No election-specific registration or binding step.** Under eIDAS a
+  qualified certificate already binds the signing key to a named person, so a
+  second, election-administered copy of that association would be redundant and
+  would add an attack surface (rebinding). The office looks the certificate up
+  per request. `VRO.enrol` therefore takes one argument: an id.
+- **Step 5 is a state machine with an identity boundary, and the order is
+  load-bearing.** Certificate lookup, then signature verification; both
+  failures return the single opaque `Outcome.NOT_IDENTIFIED`. Only below that
+  boundary may the office give a reason: revoked, expired, not eligible,
+  already issued. Otherwise the token endpoint becomes an electoral-roll
+  lookup for anyone who can spell an identifier. The audit log records the true
+  reason in every case and is never returned to the requester. Two mutations in
+  `tools/sabotage.py` (`eligibility_checked_before_identity`,
+  `revocation_reported_before_identity`) exist to catch a refactor that
+  reorders this.
+- **Revocation is reported *after* the signature verifies, and this diverges
+  from the paper on purpose.** A revoked certificate still verifies
+  mathematically, so by the time the office can see revocation it already knows
+  who it is speaking to. The article's §3.2 and §5.4 enumerate certificate
+  validity before signature verification; that order is expository and this one
+  is the privacy-preserving one. Do not reconcile them silently in either
+  direction.
+- **The token key signs nothing but tokens.** A blind signer applies its private
+  key to values it cannot inspect, so an ordinary token request is a signing
+  oracle: any registered voter can obtain the office's signature over a message
+  of their own choosing (§3.3). Office statements — currently step-12 denials —
+  are signed under a separate `office_key`. `test_attacks.py` forges a statement
+  under the token key to show why.
 - **RSA blind signatures per RFC 9474**, PSS-encoded. Never sign `k_p^a`
   directly: raw RSA is multiplicative and forgeable. `test_attacks.py`
   demonstrates the attack failing; keep that test.
@@ -63,11 +98,28 @@ route handler.
   both. If an older PDF of the article is to hand, it is the stale copy.
 - **Token release is logged before the signature is returned**, so no token can
   exist outside the public log.
-- **Rejected ≠ invalid.** A ballot failing its cryptographic checks is
-  *rejected* and does not supersede an earlier ballot. A properly signed ballot
-  with an out-of-range selection is an *invalid vote*, is counted as such, and
-  does supersede. Conflating these lets a coercer erase a genuine vote.
-- - **Protest selections stay unofficial and undifferentiated by the system.**
+- **Three words, not two: rejected / accepted / valid.** A ballot failing its
+  cryptographic checks is *rejected* and supersedes nothing. A ballot passing
+  both checks is *accepted* and supersedes the same voter's earlier accepted
+  ballot. Within the accepted, a selection in range makes the vote *valid* and
+  one outside it makes the vote *invalid* — still accepted, still superseding,
+  counted as invalid. So `BallotBox.accepted` names the ledger and
+  `tally()["valid"]` a count within it. Conflating rejected with invalid lets a
+  coercer erase a genuine vote.
+- **Publication is two-phase, and the interval is a dial.** While open the box
+  publishes commitments, positions, head and counts; the records are released at
+  the close. `published_view()` is the whole of what a citizen sees, and
+  `tally_interval` decides whether a running tally exists at all. Left at
+  `None` — the article's default — `tally()` refuses until the close, for the
+  operator too. The POC's demos use ten accepted ballots; the article's example
+  is fifteen minutes, and the substitution is deliberate, since a fake clock
+  would demonstrate nothing. The article's remedy for the no-running-tally case
+  is to encrypt the selection under a Shamir-shared election key; that is
+  deliberately outside the formal model in §5, and no encryption work belongs
+  in this POC.
+- **`close()` is reversible here.** A real deployment needs it one-way. That is
+  an operational property, not a protocol one, and the docstring says so.
+- **Protest selections stay unofficial: the system never interprets them.**
   `tally()` reports the exact distribution of out-of-range selections
   (`protest_codes`), not one scalar count — but the system never
   interprets, endorses, or pre-registers what any code means. Two reasons,
@@ -115,13 +167,15 @@ route handler.
   anonymity: the network layer sees who contacts the ballot box and when.
 - **Post-close verification with out-of-band return codes**, to close the
   silent-override window after a voter's final check.
-- **Signature check after blind signing.** The VRO should verify
-  `s_c^e == c (mod n)` before releasing `s_c`. It is nearly free at `e = 65537`
-  and catches a fault during CRT exponentiation, where a single faulty
-  signature leaks `p` (Boneh–DeMillo–Lipton). Specified in
-  `docs/blind-signature.md` §4(3) and in the article's §5.3; still not in
-  `vro.py`. Implementing it needs a matching mutation in `tools/sabotage.py`
-  and an update to annotation 6/A of the system diagram.
+- **The wallet transmits, rather than the application relaying.** §5.3 has the
+  wallet conduct the exchange with the office itself, so that no single
+  component holds both `id` and `k_p^a` together with the office's signature
+  over their association. One `Voter` object here holds both. It is a modelling
+  simplification, but it means the code does not demonstrate the property §5.3
+  argues for, and `docs/threats.md` records that.
+- **Several certificates per voter.** §3.2 says the office must accept a request
+  signed under any valid certificate naming the requester. `lookup` returns
+  exactly one, which runs the protocol but does not exercise the question.
 
 ## Working style
 
@@ -178,7 +232,7 @@ GitHub should be compiled, not reformatted.
 
 ```
 pip install -e ".[dev]"
-python -m pytest -q          # full suite (29 tests)
+python -m pytest -q          # full suite (46 tests)
 python demo.py               # narrated end-to-end run
 python ext_demo.py           # narrated end-to-end run with all tests
 python tools/sabotage.py     # regenerate docs/sabotage.md

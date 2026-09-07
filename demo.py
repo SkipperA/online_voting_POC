@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+from driver import PopulationRegister
 from ovpoc import keys, rsabssa
 from ovpoc.ballotbox import BallotBox
 from ovpoc.messages import Ballot, unb64
@@ -31,22 +32,34 @@ def short(data, n=16):
 
 def main():
     rule("SETUP  ·  the VRO publishes one signing key, and only one")
-    vro = VRO.create(bits=2048)
+    population = PopulationRegister()          # external identity service
+    vro = VRO.create(population, bits=3072)
     fingerprint = rsabssa.public_key_fingerprint(vro.public_key)
     print(f"VRO public key fingerprint (pinned in every client): {fingerprint[:32]}…")
     print("Every voter app checks this before submitting. A VRO using a different")
     print("key per voter could de-anonymise ballots, so a mismatch aborts.")
 
-    box = BallotBox(vro_public_key=vro.public_key, num_choices=len(OPTIONS))
+    # A running tally every ten accepted ballots. The article's own default is
+    # no running tally at all (tally_interval=None), in which case nothing --
+    # not even the operator -- can read a result before the close. Which of
+    # the two applies is the administering body's decision, not the design's.
+    box = BallotBox(
+        vro_public_key=vro.public_key, num_choices=len(OPTIONS), tally_interval=10
+    )
 
     names = ["Anna", "Béla", "Csilla"]
     voters = []
     for i, name in enumerate(names):
         wallet = keys.SigningKeyPair.generate()
         voter_id = f"HU-WALLET-{i:03d}"
-        vro.register_voter(voter_id, wallet.public_bytes)
+        population.enrol(voter_id, wallet.public_bytes)   # identity: externally
+        vro.enrol(voter_id)                               # eligibility: by the VRO
         voters.append((name, Voter(voter_id, wallet, vro.public_key, fingerprint)))
-    print(f"\nElectoral register: {len(voters)} eligible voters.")
+    print(f"\nTwo registers, held by different parties:")
+    print(f"  population register (external): {len(voters)} certificates, each")
+    print(f"    binding a signing key to a named person — identity infrastructure")
+    print(f"    this design consults rather than builds")
+    print(f"  electoral register (the VRO's):  {len(voters)} ids, and nothing else")
 
     choices = {"Anna": 1, "Béla": 3, "Csilla": 1}
 
@@ -58,8 +71,10 @@ def main():
         print(f"  2    blinds the public key       → c = {short(request.blinded_key)}")
         print(f"  3-4  wallet signs [id, c]        → sends id={voter.voter_id}")
 
-        blind_sig = vro.issue_token(request)
-        print(f"  5    VRO: on the register, signature valid, no token issued yet ✓")
+        response = vro.issue_token(request)
+        blind_sig = response.blind_signature
+        print(f"  5    VRO: certificate found, signature valid — identity established;")
+        print(f"       only then: eligible, no token issued yet → {response.outcome.name}")
         print(f"  7    VRO records the release publicly (before signing)")
         print(f"  6/A  VRO blind-signs c           → {short(blind_sig)}")
         print(f"       what the VRO saw: {short(request.blinded_key)}")
@@ -106,8 +121,19 @@ def main():
     print("  paper's diagram, and it is a policy choice, not a technical one.")
 
     rule("ANYONE  ·  independent verification from the public ledger alone")
-    published = [e.payload for e in box.valid.entries]
-    print(f"  {len(published)} published ballots, {vro.release_count()} tokens released")
+    print("  Before the close the box published commitments, positions, the chain")
+    print("  head and running counts — not the records. Closing releases them all.")
+    open_view = box.published_view()
+    print(f"    while open:  {len(open_view['commitments']['accepted'])} commitments, "
+          f"records withheld ({'records' in open_view})")
+    print(f"    running tally snapshots so far: {len(open_view['running_tally'])} "
+          f"(one every 10 accepted ballots; this demo casts 4)")
+    box.close()
+    view = box.published_view()
+    print(f"    at close:    {len(view['records']['accepted'])} records in clear")
+
+    published = view["records"]["accepted"]
+    print(f"\n  {len(published)} published ballots, {vro.release_count()} tokens released")
 
     latest = {}
     for payload in published:
@@ -120,7 +146,7 @@ def main():
 
     print("  every ballot carries a genuine VRO token           ✓")
     print("  every selection is signed by the certified key      ✓")
-    print(f"  hash chain intact (nothing removed or reordered)    {'✓' if box.valid.verify_chain() else '✗'}")
+    print(f"  hash chain intact (nothing removed or reordered)    {'✓' if box.accepted.verify_chain() else '✗'}")
     print(f"  ballots ≤ tokens released ({len(latest)} ≤ {vro.release_count()})              ✓")
 
     counts = {i: sum(1 for s in latest.values() if s == i) for i in OPTIONS}

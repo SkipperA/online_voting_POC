@@ -188,8 +188,11 @@ s \;=\; \text{sig}_{k_s^{(v)}}\bigl(\text{hash}([\,id,\, c\,])\bigr)
 ```
 
 The package $`[\,id,\, c,\, s\,]`$ goes to the VRO. The VRO checks that $`id`$ is
-on the electoral register, that $`s`$ verifies under the registered wallet key
-$`k_p^{(v)}`$, and that no token has yet been released for $`id`$.
+identifiable -- that a qualified certificate exists for $`id`$ and that $`s`$
+verifies under the key $`k_p^{(v)}`$ that certificate attests -- and only then
+that the person is on the electoral register and that no token has yet been
+released for $`id`$. The office holds no copy of $`k_p^{(v)}`$: it looks the
+certificate up per request.
 
 Note that $`c`$ carries no information about $`k_p^a`$ (§6.1), so the VRO may log
 it without weakening anonymity. The release entry itself is a *commitment* to

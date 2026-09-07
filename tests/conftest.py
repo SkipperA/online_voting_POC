@@ -1,14 +1,17 @@
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
 
 import pytest
 
+from driver import PopulationRegister
 from ovpoc import keys, rsabssa
 from ovpoc.ballotbox import BallotBox
 from ovpoc.voter import Voter
-from ovpoc.vro import VRO
+from ovpoc.vro import VRO, release_query_payload
 
 TEST_BITS = 2048  # smaller than the 3072-bit default, to keep the suite fast
 
@@ -20,31 +23,51 @@ def vro_keypair():
 
 @pytest.fixture
 def election(vro_keypair):
-    """A fresh election: three registered voters, three options."""
+    """A fresh election: three voters, three options.
+
+    Note the two registers, and which party holds each.  The population
+    register is external -- it enrols a certificate naming the person and the
+    key they sign under.  The electoral register is the VRO's own, and it
+    holds ids alone.
+    """
     priv, pub = vro_keypair
-    vro = VRO(private_key=priv, public_key=pub)
+    population = PopulationRegister()
+    vro = VRO(
+        private_key=priv,
+        public_key=pub,
+        population_register=population,
+        office_key=keys.SigningKeyPair.generate(),
+    )
     fingerprint = rsabssa.public_key_fingerprint(pub)
 
     voters = []
     for i in range(3):
         wallet = keys.SigningKeyPair.generate()
         voter_id = f"HU-WALLET-{i:03d}"
-        vro.register_voter(voter_id, wallet.public_bytes)
+        population.enrol(voter_id, wallet.public_bytes)   # identity, externally
+        vro.enrol(voter_id)                               # eligibility, by the VRO
         voters.append(Voter(voter_id, wallet, pub, fingerprint))
 
     box = BallotBox(vro_public_key=pub, num_choices=3)
     return vro, voters, box
 
 
+@pytest.fixture
+def population(election):
+    """The external population register behind the `election` fixture."""
+    vro, _, _ = election
+    return vro.population_register
+
+
 def register(vro, voter):
     """Run steps 1-8 for one voter."""
-    voter.accept_token(vro.issue_token(voter.build_auth_request()))
+    response = vro.issue_token(voter.build_auth_request())
+    assert response.issued, response.outcome
+    voter.accept_token(response.blind_signature)
 
 
 def query(vro, voter):
     """Run an authenticated step-12 release query on the voter's behalf."""
-    from ovpoc.vro import release_query_payload
-
     return vro.query_token_release(
         voter.voter_id, voter.wallet.sign(release_query_payload(voter.voter_id))
     )

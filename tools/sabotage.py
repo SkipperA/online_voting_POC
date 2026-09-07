@@ -52,21 +52,21 @@ MUTATIONS = [
         name="eligibility_check_removed",
         what="The VRO stops requiring that the id appear on the electoral register.",
         path="src/ovpoc/vro.py",
-        find='        if wallet_key is None:\n            raise RegistrationError("id not valid or not eligible to vote")',
-        replace='        if wallet_key is None:  # SABOTAGE: accept unknown ids\n            wallet_key = b"\\x00" * 32',
+        find='        if request.voter_id not in self.register:\n            return self._record(\n                request.voter_id, Outcome.NOT_ELIGIBLE, "not on the electoral register"\n            )',
+        replace="        pass  # SABOTAGE: no electoral register check",
     ),
     Mutation(
         name="one_token_per_voter_removed",
         what="The VRO no longer refuses a second token request from the same id.",
         path="src/ovpoc/vro.py",
-        find='        if request.voter_id in self._released:\n            raise RegistrationError("a token has already been released for this id")',
+        find='        if request.voter_id in self._released:\n            return self._record(\n                request.voter_id,\n                Outcome.TOKEN_ALREADY_ISSUED,\n                "a token has already been released for this id",\n            )',
         replace="        pass  # SABOTAGE: no one-token-per-voter rule",
     ),
     Mutation(
         name="wallet_signature_check_removed",
         what="The VRO issues tokens without checking that the request was signed by the wallet owning that id.",
         path="src/ovpoc/vro.py",
-        find="        if not keys.verify_signature(\n            wallet_key, request.wallet_signature, request.signed_payload()\n        ):\n            raise RegistrationError(\"signature is not from the wallet belonging to this id\")",
+        find="        if not keys.verify_signature(\n            cert.public_key, request.wallet_signature, request.signed_payload()\n        ):\n            return self._record(\n                request.voter_id,\n                Outcome.NOT_IDENTIFIED,\n                \"request signature does not verify under the certified key\",\n            )",
         replace="        pass  # SABOTAGE: no wallet signature check",
     ),
     Mutation(
@@ -95,7 +95,7 @@ MUTATIONS = [
         what="A ballot that fails its signature check is recorded as valid as well, so it annuls the voter's earlier ballot.",
         path="src/ovpoc/ballotbox.py",
         find='            entry = self.rejected.append(\n                {**ballot.to_dict(), "reason": "vote signature invalid"}\n            )',
-        replace='            self.valid.append(ballot.to_dict())  # SABOTAGE\n            entry = self.rejected.append(\n                {**ballot.to_dict(), "reason": "vote signature invalid"}\n            )',
+        replace='            self.accepted.append(ballot.to_dict())  # SABOTAGE\n            entry = self.rejected.append(\n                {**ballot.to_dict(), "reason": "vote signature invalid"}\n            )',
     ),
     Mutation(
         name="selection_range_check_removed",
@@ -122,8 +122,100 @@ MUTATIONS = [
         name="release_query_auth_removed",
         what="Step-12 release queries no longer require sig(id), turning the log into a public participation register.",
         path="src/ovpoc/vro.py",
-        find='        if not keys.verify_signature(wallet_key, signature, release_query_payload(voter_id)):\n            raise RegistrationError("query not signed by the wallet belonging to this id")',
+        find='        if not keys.verify_signature(\n            cert.public_key, signature, release_query_payload(voter_id)\n        ):\n            return ReleaseAnswer(ReleaseOutcome.NOT_IDENTIFIED)',
         replace="        pass  # SABOTAGE: unauthenticated queries allowed",
+    ),
+    Mutation(
+        name="eligibility_checked_before_identity",
+        what=(
+            "The VRO decides eligibility before verifying the request signature, so "
+            "anyone who can spell an id learns whether that citizen is on the roll."
+        ),
+        path="src/ovpoc/vro.py",
+        find="        cert = self.population_register.lookup(request.voter_id)\n        if cert is None:",
+        replace=(
+            "        cert = self.population_register.lookup(request.voter_id)\n"
+            "        if request.voter_id not in self.register:  # SABOTAGE: before identity\n"
+            "            return self._record(\n"
+            "                request.voter_id, Outcome.NOT_ELIGIBLE, \"not on the electoral register\"\n"
+            "            )\n"
+            "        if cert is None:"
+        ),
+    ),
+    Mutation(
+        name="revocation_reported_before_identity",
+        what=(
+            "Certificate revocation is reported before the signature is checked, so the "
+            "endpoint answers a question about a citizen the requester has not proved to be."
+        ),
+        path="src/ovpoc/vro.py",
+        find="        if not keys.verify_signature(\n            cert.public_key, request.wallet_signature, request.signed_payload()\n        ):",
+        replace=(
+            "        if cert.revoked:  # SABOTAGE: reported before identity\n"
+            "            return self._record(\n"
+            "                request.voter_id, Outcome.CERTIFICATE_REVOKED, \"certificate revoked\"\n"
+            "            )\n"
+            "        if not keys.verify_signature(\n"
+            "            cert.public_key, request.wallet_signature, request.signed_payload()\n"
+            "        ):"
+        ),
+    ),
+    Mutation(
+        name="denials_signed_with_the_token_key",
+        what=(
+            "Release denials are signed with the blind-signing key, which any registered "
+            "voter can drive as an oracle through an ordinary token request."
+        ),
+        path="src/ovpoc/vro.py",
+        find="                signed_denial=self.office_key.sign(denial_payload(voter_id)),",
+        replace=(
+            "                signed_denial=rsabssa.finalize(  # SABOTAGE: token key reused\n"
+            "                    self.public_key,\n"
+            "                    denial_payload(voter_id),\n"
+            "                    rsabssa.blind_sign(\n"
+            "                        self.private_key,\n"
+            "                        rsabssa.blind(self.public_key, denial_payload(voter_id))[0],\n"
+            "                    ),\n"
+            "                    rsabssa.blind(self.public_key, denial_payload(voter_id))[1],\n"
+            "                ),"
+        ),
+    ),
+    Mutation(
+        name="blind_signature_fault_check_removed",
+        what=(
+            "The office releases s_c without checking s_c^e == c, so a faulty CRT "
+            "exponentiation would be handed out -- and a single faulty signature leaks p."
+        ),
+        path="src/ovpoc/vro.py",
+        find="        if not rsabssa.check_blind_signature(\n            self.public_key, request.blinded_key, blind_sig\n        ):",
+        replace="        if False:  # SABOTAGE: no fault check before release",
+    ),
+    Mutation(
+        name="records_published_while_voting_is_open",
+        what=(
+            "The ballot box publishes every record in clear before the close, broadcasting "
+            "a running result and, with re-voting, that somebody reversed a choice."
+        ),
+        path="src/ovpoc/ballotbox.py",
+        find="        if self._closed:\n            view[\"records\"] = {",
+        replace="        if True:  # SABOTAGE: records published while open\n            view[\"records\"] = {",
+    ),
+    Mutation(
+        name="tally_available_before_the_close",
+        what=(
+            "The full count can be read while voting is open even when no running tally "
+            "is published, giving the operator privileged early sight of the result."
+        ),
+        path="src/ovpoc/ballotbox.py",
+        find="        if not self._closed and self.tally_interval is None:",
+        replace="        if False:  # SABOTAGE: tally always available",
+    ),
+    Mutation(
+        name="submissions_accepted_after_the_close",
+        what="The ballot box keeps accepting ballots after the poll has closed.",
+        path="src/ovpoc/ballotbox.py",
+        find="        if self._closed:\n            # Not recorded at all",
+        replace="        if False:  # SABOTAGE: closing does not stop submissions\n            # Not recorded at all",
     ),
 ]
 
