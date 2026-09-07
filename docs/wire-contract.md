@@ -137,7 +137,7 @@ Req. 8).
 | `accepted` | `SubmissionResult.accepted` | Req. 1, Req. 7 | Passed both cryptographic checks. Not the same as *valid* |
 | `reason` | `SubmissionResult.reason` | Req. 7 | `"accepted"`, `"token not signed by VRO"`, `"vote signature invalid"`, or `"voting has closed"` |
 | `ledger_head` | `SubmissionResult.ledger_head` | §3.5 | The head at the moment of acceptance. With it the voter can later show that the entry was not removed, reordered, or altered — demonstrable rather than merely alleged |
-| entry position | `Ledger.Entry.index` | §3.5, Table 1 | Available on the entry; **not currently carried on the receipt.** See the gaps list |
+| entry position | `SubmissionResult.index` | §3.4, §3.5, §3.7 | The position of the entry in the registry. With the head, it is what lets the inclusion check run offline, with no query to the component under audit. None for a submission refused after the close, where no entry exists |
 
 ---
 
@@ -219,19 +219,14 @@ of either.
 ## Requirements with no field behind them
 
 1. **Several certificates per voter** (§3.2). `lookup` returns one.
-2. **Entry position on the receipt** (§3.5, Table 1 row 2). The article has the
-   receipt carry the position *and* the head; `SubmissionResult` carries only
-   the head. The position is available from the entry, so this is a one-field
-   omission rather than a missing mechanism — but as written the article's
-   inclusion check cannot be performed from the receipt alone.
-3. **Opening and closing times** as published configuration (§3.5).
-4. **Encrypted selections** under a Shamir-shared election key, for the case
+2. **Opening and closing times** as published configuration (§3.5).
+3. **Encrypted selections** under a Shamir-shared election key, for the case
    where no running tally is published (§3.5). Deliberately outside the formal
    model of §5, and deliberately absent here.
-5. **Mirrored publication of the chain head** through channels the operator
+4. **Mirrored publication of the chain head** through channels the operator
    does not control (§3.5). Without it the chain constrains nobody: a
    dishonest box can maintain two consistent chains and show each to a
    different audience.
-6. **The wallet transmitting rather than the application relaying** (§5.3). One
+5. **The wallet transmitting rather than the application relaying** (§5.3). One
    `Voter` object holds both `id` and $`k_p^a`$, so the POC does not
    demonstrate the property that section argues for.

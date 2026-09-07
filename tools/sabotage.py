@@ -217,6 +217,17 @@ MUTATIONS = [
         find="        if self._closed:\n            # Not recorded at all",
         replace="        if False:  # SABOTAGE: closing does not stop submissions\n            # Not recorded at all",
     ),
+    Mutation(
+        name="receipt_omits_the_entry_position",
+        what=(
+            "The receipt carries the chain head but not the entry position, so the "
+            "voter must ask the ballot box where to look -- a query answered by the "
+            "component under audit."
+        ),
+        path="src/ovpoc/ballotbox.py",
+        find='        return SubmissionResult(True, "accepted", entry.entry_hash, entry.index)',
+        replace='        return SubmissionResult(True, "accepted", entry.entry_hash)  # SABOTAGE',
+    ),
 ]
 
 

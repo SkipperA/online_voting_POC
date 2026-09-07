@@ -671,3 +671,18 @@ def test_a_ballot_arriving_after_the_close_is_not_recorded(election):
     assert result.reason == BOX_CLOSED
     assert (len(box.accepted), len(box.rejected)) == before
     assert box.tally()["counts"] == {1: 1, 2: 0, 3: 0}
+
+def test_the_inclusion_check_works_from_the_receipt_alone(election):
+    vro, voters, box = election
+    voter = voters[0]
+    register(vro, voter)
+    ballot = voter.cast(2)
+    receipt = box.submit(ballot)
+
+    # Everything below uses the receipt, the record the voter holds, and the
+    # published view -- no method on the box, and no query it could answer
+    # falsely, since it is the component under audit.
+    announced = box.published_view()["commitments"]["accepted"][receipt.index]
+    assert announced["index"] == receipt.index
+    assert announced["commitment"] == receipt.ledger_head.hex()
+    
