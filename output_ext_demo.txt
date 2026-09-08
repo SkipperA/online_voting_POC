@@ -1,0 +1,1046 @@
+(.venv) skipper@Mac online_voting_POC % python ext_demo.py       
+Anonymous Authenticated Ballot System — extended demonstration
+VRO modulus 3072 bits · RSABSSA-SHA384-PSS-Deterministic (RFC 9474) · Ed25519 wallet and ad-hoc keys
+Proof of concept. Private key material is printed deliberately and must never be reused.
+Generating the VRO key pair…
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 1 · SETUP — the VRO's one and only signing key
+══════════════════════════════════════════════════════════════════════════════
+  One key pair for the whole election, published before voting opens and
+  pinned in every client. A VRO free to use a different key per voter would
+  gain nothing from blinding: it could afterwards tell which of its keys
+  verifies a given ballot and re-link it to the requester.
+
+  modulus  n_R  (3072 bits)
+      9c463ace8236ad9413a6370523a87feaf5a1ecd9faeba756040707be00fe6c7a
+      02ddd3ad9ca24eb4ead585f29ce64d67be187005c53b5b373af72d4b0c63c9f9
+      ca94e3c685b541b0b0e55fc6ab19beaff9b55685866d0dd024eac5eaef9185ee
+      ba5dff50c9ba95b019615f2f2350291f2d8e5f91f09fa9926e23246a588ad779
+      5a2a3797c4de5b51c8c9f616304a6e89348323aa1c40169be9f39d93137c6819
+      71a2bbe9da156944a2b4d22dd5872dc17b2b589a24f71dd13342689a98964a63
+      552a32fbf9251e64fd6e78f0acc48fb30ad13a634daf165aa10c3bde41cfb1e2
+      42ea67e9f72fada98a7e0f33ece68d1049ee6342afc36583c459f0395e734e62
+      8a9af3ff63c9b79b8f7c0c11c66293ed91e725812475bfac1a9364f62bbf1f2f
+      92395241f7da4f7a58d155e6eeeaa5f552129bf0d1376f85c91391ec1df4071b
+      3e603c2f6fb2b365aec1886f9779825576253b8641567b1c64206bbe9c01607b
+      9c5c855d184b7f08bfb3d3ad99d61d973813dd370b2df3d93c0ce6a760a76983
+  public exponent  e_R           65537
+
+  The private exponent and the primes follow. In a deployment they never leave
+  a hardware module; they are printed here so that every exponentiation below
+  can be reproduced by hand.
+
+  private exponent  d_R  (3066 bits)
+      02580f53bfa2405243452ff814c3d73f57f5d8cea033deabac9dca60f034e0bd
+      a7c35a04759ffd9c3b157ecfd7c8a08a98d05705cf2287c8b94ab1d4395859d4
+      3454ad61f1e97915c4617c614779b8617d5659f8e0be4c01be3c0341f5dbf1ed
+      55c0492f1607856d41c433204ae04ded98ca54e6a47c5097d0ad1843bc16410b
+      21ee162d6197903916d0e8af0684674a098e99ff583321e3aecba7a668196a9a
+      4f1908c6862de20954836fcf9e2f4be1660e8d62aa81466237e99c160d89db8d
+      c1da777de43ddd94bf7989e3ff063050209bc743c249bd751d9fbdf13a91f502
+      b4c5d92d500c92316e53b82b144c8339635bb4a5736e6f810c3730acf7c28c8a
+      b2fbe8d95b9f0039e9d3721cbaefbb4fb70e1f14a111b759af5b2e111e1a7614
+      ea4ab767942626d1d97bd11f7161aafb41b1c16fb4136d170f8cbb7dcffbee5c
+      3c3cff121826b193d21e0c7747f17945da2cca9fc3a5b53a22eafd9c210dccc2
+      572817e4532f1526177dd4752fadca7ee6587438491ff8e4c9c64afbb25863a1
+  prime  p  (1536 bits)
+      d677401cfb0c67efcb3a97621104bc0183ffffcc8cc90cb231aa36c189b07905
+      af5e691841a1b7f8af8e7d7fc77788a97618d002f5247780117786b2d9ee95c0
+      4321660559531486bc14e9a8d4a535e045c02cf0a3282fab666a662c07d3d968
+      5b2dc341cb4bf69cdb8c36348fcea2d6f2b731614e595df6b03ba29f203e0c28
+      2d419361cc4777378fc61e7a0153b6ed9d043c16e0d919980a350f284a27017f
+      676c40d266ce6f86a9633957c6de0355f8a64b550067aeb97832020cccf9c431
+  prime  q  (1536 bits)
+      ba89f8c47f979643f5f825e8ffb48a6e5b59b9cc41f0c8115db5fd9141d6eeba
+      41a0d7b690dd53b45da19289932e08dad38ca78580d5e58e0f0383c9982d239a
+      d9ad29a47f8ff030ad8c21953449eefe5b8f5def85a3ea443b18bd159eb0a0d4
+      66474686690b9eeb7930a70d211950398a95b7c9b6a8a3457d6c1b6e765b0060
+      07af1db62462b62fc3587eb52787a8af16aeb8f997d67ad1a90e61c3b8bd8325
+      e5a7db3860e90d1e6fec17560c878d71ba8499c37b78eb1421d922113f045ff3
+
+  SHA-256 fingerprint            135cff40e86559f8285271aa2b186847a02dde89fffa1fe86fbeb2dfb9ff7e6f
+  [✓] p · q == n_R
+  [✓] e_R · d_R ≡ 1  (mod λ(n_R))
+
+── Two registers, held by different parties ──────────────────────────────────
+  Anna     id = HU-WALLET-000
+  k_p^(v) in the qualified certificate  (32 bytes)
+      a450d5b9f65a89526312588a90f27c7f9afc1cd5726bebcc2090671b88256f40
+  Béla     id = HU-WALLET-001
+  k_p^(v) in the qualified certificate  (32 bytes)
+      ceca38840de5a418be9e34ed4215992158160592f4832a27bb66f39da9ceda53
+  Csilla   id = HU-WALLET-002
+  k_p^(v) in the qualified certificate  (32 bytes)
+      f119b5b41efec9d56fe6e040375e23a0d3a41714f656cd263c5975cf8c94aa63
+  The electoral register holds identifiers and nothing else: the VRO
+  administers who may vote. The signing keys above are not its copy — they
+  live in qualified certificates maintained by a certification authority,
+  which the office looks up per request and does not store. Under eIDAS that
+  certificate already binds the key to a named person, so a second election-
+  specific binding step would be redundant.
+  [✓] the electoral register holds ids alone
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 1 · STEPS 1–4 — Anna's device prepares the request
+══════════════════════════════════════════════════════════════════════════════
+
+── Step 1/A — the ad-hoc key pair, generated fresh for this election ─────────
+  k_s^a  (private, never sent)  (32 bytes)
+      20a98f5fb452e125150a26e0bb2ca9c0d62758c20d74b561d6435a7fda9673c6
+  k_p^a  (public, will be blind-signed)  (32 bytes)
+      c9b4c10df641b0c96921f5c2e64df4f241e1dd7390d4cfc0c9dde0d70eee71e2
+  This key pair is the voter's anonymous handle on their own ballot. It is
+  generated on the device, and the registration office never sees it in the
+  clear.
+
+── Step 1/B and 2 — encoding, then blinding ──────────────────────────────────
+  enc(k_p^a)  EMSA-PSS, SHA-384  (384 bytes)
+      400be93588e10fa1c1ca8c4bd00c5bdc23cfebd87a8ba2fa2dc4a5481dde8020
+      766477983d86d49930fcd87e57db14a655b5f22a60576fad1a3f5f5f263d60e2
+      663c411120c4bcd9ca63d56eb6f12a26ba373eb48f2c3d9eb297e7aec2c81ab6
+      a7aab26db5cbd690aac1c263e531f6085845749b7f0d31e0d7d4f861ddc73d58
+      b9b96c665f1720fda9c610411bbd18bf5c6267afe67939c552f8ab2b8e64556c
+      b716a4dd5d9d00dbf9dc0427702ea65c11f6b0fbe4311670b3d90e566401c091
+      0649f97ae1b57c9f27860d145ec4dd4295608ce33107e019b952ba7a56509b31
+      7d0ab78a2dc3203120f72f27804d60c71d42ff7a4afd824b5058bd4d01f21f4c
+      bb76c37c8c17c4507888cdfe6daf90941b85ae2d5abbded9493f005f41bfe4e2
+      b2685307b71150552b9310ff4d69fa71077c02d207992ab9004e84286a6e5baa
+      84e8738267920928d9a719a0c734ef8fb4130dc0c41a3d62c84411ca2206c500
+      940774cb03f485021c3d6a689e0648f125d499f61d2007be63d20a468ba7bebc
+  The salt inside that encoding is drawn by Anna's device, not by the signer —
+  RFC 9474 puts the encoding inside Blind(), so the VRO never sees an
+  unencoded message and takes no part in choosing the salt.
+
+  blinding factor  r  (3071 bits)
+      6b14724ba453c9cbba9bb6d83c84fab47f99c7e3efa0172d838f63d32fc32a28
+      311eac04890b0235a47a4d3276a06dec2ad3d745bb0753f9f3febdb4c73ab318
+      cc2b3e4559925e5e1a8732c6da6e5061e9c9f8a76a9992610a429c653e638d39
+      bb6158f0c538d8abc5cfe7ea9eebb694326b4f37bdec243ca5be96afba5bcba6
+      0c0f7e0d4dd95fbabb556753b9c9d3b721ea5255e7261e198507213442ab6bbf
+      17e8737ccea82db6dcdc78ecb8b15b143b220124f38e511f6529e6801504e772
+      546b6d5cbb8d47446a4bb440c4486883ed3a0fc93b265a6e23f6fba8e1229d61
+      357d378b44afb35be350a1e5f5f783283842f125194511e8d2e029bcae5488f4
+      978e736fcf04b9e1fefbcf911866d786489197ff9a155b155f42189c5524174d
+      c8d2aecbc13d27b34bd33fed7ca3202b1c9b5dc958264097f0ea1e41c9f3f1e8
+      e8ac23e75d6adccb8aabff92ba1b9bdeb3c3a06a1c5e827c15b7b56078962cde
+      bf28f0ca87f0c0e52095383736a973711f4cc4780921786c65759cb2ad3a6883
+  r^(-1) mod n_R  (3067 bits)
+      06ed7791c7fea64cd21ed888aea762c134ed226114d076cdbe12d873cf0680fb
+      d24e3c23421c2dcc11aaacf2df207d9da1bb45c153e34d6756a9ec518b7f1ccd
+      9c83ff0d55d2e5de063115577d6f16fb27378d6c7ab2396d6345d67898c7c435
+      233a666f7351721e9317e2e27848636661b205c64d6e46d5cd755cdcafa73d02
+      bde1aceface0c776567560d6aabab44de6c64e8b8ea7b66b91e796a258beffff
+      68b93056bf09ef5ce7c829e265453c032a323525f66a6b107ac2fc8f1efbd897
+      9c7bb52b24fcf60daf84d23a37c4b24c39bd5f2ff04735c0546d2d971f2da9d5
+      a0d89950ffb912e800460c0a73bdda9878e600da38892c86843c85c510ff38c3
+      7a354f1781d98ed472df30edb9459220ae2ffe8f45c87bff5df6f35845b93864
+      ed2cf684a382292d7a6dc845c282231c9c67891ec5cc6852930cba4183442127
+      240b51d2b32f749cadd613a8705e9c6d5f1c202f0c93999f99fd5931775cde8e
+      f10317726fd8ab1493ed593327606846b8e71207d8f9fc11e28de0400bb8861e
+  r^(e_R) mod n_R  (3071 bits)
+      7826248c4ab732b6a46a1cbcaa097399d7457df0460c15005a1ab2453b684f49
+      476e346df45a81631a80cfdddc690aee34f71073883f61197a3f03076ae60d42
+      761436f4bc28c8ff8f3a1f346549faffbf5dc0eab1541ad5288a9d390cae7f28
+      5ce5b316d1c0cf98e09ca99fdc02ef7eb38d56f357d7fdd856a7b0b47017582d
+      44e4347c159f88ac0ea7a900fa654002c83e9b20b0fc8b021796438baad3cd6a
+      ea4d48ad635d7bb86b1598e0155b72e2afcfe26e87a36f38f6e1d313df2574e6
+      0ab00a2b43481e3f6d14f727446fbab06f2c83fb60818c6d70e116335a936227
+      4270ed99445f36d9c9781174c872b8634ac4dc2542638cb7216068f9153feda4
+      7a2d5811063b8f10b4d5d97c218e7421915751a3dc774fe733a1de2036e73c75
+      e4627034d1f29a582b4f4af8d4995dc1b71f0856d6a12b5ae47d972bacdc8f1f
+      c78f0b7df38a662edc1a1f7a13451d172556a3e90ccca211960cb4ffa7c3e887
+      d346a23f643e371a8317ca4e65b218761a3c5260223f4f76d177106480963450
+
+  c = enc(k_p^a) · r^(e_R) mod n_R  (3071 bits)
+      79fff0e9f1af1e6fdc704d2f7dffc4aca6db88ccaca77439c837af9250ea066f
+      a15baab753c3d1bb7cd59dcfeea53684c78eb28f3a164ba51b08c851094bb168
+      3a2dd8acccbfb836af17832c79375a91c536286efced21c093168013d92cd6cb
+      2e6693d3c24884f3d1ab817c4425f4f7883787be7f01398c1d926e4ade22dd60
+      ba462b5f449f1e2e5381339657731a6da55eda2f395cbdbc43080805e1d48dfb
+      284e9e6d740638fca8df1105948685f3f565880160f2959d983267fa24bd752f
+      98310b01c495e37ea763ccf76222e5cb1b148db54a42fe52877ab87a32b7b3d1
+      18ae4de6e5ed4406993e6fc10ba2d52918c8bfefd8e7196986d60b3b8bc496e7
+      cb23be7c729790871814f8922e1c2694c639e76c5be0aca56329ea39344d9e41
+      3c0096ee2eef82b722f8bbd8d20ba0308de1555a8ffb7155dc87f5c61007172d
+      d4a45ebc258d1ddfa8b3e23a160d45a93c9ba74b9028abcfb87a6083f0a98c53
+      68973fcef7f5dae1bd17ad0e9eef2793cc0e4b13847009d8e787217ac784ea05
+  [✓] c recomputed from enc(k_p^a) and r matches the value sent
+  [✓] enc(k_p^a) < n_R  (the encoding is reduced)
+  [✓] r is invertible mod n_R  (r · r^-1 ≡ 1)
+
+── Steps 3–4 — the wallet signs the request package [id, c] ──────────────────
+  canonical JSON actually hashed  (557 bytes)
+      {"blinded_key":"ef_w6fGvHm_ccE0vff_ErKbbiMysp3Q5yDevklDqBm-hW6q3U8PRu3
+      zVnc_upTaEx46yjzoWS6UbCMhRCUuxaDot2KzMv7g2rxeDLHk3WpHFNihu_O0hwJMWgBPZ
+      LNbLLmaT08JIhPPRq4F8RCX094g3h75_ATmMHZJuSt4i3WC6RitfRJ8eLlOBM5ZXcxptpV
+      7aLzlcvbxDCAgF4dSN-yhOnm10Bjj8qN8RBZSGhfP1ZYgBYPKVnZgyZ_okvXUvmDELAcSV
+      436nY8z3YiLlyxsUjbVKQv5Sh3q4ejK3s9EYrk3m5e1EBpk-b8ELotUpGMi_79jnGWmG1g
+      s7i8SW58sjvnxyl5CHGBT4ki4cJpTGOedsW-CspWMp6jk0TZ5BPACW7i7vgrci-LvY0gug
+      MI3hVVqP-3FV3If1xhAHFy3UpF68JY0d36iz4joWDUWpPJunS5Aoq8-4emCD8KmMU2iXP8
+      739drhvRetDp7vJ5PMDksThHAJ2OeHIXrHhOoF","voter_id":"HU-WALLET-000"}
+
+  hash([id, c])  SHA-256  (32 bytes)
+      0b1fcc81616ffebdb6903e27f03a108aee6cb8d8e36685874d08685b28d3390b
+  s = sig_{k_s^(v)}(hash([id,c]))  (64 bytes)
+      a9ae6194bfc6b91f74df71efb40bb4adf984fc2753e8b7d4b1fa0d0e2f9f4002
+      58d4931892b01e63f27bdcfe8f585a8d45d16592f8c67b7be1b06ee60f039d0c
+  [✓] the wallet signature verifies under k_p^(v)
+  Note what travels to the VRO: the identifier, the blinded value, and a
+  signature. Nothing about the choice, and nothing that reveals k_p^a.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 1 · STEPS 5–7 — the VRO validates, logs, then signs blindly
+══════════════════════════════════════════════════════════════════════════════
+
+── Step 5 — the checks, in the order that keeps the roll private ─────────────
+  5/1  certificate found for this id? True
+  5/2  signature verifies under the certified key? True
+  Those two are all that may be answered before identity is established, and
+  both failures return one opaque result, NOT_IDENTIFIED. Otherwise the token
+  endpoint would let anybody who can spell an identifier discover whether that
+  citizen holds a certificate or appears on the electoral roll.
+
+       — identity established; specific reasons permitted below — 
+       certificate revoked?      False
+       certificate expired?      False
+       on the electoral register? True
+       token already released?   False
+  Revocation sits below the boundary deliberately: a revoked certificate still
+  verifies mathematically, so by the time the office can see revocation it
+  already knows who it is speaking to.
+  outcome                        ISSUED
+
+── Step 7 — the release is logged before the signature is returned ───────────
+  nonce (disclosed only on a signed step-12 query)  (32 bytes)
+      d1941ab700518762608ff095417b9fc5bef53e0554733ed6878413fb890fb294
+  commitment  H(id ‖ nonce)  (32 bytes)
+      03c9fe5ddf02f590a164fc76298cd432518eb238475bc6b85d6a432e31eb4094
+  published log entry            {'commitment': 'A8n-Xd8C9ZChZPx2KYzUMlGOsjhHW8a4XWpDLjHrQJQ'}
+  previous entry hash  (32 bytes)
+      0000000000000000000000000000000000000000000000000000000000000000
+  this entry hash  (32 bytes)
+      44682872cf299d98ddcc188aef0616508f295d549094321490cd1c69a9df95ac
+  [✓] the published entry contains no identifier
+  [✓] entry hash recomputed independently
+  [✓] logging happens before signing (a token cannot exist off-log)
+
+── Step 6/A — the raw private-key operation  s_c = S(c) = c^(d_R) mod n_R ────
+  s_c  (3071 bits)
+      67144861271604cf0f13c63e5316a1635f0518480710bdf28aca5929338d90b9
+      8b90ec49e5ae002ae47ca2d807ce5789e8718d25ad9f56b3ebf831dc87d9df61
+      dfe1e38d7a1f71689565a4c1ef2963dc7cb9338412d2303e71681d17c807de60
+      9870884873ab5d79fa41f0a977dd37af554cfe4c007731df3ae85734e4ea2355
+      60996f64032f633c81f823b3ef6e86e91d4edffcf693e695195cbddeef93b514
+      3f477c2fed1378dafbce47e3ec51e0614370218c4df118af12fd000fb6ddf085
+      fab0892ccae44f148d0ee7be3f85b1271edc795bf300d5bc931f07088896b382
+      6949d937a026577b70a1ce88fe30a677ff6b26aefc0666e56dc9a62cb526c582
+      2f4700d35b66e17a0189b6edd7f6803cd879d49b4b8b942ef8e64b3f573be2ac
+      580892da0e782545fe02b85f82fd26db4341e61a402e39d975e91464fbb634cc
+      dbf84e4c753912c3c25873f9850570a65fd71457c2a9675211178a47a1bc8c6b
+      7a8a3eaf81009750162781fbb90ad5aba2e34a3b4204966c279be1a30e32710f
+  [✓] s_c recomputed as pow(c, d_R, n_R)
+  [✓] s_c^(e_R) ≡ c  (mod n_R)  — the fault check of §5.3
+  That last line is the Boneh–DeMillo–Lipton countermeasure the article
+  specifies in §5.3. It is performed here by the demonstration, not by
+  `vro.py`, which does not yet implement it — see CLAUDE.md, open items.
+
+  What the office holds after this exchange: an identifier, the blinded value
+  c, and s_c. What it does not hold: k_p^a, r, or anything that links either
+  to c.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 1 · STEP 8 — Anna unblinds, and checks the office behaved
+══════════════════════════════════════════════════════════════════════════════
+  s_{k_p^a} = s_c · r^(-1) mod n_R  (3072 bits)
+      8f1191a661923def65c4eedb5fc327770362970c759594a4316fa760c11eaaed
+      ad92716bde17c4d1b7ae8e011bb9be6ac31f6039a09cd7fb4261c3c2ba1b742d
+      0a75c7f2c7f670fd7e3722b3d8dfcfdbc44758dd5e28666ee3134036436e6d5e
+      ec10f2e71d2692087f88708dccb01691c1ffbfee21bf1a09135a0ac3dce3996d
+      0a3db7fc15356cd14f1064141dc7c4eb67ebf72dfabd1af76a8d863f4c624bc1
+      b245197662b24d9f35a18b7bc6e9744a38d6cadc99595d9e9aeb05819e081ba0
+      888f9845aec06a58a618a41586e1238fdd4456134574aca356a886a2ab0fba19
+      10c661a2d375220b4fa677d4438d8c1bb352bbcf0d80ca1ebb4511e5b40a7351
+      d1b9eb39f2e9db4f20acbc1f9550f51d24286a8a3135522f9898e740e3e3a56b
+      e8ef12a41b2cccd0321d7d6e833911ad25a81a5569ce4c59daf7b207592cb50a
+      f808a8aa1904fb4aac8e5c7aff8205fdc4e696ffc83871051b5ccca10035d500
+      81c66215ca1e21e457a314c966c9049501aa96d6326c07ad7b7f4d89d46a64fb
+  [✓] token recomputed as (s_c · r^-1) mod n_R
+  [✓] token^(e_R) mod n_R == enc(k_p^a)  — the encoding reappears exactly
+  [✓] the token is an ordinary RSA-PSS signature over k_p^a
+  The blinding factor is transformed, not carried: Anna multiplied by r^(e_R)
+  and divides by r, because (r^(e_R))^(d_R) = r. Blinding and unblinding
+  therefore do not cancel — the exponentiation in between is what makes the
+  construction work.
+
+  The result verifies under an unmodified RSA-PSS implementation. No election-
+  specific cryptography is needed by anyone checking it later.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 1 · STEPS 9–11 — the ballot, and what the box records
+══════════════════════════════════════════════════════════════════════════════
+
+── Step 9 — Anna selects 'Option A' ──────────────────────────────────────────
+  canonical JSON actually signed  (80 bytes)
+      {"adhoc_public_key":"ybTBDfZBsMlpIfXC5k308kHh3XOQ1M_Ayd3g1w7uceI","sel
+      ection":1}
+
+  hash([i, k_p^a])  (32 bytes)
+      cdd695f73de4f5665775899e39975c57e5128f2a836677f0082b483aa43f156c
+  s_vote = sig_{k_s^a}(hash([i, k_p^a]))  (64 bytes)
+      84baff848372687a65f89ec55c85d7aa0a447ae2bbd725471960ee50587f7a41
+      f70c65b2a15d38c42b7bb0658c3af49db3ef7771fe83fabdb5142012b4006a08
+
+  The complete published ballot package [i, k_p^a, s_{k_p^a}, s_vote]:
+  i  (selection)                 1
+  k_p^a  (32 bytes)
+      c9b4c10df641b0c96921f5c2e64df4f241e1dd7390d4cfc0c9dde0d70eee71e2
+  s_{k_p^a}  (token)  (384 bytes)
+      8f1191a661923def65c4eedb5fc327770362970c759594a4316fa760c11eaaed
+      ad92716bde17c4d1b7ae8e011bb9be6ac31f6039a09cd7fb4261c3c2ba1b742d
+      0a75c7f2c7f670fd7e3722b3d8dfcfdbc44758dd5e28666ee3134036436e6d5e
+      ec10f2e71d2692087f88708dccb01691c1ffbfee21bf1a09135a0ac3dce3996d
+      0a3db7fc15356cd14f1064141dc7c4eb67ebf72dfabd1af76a8d863f4c624bc1
+      b245197662b24d9f35a18b7bc6e9744a38d6cadc99595d9e9aeb05819e081ba0
+      888f9845aec06a58a618a41586e1238fdd4456134574aca356a886a2ab0fba19
+      10c661a2d375220b4fa677d4438d8c1bb352bbcf0d80ca1ebb4511e5b40a7351
+      d1b9eb39f2e9db4f20acbc1f9550f51d24286a8a3135522f9898e740e3e3a56b
+      e8ef12a41b2cccd0321d7d6e833911ad25a81a5569ce4c59daf7b207592cb50a
+      f808a8aa1904fb4aac8e5c7aff8205fdc4e696ffc83871051b5ccca10035d500
+      81c66215ca1e21e457a314c966c9049501aa96d6326c07ad7b7f4d89d46a64fb
+  s_vote  (64 bytes)
+      84baff848372687a65f89ec55c85d7aa0a447ae2bbd725471960ee50587f7a41
+      f70c65b2a15d38c42b7bb0658c3af49db3ef7771fe83fabdb5142012b4006a08
+  Nothing in that package identifies Anna. The only link to eligibility runs
+  through the token, and the office cannot recognise it.
+
+── Steps 10/1, 10/2 and 11/A — the ballot box decides ────────────────────────
+  10/1  token signed by the VRO? True
+  10/2  selection authenticated by k_p^a? True
+  result                         accepted=True  reason='accepted'
+  previous ledger head  (32 bytes)
+      0000000000000000000000000000000000000000000000000000000000000000
+  new ledger head  (32 bytes)
+      d023954c8ee04953000a6ac98daa997b6dbcf3021c6c93272b4a2fd486618d71
+  [✓] ledger entry hash recomputed independently
+  The head returned in the receipt is Anna's evidence of the state of the
+  registry at the moment her ballot was accepted. If the published ledger
+  later fails to reproduce it, the discrepancy is demonstrable.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 1 · STEPS 12–13 — the two checks from an independent device
+══════════════════════════════════════════════════════════════════════════════
+
+── Step 12 — was a token released in my name? ────────────────────────────────
+  payload signed by the query  (32 bytes)
+      e707d1922fbc4c7cf2294bc08dca62dd79a4432abd2e45094ea976988bfec06b
+  sig(id)  (64 bytes)
+      b782c518ead5ad0af9707d9886dbdf524c861648513a47ea328b980ba6627e9d
+      f9cbff904ba5a36791dafeb925b874ae244d7b8ada978e7f7059748cd3715b0c
+  released                       True
+  index in the published log     0
+  nonce disclosed to Anna alone  (32 bytes)
+      d1941ab700518762608ff095417b9fc5bef53e0554733ed6878413fb890fb294
+  [✓] the nonce opens the commitment at that index
+  [✓] the same nonce does not open it for a different id
+  The query carries sig(id) because an unauthenticated lookup would turn the
+  log into a public register of participation — and absence of an entry is
+  conclusive proof of non-voting, which is exactly what a coercer demanding
+  turnout needs.
+
+── Step 13 — is the recorded selection the one I intended? ───────────────────
+  recorded selection             1
+  [✓] cast-as-intended check passes
+
+── The other voters (abbreviated — same protocol, different numbers) ─────────
+  Béla     selection 3  accepted=True  head 047622254802083e1eb995280868d7af…
+  Csilla   selection 1  accepted=True  head 7ee2325bd49a856aef30285afbdbdbdf…
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 2 · THE ANONYMITY CLAIM, AS DATA
+══════════════════════════════════════════════════════════════════════════════
+  Below are the two records side by side: what the registration office
+  retained from Anna's exchange, and what the public ballot box shows. The
+  value that connects them, r, exists only on Anna's device and was discarded
+  after step 8.
+
+── The office's view of Anna ─────────────────────────────────────────────────
+  id                             HU-WALLET-000
+  c   (what it signed)  (3071 bits)
+      79fff0e9f1af1e6fdc704d2f7dffc4aca6db88ccaca77439c837af9250ea066f
+      a15baab753c3d1bb7cd59dcfeea53684c78eb28f3a164ba51b08c851094bb168
+      3a2dd8acccbfb836af17832c79375a91c536286efced21c093168013d92cd6cb
+      2e6693d3c24884f3d1ab817c4425f4f7883787be7f01398c1d926e4ade22dd60
+      ba462b5f449f1e2e5381339657731a6da55eda2f395cbdbc43080805e1d48dfb
+      284e9e6d740638fca8df1105948685f3f565880160f2959d983267fa24bd752f
+      98310b01c495e37ea763ccf76222e5cb1b148db54a42fe52877ab87a32b7b3d1
+      18ae4de6e5ed4406993e6fc10ba2d52918c8bfefd8e7196986d60b3b8bc496e7
+      cb23be7c729790871814f8922e1c2694c639e76c5be0aca56329ea39344d9e41
+      3c0096ee2eef82b722f8bbd8d20ba0308de1555a8ffb7155dc87f5c61007172d
+      d4a45ebc258d1ddfa8b3e23a160d45a93c9ba74b9028abcfb87a6083f0a98c53
+      68973fcef7f5dae1bd17ad0e9eef2793cc0e4b13847009d8e787217ac784ea05
+  s_c (what it returned)  (3071 bits)
+      67144861271604cf0f13c63e5316a1635f0518480710bdf28aca5929338d90b9
+      8b90ec49e5ae002ae47ca2d807ce5789e8718d25ad9f56b3ebf831dc87d9df61
+      dfe1e38d7a1f71689565a4c1ef2963dc7cb9338412d2303e71681d17c807de60
+      9870884873ab5d79fa41f0a977dd37af554cfe4c007731df3ae85734e4ea2355
+      60996f64032f633c81f823b3ef6e86e91d4edffcf693e695195cbddeef93b514
+      3f477c2fed1378dafbce47e3ec51e0614370218c4df118af12fd000fb6ddf085
+      fab0892ccae44f148d0ee7be3f85b1271edc795bf300d5bc931f07088896b382
+      6949d937a026577b70a1ce88fe30a677ff6b26aefc0666e56dc9a62cb526c582
+      2f4700d35b66e17a0189b6edd7f6803cd879d49b4b8b942ef8e64b3f573be2ac
+      580892da0e782545fe02b85f82fd26db4341e61a402e39d975e91464fbb634cc
+      dbf84e4c753912c3c25873f9850570a65fd71457c2a9675211178a47a1bc8c6b
+      7a8a3eaf81009750162781fbb90ad5aba2e34a3b4204966c279be1a30e32710f
+
+── The public ballot box, first entry ────────────────────────────────────────
+  selection                      1
+  adhoc_public_key               ybTBDfZBsMlpIfXC5k308kHh3XOQ1M_Ayd3g1w7uceI
+  token                          jxGRpmGSPe9lxO7bX8MndwNilwx1lZSkMW-nYMEequ2t…
+  vote_signature                 hLr_hINyaHpl-J7FXIXXqgpEeuK71yVHGWDuUFh_ekH3…
+
+── The one value that links them, which nobody else ever had ─────────────────
+  r  (3071 bits)
+      6b14724ba453c9cbba9bb6d83c84fab47f99c7e3efa0172d838f63d32fc32a28
+      311eac04890b0235a47a4d3276a06dec2ad3d745bb0753f9f3febdb4c73ab318
+      cc2b3e4559925e5e1a8732c6da6e5061e9c9f8a76a9992610a429c653e638d39
+      bb6158f0c538d8abc5cfe7ea9eebb694326b4f37bdec243ca5be96afba5bcba6
+      0c0f7e0d4dd95fbabb556753b9c9d3b721ea5255e7261e198507213442ab6bbf
+      17e8737ccea82db6dcdc78ecb8b15b143b220124f38e511f6529e6801504e772
+      546b6d5cbb8d47446a4bb440c4486883ed3a0fc93b265a6e23f6fba8e1229d61
+      357d378b44afb35be350a1e5f5f783283842f125194511e8d2e029bcae5488f4
+      978e736fcf04b9e1fefbcf911866d786489197ff9a155b155f42189c5524174d
+      c8d2aecbc13d27b34bd33fed7ca3202b1c9b5dc958264097f0ea1e41c9f3f1e8
+      e8ac23e75d6adccb8aabff92ba1b9bdeb3c3a06a1c5e827c15b7b56078962cde
+      bf28f0ca87f0c0e52095383736a973711f4cc4780921786c65759cb2ad3a6883
+  [✓] c · (r^-1)^(e_R) ≡ enc(k_p^a)  — the link, only computable with r
+  [✓] the office's transcript shares no byte string with the ballot
+  Without r, relating s_c to the published token is exactly the problem the
+  blinding was chosen to make hard. What the office can still do is issue a
+  token nobody asked for; that is bounded by the one-token-per-id rule and the
+  public release count, not by cryptography.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · A BALLOT CAST WITH NO AUTHENTICATION
+══════════════════════════════════════════════════════════════════════════════
+  The naive attack: submit a selection with empty fields, as though the ballot
+  box were a form on a website. This is what the ballot box is asked to
+  accept.
+
+── Submitted ─────────────────────────────────────────────────────────────────
+  selection                      2
+  k_p^a  (0 bytes)
+      (empty)
+  token  (0 bytes)
+      (empty)
+  s_vote  (0 bytes)
+      (empty)
+
+── Ballot box decision ───────────────────────────────────────────────────────
+  accepted                       False
+  reason                         token not signed by VRO
+  [✓] rejected at check 10/1, before the selection is even considered
+  [✓] nothing entered the accepted ledger
+  [✓] the attempt is published in the rejected ledger
+
+── The rejected-ledger entry (public, so the attempt is visible) ─────────────
+  payload                        {'selection': 2, 'adhoc_public_key': '', 'token': '', 'vote_signature': '', 'reason': 'token not signed by VRO'}
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · A TOKEN INVENTED FROM NOTHING
+══════════════════════════════════════════════════════════════════════════════
+  A better-informed attacker generates an ad-hoc key of their own and
+  fabricates a token of the correct length. The bytes are well-formed; they
+  are simply not a signature under the VRO's key.
+
+── Submitted ─────────────────────────────────────────────────────────────────
+  k_p^a  (a real key, generated by the attacker)  (32 bytes)
+      78c9e69a84dd17e64b8c6cc13fbc432f5b2175965adfef66901d4088a5438afe
+  token  (invented)  (384 bytes)
+      ac8bb257379c2f2ada4c7be3c9d95c72966619630d0e96ecc0602188e244b94b
+      98763015e257488f7e07d4ba6b3c1b59c61b0b6812fb6c3885d03a44339f5f21
+      ecf8e0c3ccdba9165b491af253d2f1a4a9c56c8d244d8eb88f4577af144cbd5d
+      70d90076b9f10155e08156497152656e5180ddb23c6023fb91e9272176bbb42d
+      d7f038fb3e4aa6c9907ec65bcdddeefd9f48d7f72a6d5baca013a60856c74dae
+      56134be2dd7758510e1f159b90efccb089d26e236ab0b071d17c8a346541964d
+      fba8e1b8ca68a7b7674938c3086e0e7c37b38c186f76885b506cd08928a692a3
+      6d2d6dec4c827a227b0f6a69b60e3693c889272355f054748bb2f7b34f49b1fe
+      41b88f60745008d3de0083ebc6c42744f8d6c38ea7a46a7789e2db41744c6067
+      c907562a400ab92ea2667c475bc26e22c6d7d63274db9f8aa39e23cb44f3a294
+      f82f2a9bd117fc0220240c66d44c038c22568786fa15a24bfdf976d2d74b34f3
+      82e5e75730d5524d30395a23e47d72e010d569cc8bf1717782631745b3d3af5d
+  s_vote (genuine — signed with the matching private key)  (64 bytes)
+      08c7e6087de0fcc184090ae789290f6f086f668c3814726628c4f13edaa4b0ec
+      c2d72ba7c70e7b1dc2ac8b6af4756f2864d3dc2d11800a72aad87a538009070e
+  [✓] the vote signature itself is perfectly valid
+
+── Ballot box decision ───────────────────────────────────────────────────────
+  accepted                       False
+  reason                         token not signed by VRO
+  [✓] the token fails RSA-PSS verification under k_p^(R)
+  [✓] rejected
+  Authenticating the selection is not the same as being entitled to cast it.
+  The ad-hoc key proves who signed; only the token proves eligibility.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · A GENUINE TOKEN, STOLEN FROM THE PUBLIC BOX
+══════════════════════════════════════════════════════════════════════════════
+  Every token is published in clear. An attacker copies one and attaches it to
+  a key of their own — the obvious consequence of publishing ballots, and the
+  reason the token signs the key rather than accompanying it.
+
+── Copied from the published ledger ──────────────────────────────────────────
+  victim's k_p^a  (32 bytes)
+      955090bdfa0d0efa8af931038bae3fc8b2c17e84987388a7c463086befe08407
+  victim's token  (384 bytes)
+      3297886022b6840d195971314da6faea0e7671ac59d70b82d33c3ef0663304af
+      4b12a5c5418e78b293225cd306c5a1f6ee377532e2e4ff14d261105d9a917b04
+      847129d45faea06ed16e8d16c3f6e51d0de6b54866a8fd27e34e42e6f0c941f5
+      d7f4713eade19c9d22f455f79e37d4ddab9a7bb4054780da5726b00d49d57791
+      19f24b9560329be6cc181e41c293daf1c3c3948bbf7d63a18a65a8d171134c70
+      b081ee97f92121512eacb8460e57b7365d7d40f294d94fae2552f461b52f459c
+      d87600cee50617e6b8534356e45b78801da7c56226f5475d0c0c7032eb15dea9
+      7a5dbcf8f4f00b4ed94e9bc44100990dc2122bf24fb78fb3961110a354562150
+      6e15d057d81984787cab9d833d10988ba5775c2c857cb973ec4389f98a187261
+      cc1de0ef46d426393136029f5d34afad008e8af3c269319745613b5d43679113
+      15467a96c599928fcb7f681730bbc60a70fd50ac18c9a60853f5f84ad32c747c
+      d4a6d9a560431a97a81765951defbd0deffa70a17c5c87ebbafa4d1ead7fcc72
+  [✓] the stolen token is genuine — for the victim's key
+
+── Submitted with the thief's own key ────────────────────────────────────────
+  thief's k_p^a  (32 bytes)
+      7180b61727aaad2002adca6fca11f1a9e3afb9e3afeb6ff8b0c693e8bf041fd9
+  accepted                       False
+  reason                         token not signed by VRO
+  [✓] the same token does not verify under the thief's key
+  [✓] rejected
+  [✓] the victim's ballot is untouched
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · THE SELECTION CHANGED BETWEEN DEVICE AND BOX
+══════════════════════════════════════════════════════════════════════════════
+  A hostile network, proxy or relay rewrites the choice and forwards
+  everything else unchanged. This is the objection that 'anything over the
+  internet can be manipulated'.
+
+── As signed by the voter ────────────────────────────────────────────────────
+  selection                      1
+  hash([i, k_p^a]) that s_vote covers  (32 bytes)
+      9ce3902329ff6f30e22155194293b17f69af052eac5887f14667f9f6ef2d825e
+
+── As it arrives at the ballot box ───────────────────────────────────────────
+  selection                      2
+  hash([i, k_p^a]) of what arrived  (32 bytes)
+      d71578215f8ad29b06aa63b2063763eaf7fd569a76a3810e65bf172d8c43a23a
+  s_vote (unchanged — the attacker cannot re-sign)  (64 bytes)
+      79b0b3d7e2f40163084598c93169cbd8a18544e4f74c97daa117400d771de99b
+      c63780853e9813173ad43614ad1b504fc9dc5c62223ebdf9dbc70a8291c5b103
+  [✓] the two digests differ
+
+── Ballot box decision ───────────────────────────────────────────────────────
+  accepted                       False
+  reason                         vote signature invalid
+  [✓] rejected at check 10/2
+  The channel carries signed data, so it cannot forge or alter a vote
+  undetectably. What it can still do is drop or delay ballots, and observe who
+  contacts the box and when — availability and anonymity need separate
+  measures.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · A BALLOT AUTHENTICATED BY THE WRONG KEY
+══════════════════════════════════════════════════════════════════════════════
+  The attacker presents the victim's certified key and token — both public —
+  but can only sign with a private key of their own. This is the case a
+  coercer or a compromised relay is in.
+
+── Submitted ─────────────────────────────────────────────────────────────────
+  k_p^a  (the victim's, copied)  (32 bytes)
+      de8c5e8c359fde294edf34f353a080820450463b882597b97e39568991dfd3c6
+  s_vote (signed with the attacker's k_s^a)  (64 bytes)
+      3f7c62a18614800cab526e479b66f775f2e6d23d72b1328df57ab1146c85ecb4
+      3f3978b8cdccfc9fbe7892b3a06fdea459291cd1c8eff3ffb1c56abe19da3b0b
+  [✓] the signature is valid — under the attacker's key
+  [✓] but not under the key named in the ballot
+
+── Ballot box decision ───────────────────────────────────────────────────────
+  accepted                       False
+  reason                         vote signature invalid
+  [✓] rejected
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · CLAIMING SOMEONE ELSE'S IDENTIFIER
+══════════════════════════════════════════════════════════════════════════════
+  Wallet identifiers are not secret. The attacker builds a perfectly ordinary
+  request, substitutes the victim's id, and re-signs with the only wallet key
+  they hold.
+
+── The request as it reaches the VRO ─────────────────────────────────────────
+  claimed id                     HU-WALLET-001
+  hash([id, c])  (32 bytes)
+      f949bee0f4fd6f6cc04cac2262db4d99f03a1d2e6d65ff5e3c542d06a3a73e12
+  s  (attacker's wallet)  (64 bytes)
+      8c1e1d7197da645c15b308cdfb30bad025dbb993a9f8f629e7cfb6b828f84a82
+      0f9b76b4caa2595dc3fd5b709d0b993d7ea015ca8c5b73e4d829b894fd0f4b02
+  k_p^(v) certified for that id  (32 bytes)
+      2ffd8e9365227fed5889e33cf9b468ef1d83a9930732521135b854c58d7b44ea
+  k_p^(v) the attacker actually holds  (32 bytes)
+      1f82cba149475f6f4f840f2b3f4882c27fc39fb445b21f492207bb876d83552b
+
+── Step 5/2 ──────────────────────────────────────────────────────────────────
+  outcome returned               NOT_IDENTIFIED
+  blind signature returned       None
+  [✓] refused: the signature does not verify under the certified key
+  [✓] no token was released
+
+── What the office wrote down, and did not say ───────────────────────────────
+  audit outcome                  NOT_IDENTIFIED
+  audit reason                   request signature does not verify under the certified key
+  The requester learns only NOT_IDENTIFIED. The office's private log records
+  which of the pre-boundary situations actually occurred, which is what an
+  investigation needs and what an attacker must not have.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · AN IDENTIFIER THAT IS NOT ON THE REGISTER
+══════════════════════════════════════════════════════════════════════════════
+
+── The request ───────────────────────────────────────────────────────────────
+  id                             HU-WALLET-999
+  certificate found?             False
+  on the electoral register?     False
+  outcome                        NOT_IDENTIFIED
+  [✓] refused before the identity boundary
+
+── Now a citizen who *is* identifiable but is not entitled to vote ───────────
+  The distinction the state machine turns on. This person holds a valid
+  certificate and signs correctly, so the office knows who it is talking to
+  and may give the real reason. The previous case could not be told anything,
+  because nobody had proved to be anybody.
+  certificate found?             True
+  on the electoral register?     False
+  outcome                        NOT_ELIGIBLE
+  [✓] refused with a reason, past the boundary
+
+── The two answers side by side ──────────────────────────────────────────────
+  An unauthenticated party sees NOT_IDENTIFIED in both of the first two cases
+  and cannot distinguish a citizen who does not exist from one who exists and
+  is eligible. That is the privacy property: the token endpoint is not an
+  electoral-roll lookup service.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · TRYING TO DRAW A SECOND TOKEN
+══════════════════════════════════════════════════════════════════════════════
+  Equality rests here, not at the ballot box: a voter who held two tokens
+  would hold two unlinkable ad-hoc keys and could cast two counted ballots.
+  The box cannot detect that, because it cannot tell the keys apart.
+  first token  (384 bytes)
+      4a6a0ee04a695fc8e430e04dac59eb7a948c37cfbb79aae6b4d74dccf5164429
+      aba5d8b78d90f9155e360283e3a145da273ebeade7be5aaeee0f77396321f47c
+      10f0b993d522be0b983f77931df24d28cfae2abd4448bc1683bacb598d223139
+      f0a3e8b5bd81458257f96b6d23e84baebc9ab6647c3c787617202f5c9cc4283e
+      8e9f5d3abb357d855489311a4ae98db60e889c0609a9a67c3bc8ce4aa12b31db
+      4b78ddcb0b2f8708665e4e4040bfe7ca9e80cd8adc91aa4bfe5ff9d9a16f9527
+      08c201a47ee66989bd97c00fceb7593bb4546539d85d16a43a4bca62efe55fa0
+      51397b22cd907e04aaea6b68bff3a0c20036c8cf41c6c8b7e010785632a5a972
+      44cf881e812fd5c579df34adf00671cefd5dcbdaaac3ad0a33fb7e35628065e9
+      99b8cfd0591ad37541054cb76c32cb5236a9decb12364091ff446b92ee5c13d2
+      059e289a600d6a419e0be9d84d6d7816a9fcc101689dfb92c4366a5fc040a3b8
+      993d428d3fd3307523415f9fcc69f8cf41a9ba299d39e4ece8341b89e536c5b3
+  release count                  1
+  outcome                        TOKEN_ALREADY_ISSUED
+  [✓] the second request is refused
+  [✓] the release log did not grow
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · THE OFFICE PRESENTS A DIFFERENT SIGNING KEY TO ONE VOTER
+══════════════════════════════════════════════════════════════════════════════
+  The subtlest attack here, and the one blinding does not prevent by itself.
+  Blinding hides the ad-hoc key from the signer; it does not constrain which
+  key the signer uses. An office that reserved a second key for one voter
+  could afterwards tell which of its keys verifies a given ballot in the
+  public box, and re-link it.
+
+── Fingerprints ──────────────────────────────────────────────────────────────
+  pinned in the voter app        135cff40e86559f8285271aa2b186847a02dde89fffa1fe8…
+  offered to this voter          6a50b792d6ac64c8325bdab9c6806ee348b6a132cf8342e7…
+  ValueError                     VRO public key does not match the pinned fingerprint
+  [✓] the voter app refuses to proceed on a fingerprint mismatch
+  The defence is entirely client-side and entirely procedural: one key,
+  published before voting opens, pinned in every client, identical for every
+  voter.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · THE OFFICE RETURNS A SIGNATURE UNDER ANOTHER KEY
+══════════════════════════════════════════════════════════════════════════════
+  The voter's entitlement to a token is consumed the moment the office logs
+  the release. A response that does not verify must therefore be caught on the
+  device, at the only moment r still exists.
+
+── What the office returns ───────────────────────────────────────────────────
+  s_c (produced with a different private key)  (384 bytes)
+      155e4f794a4536c31d2596470685ca8ecb184838e627c0900e03d60453e950ad
+      5241a9c202890e435bd21b0a09473a4e2e013ac9bba4d0b018e2a32b1317da22
+      71dc4e340e32ea0363df2cd46af6758d929ba7d76b0dcc691c66fcf12b460754
+      d40f6b49d04b450bf67fd4321ce9924a482cfb014b712161c06805d156e338e7
+      1493643149fb7a9dcb815b8a5c6237e921da6ec92af802b6b18077d4f43800fc
+      3d06ef5ffc897894e4df390b73f5472af722957114b4af02c9cef90f881df13b
+      2ea289395427751cca4046f9723481c5c07b12bf6e9019037982bbc487c9404d
+      83af60589ab22fc77978c0f5039a4f1fd953fd4c534258db404b8e4271398cff
+      44526fe00c48286bca72ba514169468d687f89ce4efcaaa983aa0924101af2b8
+      032d00485d5196796eb4b751a472622b07bac5e3d2eebbba35f4aa784c046ac2
+      a8184cba52cfb5a642cec47e60a77d949a1aac23d4b5931c0bb9a25afdfc8488
+      85a69fe4007d0fbe70127eb93bd5cee3f31c883ef9f551fec59a995acb9f8097
+  BlindSignatureError            VRO returned a signature that does not verify
+  [✓] the device verifies before accepting, and refuses
+  [✓] no token was retained
+  RFC 9474 requires this check in Finalize(). The consequence is procedural
+  rather than cryptographic: the entitlement is already spent, so a documented
+  re-issuance path with an audit trail has to exist.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · MULTIPLICATIVE FORGERY, AND WHY THE PADDING DEFEATS IT
+══════════════════════════════════════════════════════════════════════════════
+  Raw RSA is multiplicative: S(m1)·S(m2) = S(m1·m2). A voter holding two
+  legitimate tokens could therefore derive a third that the office never
+  issued. This is why k_p^a is never signed directly.
+
+── Two genuine signatures ────────────────────────────────────────────────────
+  m1  (32 bytes)
+      ec8482fac37d1373f602e5d4332711ed28706983192cfeeb5bfcc44fd988a965
+  sig1  (384 bytes)
+      2e135849c0dbc2c86406f739f76d9d883dd8f644531f90c61600a8db453ff55f
+      29bda7383a3c0b02d1b655ef4812789336da9f71c2995a1c169511914b483e2b
+      bf2d13d4190359563a1d89229ad5d7289729daa79ba61bd8da793881f67f4fc1
+      58474b98c2032bbd9c889a7b5fdff0997b44652c4cde830c09a9791fcf692e87
+      2497f9edeb27fe15e7c1e8c53dbc46bfdf74d9de422ad8a38441bfd126d9c5b9
+      e731c277f477d1aa69eecc127019d5667c80107af140edef68f31a101b826378
+      2ebb710101df82acec741c39b3bf3e83fd245ea3138875d0b02615800511a441
+      8f767b1f2110495a865089384f5c8befa4a02dda94134dd63e39302b6ef8465b
+      dea66fd9688f64446dc47059b6d5e9d55644055b37892d138d8eb0b38ca51553
+      35d6f293feb9023f5d4fe1e260ce19cb77dda84f941b63fa5896b7dc3d33b17c
+      14507faedcaa8a8eabe8a2c867e9f17a407dd434054ad6bb88de66eeda8a1c3b
+      18c31973f735735401d337cbaf9ea4c71cabc7919799584f125a4386317c33df
+  m2  (32 bytes)
+      a06b550c89c07e3f938e036ace38d6effde50fbb238c91cb4c12a71ff2924cd9
+  sig2  (384 bytes)
+      6030e274a657831010ead03487e4f064aa43afd8b3b84885a17bc8e3d40db315
+      3d33315e3db8e9f7b28a3644136d1c52c7ded183666a8c975983f0a252bddb7f
+      99e5faae7f9b96a389eb9c263f679740bd25881d376937b59261855cf7c75439
+      0331edf5db6cd1457d220c03c94246756e6540c2c7d09046bd88e80f3dff5d30
+      7b881cf51bb86fc197716861692f504f9d73605cb8bd905d932d759810b93fa1
+      3eb2347b99c36bbac0dbd6a413edaa1338d5b22c81a469c23f5fa6219005a20c
+      9a742726a2d7c93849d3353af1106f7685a97740da55ee171f326938efdcd21f
+      355c642aad8a2c28970c04f16a342aec65071ba43e916ce9033699b0f0bd84cf
+      2ab2eb34d9191478a5e1d097fac18648684b19be5e45657bbc02d9296ec8139b
+      2d82f224e11d5e2e2675b68510a796a50c47d5ab30549090792f3c070802ee7c
+      83fa9778c2025c87dbe416d772391ea02b115f3bc5b6399129a463f1c8532044
+      bfce643516709be6065bd3d8fbfeb44d4719fa6f399ed10e20dd5b612222935b
+
+── Their product ─────────────────────────────────────────────────────────────
+  sig1 · sig2 mod n_R  (3069 bits)
+      13ab4e5cd005f3d5b4772e9fb9439db804a3e4c1b48eadee45831d4c6437c9a7
+      068d7ab8bee95f78077730b683ab179f9798de66d3ba1d45494be82cda8bc9e6
+      5e8f6d2887e3c31e974b2ff453bd032cd7ca53cda486785f0888ff0ceca253a3
+      1826c3fa9fb2bfcf9c5e8210ace6591f3c0df1d60e43f4b0788076c9a6660a7b
+      1496cff844a9d6df5004f65d18eb227097312192a888e81cc67c1880b9f150b3
+      bf00baadaeba1f92f3a329adb6d06281d34802a85e2abe9667daff0582b1be2a
+      5d1337fa8fa383928c69831680ac38d20a21867e2a880d96a0cc18d6c7f74285
+      7f88330b0a278060ee92a4d1e816c4861c16bb9239fcfe2468d2b0906435acf8
+      4c5435bc0e63edfb3d2a69fc01b22c16699bdb55a87c4125715e33334558ca41
+      46f8c6f1eaa9b189909960fe23803ff4f9d043afc8490e6652eed1d22a0dd903
+      bff2dd39e3bad83bda0d39b7c3f2912df1a38a1fbe7ff85c4c7b9c6400ad34dc
+      743dfc7363cde6ae6e83abf417a6ff5b46bffe370a1b1f5592e989bcb06ab22b
+
+── What that product is a signature of ───────────────────────────────────────
+  forged^(e_R) mod n_R  — the 'encoding' it recovers  (384 bytes)
+      84aca0707fa4aef425a014a61589c73de57b39424a4a975aaf7e99668a864c99
+      46000bda54400041559135af4fa332878e016321e98ffefbf6fc67087049b64b
+      aa37c10658717b5c6874ef394578dd97e300a69697063bf93109f9585974406c
+      4e7f42f5982eab25d0a1454c6756492dfc6dce782ac3e41b57a2ecce97e2aca3
+      4cd896231e21e026f9113218a5b003c688512ba29bce9a23d63b858d60393a29
+      c5ec468b814152aa2903cf58cdc29e65fe68fbee72a817ac87f7aa2ede866db5
+      9426cf45d34033fb1e5ac379feb1126ea90c8a149709f3fe37f973b62dcb612c
+      aeac89636c220e0b7b7d52f076bbf0d641929db160dbc00afe85a25caa7844c5
+      2c4310780b38ecfa654bb94a402147857f7beb4de02eb068b68a216b37e67a24
+      6c69f9e41134749d9dbf35c13e0d0b9580f99fd27eb2e5a06d59fb263f7400d1
+      8c9857d8db7f9d5b294a8e59fe5a4237052f8f8cc3d23542b401742384e61bb2
+      08ad0a97fe3315125d02ba59f8e9456e0f3b509808ef199ad8843076d23e7221
+  final byte                     0x21   (a well-formed EMSA-PSS encoding ends 0xbc)
+  [✓] the product is a valid raw RSA signature: it recovers cleanly
+  [✓] the forgery verifies against no message: m1
+  [✓] the forgery verifies against no message: m2
+  [✓] the forgery verifies against no message: m1‖m2
+  [✓] the forgery verifies against no message: m1⊕m2
+  The product of two encodings is not, except with negligible probability, the
+  encoding of anything. The forgery is a valid RSA operation and a worthless
+  signature.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 3 · WHO REGISTERED? — THE STEP-12 LOG UNDER ATTACK
+══════════════════════════════════════════════════════════════════════════════
+  A coercer who demands turnout rather than a particular choice needs only to
+  learn whether a citizen registered at all. Absence of an entry is conclusive
+  proof of non-voting.
+
+── The published log, in full ────────────────────────────────────────────────
+  entry 0                        {'commitment': 'KMYvNiEtB0wm3FuSWEooBHxhr21BKLNqBvcwi7B8814'}
+  [✓] no identifier appears anywhere in the log
+
+── The snoop queries the victim's id with their own wallet key ───────────────
+  sig(id) offered  (64 bytes)
+      b1f1403c13b65f203a7f022b0c12a70cd9eb413f0b00998579a468920c8fdbd4
+      e6941201eec2cf5b67f36287b63b622ad5fa64fda9ea3f07f37fdcc620799d04
+  outcome                        NOT_IDENTIFIED
+  nonce disclosed                None
+  [✓] an unauthenticated query is refused
+
+── And an identifier nobody holds a certificate for ──────────────────────────
+  outcome                        NOT_IDENTIFIED
+  [✓] answered identically, so neither register can be probed here
+
+── A voter who did not register asks about themselves ────────────────────────
+  outcome                        NOT_RELEASED
+  signed denial  (64 bytes)
+      7a578e77d805fed3e44998fb296a52d6869fe62a4719e9467c93d0d6fb5f2296
+      a7e3f1930292101d871dc59e02a749226bd764ce44b47db178e9b5e8c5e0ca00
+  [✓] the denial is signed by the office, so a false 'no' is attributable
+  [✓] and it does not transfer to another citizen's statement
+  This does not prevent a dishonest office from denying a token it minted. It
+  leaves evidence of the denial. That distinction is deliberate and should not
+  be described as prevention.
+
+── Why the denial is not signed with the token key ───────────────────────────
+  A blind signer applies its private key to values it cannot inspect, so an
+  ordinary token request is a signing oracle. Any registered voter can drive
+  it over a message of their choosing — including the office's own denial
+  about somebody else.
+  statement the snoop wanted signed  (32 bytes)
+      5c3b1cfafbabe39ea7c1702ee851627aa2730ab3b86c4b89b6534ebb02bfb0ee
+  forged signature over it, under k_p^(R)  (384 bytes)
+      673ae5363a0be6431154f8e29bea424a5eea0aa8f714007e4549a953c8c9e30d
+      4a63e7abbfa18ff4bec8fedd6bf930945adbd9f2d0afc2a0ae18bc7d4945715c
+      a4b50563c1f036ebbaf87e657db0f5d9ae57183d2bef01db53340d036eac3eb0
+      b3638cff5b8f87af643d3623f8a701014dc4b1a9e25c6878600a9bcf3fc6937f
+      c180e1d63ff8097a6753c336c9d64e6adf5f0c11facab477d32dd4f1c8055ab7
+      c98cbb2ba74b6f3561d22eedbbdb1a488bb0ebfbc1ccc8a8b8d07351f1997e25
+      004cc4367c784cb26f32dd236dd4ef8df8b575799d35abc28d19d88b7f37df84
+      6e3fa38170a19c20847f6de4b3ac44ed924fb72f237bf0efcc3519da7c0fb443
+      e179ac205f9852aa0290a2d8509b9865965308516ac11ab0cee76bb70186982b
+      e73c56cf355ed4bce4be94afc6b3b6e286614ccd5027b75b565257e9ffdd6aeb
+      d9fc47eab8a29a578064037afad917e58977a87cb38bf5df8f2a49327a5cf578
+      1af892c8e6488e837be609ec7a27c97c30ca6f0f2883bd70f1771432bba6c19b
+  [✓] an ordinary token request forges an office statement under the token key
+  [✓] but the real denial verifies under the separate office key, not that one
+  Hence the office holds a second, ordinary signing key for statements, and
+  the token key signs nothing but tokens — for one election.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 4 · RE-VOTING
+══════════════════════════════════════════════════════════════════════════════
+  A voter may recast at any time, and only the last accepted ballot counts.
+  This is what makes casual pressure survivable — though not a coercer who
+  controls the final moment before the close of voting.
+  cast 1 → accepted=True  head f3d12aa8119006a93c06a9e8c7ea0076…
+  cast 3 → accepted=True  head aef2e02e4d9a851d22290570881f7667…
+  cast 2 → accepted=True  head 0e435629df026ef7fcde7c1a7a7d63a5…
+
+── The public ledger keeps all three ─────────────────────────────────────────
+  entry 0                        selection 1  key NHLp_5sAuxT9eylnVgvxXKGl…
+  entry 1                        selection 3  key NHLp_5sAuxT9eylnVgvxXKGl…
+  entry 2                        selection 2  key NHLp_5sAuxT9eylnVgvxXKGl…
+  [✓] three submissions retained
+  [✓] one effective ballot
+  [✓] the last one counts
+  Supersession is applied when counting, not by overwriting, so the whole
+  submission history stays auditable.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 4 · PROTEST BALLOTS
+══════════════════════════════════════════════════════════════════════════════
+  An out-of-range selection that is properly authenticated is an invalid vote,
+  not a rejected submission: cryptographically valid, politically invalid, and
+  it does supersede an earlier ballot. Distinct codes stay distinct in the
+  tally, and the system never interprets what any of them means.
+  Anna     selection -1   accepted=True
+  Béla     selection -2   accepted=True
+  Csilla   selection -1   accepted=True
+
+── Tally ─────────────────────────────────────────────────────────────────────
+  counts                         {1: 0, 2: 0, 3: 0}
+  invalid                        3
+  protest_codes                  {-1: 2, -2: 1}
+  [✓] all three were accepted, not rejected
+  [✓] none was counted for a listed option
+  [✓] the distinct codes are not merged
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 4 · WHY 'REJECTED' AND 'INVALID' MUST NOT BE CONFLATED
+══════════════════════════════════════════════════════════════════════════════
+  Submitting to the ballot box requires no secret, and both k_p^a and the
+  token are public. If a rejected ballot superseded an earlier one, any reader
+  of the ledger could copy those two values, attach a meaningless signature,
+  and annul someone's genuine vote.
+
+── What an attacker copies from the ledger ───────────────────────────────────
+  k_p^a                          xQhA0sB7OlLSq28gM1dv0-uOel-rNQxNTFFLtKGvrKo…
+  token                          kWovfc3T0errUtUceyCc8ksOn3gIobAVSra_JxbaThe1…
+
+── Result ────────────────────────────────────────────────────────────────────
+  accepted                       False
+  reason                         vote signature invalid
+  [✓] the annulment attempt is rejected
+  [✓] the genuine vote survives
+  [✓] the attempt is nonetheless published
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 5 · THE BALLOT BOX EDITS ITS OWN RECORD
+══════════════════════════════════════════════════════════════════════════════
+  Publication is not immutability. A box could delete a ballot it had already
+  acknowledged, or change one. The hash chain makes both demonstrable rather
+  than merely alleged.
+
+── The intact chain ──────────────────────────────────────────────────────────
+  0  prev 000000000000000000000000…  hash 237af783b383b75d7e89ebd1…
+  1  prev 237af783b383b75d7e89ebd1…  hash c6e46f6a0a062b195f88af03…
+  2  prev c6e46f6a0a062b195f88af03…  hash 8644a39709becbce963a47bd…
+  [✓] chain verifies
+
+── Case 1 — a ballot is altered in place ─────────────────────────────────────
+  first mismatching entry        0
+  hash the payload now implies  (32 bytes)
+      0d4c05516df4139471ae65ab5c7f403e45055a83ed75038103dff45078221fae
+  hash that was published  (32 bytes)
+      237af783b383b75d7e89ebd1e1fcaec1f2ffa739d3352f456e1c329d45f04542
+  [✓] chain verification fails
+  [✓] chain verifies again once the edit is undone
+
+── Case 2 — a ballot is deleted ──────────────────────────────────────────────
+  removed entry                  index 1, selection 2
+  [✓] chain verification fails
+  A voter who recorded the head returned in their receipt can show that the
+  published ledger no longer reproduces it. Equivocation — showing different
+  chains to different people — needs the head published somewhere the operator
+  does not control.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 5b · WHILE VOTING IS OPEN, AND FROM THE CLOSE
+══════════════════════════════════════════════════════════════════════════════
+  Publishing selections as they arrive would broadcast a running result for
+  the whole poll. Worse, because a later ballot supersedes an earlier one, an
+  observer watching the totals move learns that somebody reversed a choice —
+  and in a small enough population that approaches learning who. So the box
+  publishes commitments while it is open, and the records themselves only at
+  the close.
+
+── The open view, in full ────────────────────────────────────────────────────
+  phase                          open
+  accepted commitments           12
+  chain head                     e3daeca2e809fe2d0103f55fbe74557a…
+  counts                         {'accepted': 12, 'rejected': 0}
+  records present?               False
+  [✓] no record is published while voting is open
+  [✓] no selection appears anywhere in the open view
+
+── The running tally, one snapshot every 10 accepted ballots ─────────────────
+  after 10 accepted              {1: 4, 2: 3, 3: 3}
+  [✓] one snapshot at ten ballots, none at twelve
+  Whether to publish a running tally at all, and at what resolution, is the
+  administering body's decision rather than the design's — the article gives
+  fifteen minutes as its example. Left unset, no tally exists for anybody, the
+  operator included, until the box closes. This POC counts ballots rather than
+  minutes: a fake clock would demonstrate nothing.
+
+── A voter's own check, available throughout ─────────────────────────────────
+  [✓] the voter finds their own ballot while the records are withheld
+  k_p^a is a lookup secret as well as a locating handle: before the close it
+  is known to the voter's application and to the box and to nobody else.
+  Presenting it is therefore sufficient authentication for retrieval, and no
+  private key need leave the voter's device.
+
+── The close ─────────────────────────────────────────────────────────────────
+  phase                          closed
+  records released               12
+  [✓] the commitments published earlier are unchanged
+  [✓] every released record hashes to the commitment published for it
+  No row moves backwards: nothing available while voting was open is withdrawn
+  at the close, and what changes does so only by disclosing more.
+
+── And a ballot arriving after the close ─────────────────────────────────────
+  accepted                       False
+  reason                         voting has closed
+  [✓] it is not recorded at all — it is not a ballot
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 6 · THE SAME PROOF SERVES AN ADJUDICATOR AND A VOTE BUYER
+══════════════════════════════════════════════════════════════════════════════
+  In the implemented variant the voter's handle is the ad-hoc key they
+  control. That is what lets them substantiate a complaint. It is also, and
+  unavoidably, what lets them prove their choice to somebody paying for it.
+
+── A challenge from a third party, and the voter's answer ────────────────────
+  challenge (chosen by the coercer)  (25 bytes)
+      70726f76652d69742d1f266d7c815c8676db9c4cd3a6a8b485
+  proof = sig_{k_s^a}(challenge)  (64 bytes)
+      8a65b7b66be54ff83a300eb2e95db7bf369cd7a80ce0fb5e8a7d76ef21163692
+      ea5bc33f06a2af49ec843b53655acfe0a45607d6d562c11c256b1ab2997df907
+  [✓] the proof verifies against the k_p^a in the published ballot
+  the selection thereby proved   1
+  [✓] the handle is transferable, by construction
+  Note what does not help: giving the voter an anonymous lookup number
+  instead. The published ballot still carries k_p^a and the voter still holds
+  k_s^a, so the coercer simply demands a signature. Provability lives in the
+  ballot's structure, not in the index the voter uses. A genuine variant A
+  needs encrypted ballots and a trapdoor tracker — a different system, not a
+  different handle.
+
+  Where to place that balance is the legislative question the papers hand
+  over. It is not settled by the code, and cannot be.
+
+══════════════════════════════════════════════════════════════════════════════
+ PART 7 · INDEPENDENT VERIFICATION FROM THE PUBLIC LEDGER ALONE
+══════════════════════════════════════════════════════════════════════════════
+  Everything below uses only the published ledger and the VRO's public key. No
+  privileged access, and no election-specific cryptography — an ordinary RSA-
+  PSS verify and an ordinary Ed25519 verify.
+  The poll is closed first: ballot-by-ballot verification of eligibility and
+  authentication needs the tokens and signatures themselves, which are
+  released only at the close.
+
+── Every published ballot, verified one at a time ────────────────────────────
+  entry 0  selection 1  token ✓  s_vote ✓  chain ✓
+  [✓] entry 0 fully verifies
+  entry 1  selection 3  token ✓  s_vote ✓  chain ✓
+  [✓] entry 1 fully verifies
+  entry 2  selection 1  token ✓  s_vote ✓  chain ✓
+  [✓] entry 2 fully verifies
+
+── Aggregate checks ──────────────────────────────────────────────────────────
+  published ballots              3
+  distinct ad-hoc keys           3
+  tokens released (public count) 3
+  [✓] hash chain intact end to end
+  [✓] distinct ballots ≤ tokens released
+  That inequality is what a third party can check without learning who anyone
+  is. It catches an office minting tokens it did not log. It does not catch
+  one that logs a release for a citizen who never voted — that is
+  indistinguishable from a citizen who took a token and abstained, and is why
+  the issuing power belongs with several mutually distrusting bodies.
+
+── The result, computed twice ────────────────────────────────────────────────
+  Option A     outsider 2    box 2
+  Option B     outsider 0    box 0
+  Option C     outsider 1    box 1
+  [✓] the outsider's count matches the announced tally
+  invalid (protest) ballots      0
+  protest codes                  {}
+  rejected submissions           0
+  final ledger head              7ee2325bd49a856aef30285afbdbdbdf910cb26c891de6297c25a2bafc6f4ea4
+
+══════════════════════════════════════════════════════════════════════════════
+ SELF-CHECK
+══════════════════════════════════════════════════════════════════════════════
+  85 checks performed, 0 failed.
+
+  Every claim above was computed in this run, not asserted by the narration.
+
+(.venv) skipper@Mac online_voting_POC % 
+
