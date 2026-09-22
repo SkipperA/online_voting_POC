@@ -89,14 +89,28 @@ give a reason (§3.2).
 | E5 | Publish the final token-release count; the release commitments are never opened publicly | VRO | VRO → public (Table 1) | count : VRO → anyone |
 | E6 | Recount independently: every token under `k_p^(R)`, every `s_vote` under its `k_p^a`, supersession among accepted only, each record against its earlier commitment, and the chain head | any citizen | published ledger, standard crypto libraries (§3.5, §6) | public → anyone |
 | E7 | Compute the tally, preserving the distribution over distinct out-of-range values rather than one aggregate | any citizen | published ledger (§5.7) | public → anyone |
-| E8 | Publish the official tally beside the independently computable one | administering body | Table 1, tally row | official body → anyone |
+| E8 | Compute and publish the tally: a deterministic function of the released records, preserving the distribution over distinct out-of-range values | EBB | EBB → public (Table 1, tally row) | tally : EBB → anyone |
 | E9 | Post-close verification of one's own ballot; under the provable variant, prove authorship by demonstrating control of `k_s^a` | voter | any device | voter → any third party |
+| E10 | Declare the official result | administering body | outside the three components | official body → anyone |
+
+**E7, E8 and E10 are three different acts.** E7 and E8 apply the same rule to
+the same records and differ only in who runs it; that is the point, and the
+check worth demonstrating is two independent implementations agreeing rather
+than two parties agreeing. What the comparison detects is a published tally
+that does not follow from the released records. It does not detect a doctored
+set of records — that is the chain head and the receipts, a different mechanism
+resting on a different assumption, and the two should not be conflated on
+screen. E10 is a legal act by a body the demo does not have; nothing the
+software produces should be labelled *official*.
 
 ---
 
 ## Flows the article implies but does not assign
 
 Five gaps, each a decision rather than an omission to be patched mechanically.
+
+Open questions and pending amendments across all documents are tracked in
+`docs/Deferred_Decisions.md`.
 
 1. **The election configuration has no author.** Step A5 has contents (Table 1,
    footnote a) but no named party, no signature, and no stated distribution path.
