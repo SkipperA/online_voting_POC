@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "suite": "payloads",
+  "description": "The four objects whose bytes get signed. An implementation that builds any of them differently produces signatures the others reject -- the accented cases are where that actually happens.",
+  "vectors": [
+    {
+      "name": "auth-request-ascii",
+      "input": {
+        "kind": "auth_request",
+        "voter_id": "HU-1970-0442",
+        "blinded_key_b64url": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw"
+      },
+      "expected": {
+        "signed_payload_sha256": "5da66f09e1f8afc83ad421ee13f890384c0b0c5d5b1b8533290d88027d7df5e7"
+      }
+    },
+    {
+      "name": "auth-request-accented",
+      "input": {
+        "kind": "auth_request",
+        "voter_id": "Kovács Ágnes",
+        "blinded_key_b64url": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0-Pw"
+      },
+      "expected": {
+        "signed_payload_sha256": "0df5e4b35b9e785c1193a2c424b3775618ad86c8e952c79174678e9017ed7e66"
+      }
+    },
+    {
+      "name": "ballot-in-range",
+      "input": {
+        "kind": "ballot",
+        "selection": 2,
+        "adhoc_public_key_b64url": "P4KG-E-O3truhhTKeqpMR0UuixytHJpNxBdCinJuX0c"
+      },
+      "expected": {
+        "signed_payload_sha256": "956929d568c49947931f23f59b48cecad1db1385879102eca48215765f8c0319"
+      }
+    },
+    {
+      "name": "ballot-protest",
+      "input": {
+        "kind": "ballot",
+        "selection": -1,
+        "adhoc_public_key_b64url": "P4KG-E-O3truhhTKeqpMR0UuixytHJpNxBdCinJuX0c"
+      },
+      "expected": {
+        "signed_payload_sha256": "8fea094f96ac1242376d24dc6c46bfc09c3c32eb0f4518e050534f6318d89409"
+      }
+    },
+    {
+      "name": "release-query-accented",
+      "input": {
+        "kind": "release_query",
+        "voter_id": "Kovács Ágnes"
+      },
+      "expected": {
+        "signed_payload_sha256": "6f4e34bbb74f62d8c747f01859f710c3ff6ec2d05ce1e8c5f4155e9f9dcfee4a"
+      }
+    },
+    {
+      "name": "denial-accented",
+      "input": {
+        "kind": "denial",
+        "voter_id": "Kovács Ágnes"
+      },
+      "expected": {
+        "signed_payload_sha256": "756597b831a90aa5e7d1ab04b70399ed433d0d19313ffb22e256e534437824e9"
+      }
+    }
+  ]
+}

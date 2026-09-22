@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "suite": "canonical-json",
+  "description": "Sorted keys, ',' and ':' with no whitespace, non-ASCII left as UTF-8, base64url without padding for binary. Everything signed in this protocol is signed over these bytes.",
+  "vectors": [
+    {
+      "name": "ascii-identifier",
+      "input": {
+        "voter_id": "HU-1970-0442",
+        "blinded_key": "AAA"
+      },
+      "expected": {
+        "canonical_utf8": "{\"blinded_key\":\"AAA\",\"voter_id\":\"HU-1970-0442\"}",
+        "canonical_b64url": "eyJibGluZGVkX2tleSI6IkFBQSIsInZvdGVyX2lkIjoiSFUtMTk3MC0wNDQyIn0",
+        "byte_length": 47,
+        "sha256": "b315f36c296c56623227ac853036a01b5b656e4ce955a6aa44a3926b584253bf"
+      }
+    },
+    {
+      "name": "accented-latin",
+      "input": {
+        "voter_id": "Vágujhelyi Ferenc"
+      },
+      "expected": {
+        "canonical_utf8": "{\"voter_id\":\"Vágujhelyi Ferenc\"}",
+        "canonical_b64url": "eyJ2b3Rlcl9pZCI6IlbDoWd1amhlbHlpIEZlcmVuYyJ9",
+        "byte_length": 33,
+        "sha256": "0d33b79a8d642c680fa378695984ae873ad6537878e43b625ca60096973d15f6"
+      }
+    },
+    {
+      "name": "release-query-shape",
+      "input": {
+        "query": "token-release",
+        "voter_id": "Kovács Ágnes"
+      },
+      "expected": {
+        "canonical_utf8": "{\"query\":\"token-release\",\"voter_id\":\"Kovács Ágnes\"}",
+        "canonical_b64url": "eyJxdWVyeSI6InRva2VuLXJlbGVhc2UiLCJ2b3Rlcl9pZCI6IktvdsOhY3Mgw4FnbmVzIn0",
+        "byte_length": 53,
+        "sha256": "6f4e34bbb74f62d8c747f01859f710c3ff6ec2d05ce1e8c5f4155e9f9dcfee4a"
+      }
+    },
+    {
+      "name": "ballot-shape",
+      "input": {
+        "selection": 3,
+        "adhoc_public_key": "zMc_Bk-LXguCvIxroKQRXwx5GBoLCYCIK31enkB_zO0"
+      },
+      "expected": {
+        "canonical_utf8": "{\"adhoc_public_key\":\"zMc_Bk-LXguCvIxroKQRXwx5GBoLCYCIK31enkB_zO0\",\"selection\":3}",
+        "canonical_b64url": "eyJhZGhvY19wdWJsaWNfa2V5Ijoiek1jX0JrLUxYZ3VDdkl4cm9LUVJYd3g1R0JvTENZQ0lLMzFlbmtCX3pPMCIsInNlbGVjdGlvbiI6M30",
+        "byte_length": 80,
+        "sha256": "7f589d4b6ac2f8d539c65ee9c05310f6bcba8eb90fa9623c0553497feab378a9"
+      }
+    },
+    {
+      "name": "cjk-and-astral",
+      "input": {
+        "voter_id": "日本語",
+        "note": "emoji 🗳"
+      },
+      "expected": {
+        "canonical_utf8": "{\"note\":\"emoji 🗳\",\"voter_id\":\"日本語\"}",
+        "canonical_b64url": "eyJub3RlIjoiZW1vamkg8J-XsyIsInZvdGVyX2lkIjoi5pel5pys6KqeIn0",
+        "byte_length": 44,
+        "sha256": "08ae0e5073e599bf1df9e8e12bcfbbf241c9d188c2f4522a43007096dcc83247"
+      }
+    },
+    {
+      "name": "key-order-is-not-insertion-order",
+      "input": {
+        "z": 1,
+        "a": 2,
+        "M": 3,
+        "_": 4
+      },
+      "expected": {
+        "canonical_utf8": "{\"M\":3,\"_\":4,\"a\":2,\"z\":1}",
+        "canonical_b64url": "eyJNIjozLCJfIjo0LCJhIjoyLCJ6IjoxfQ",
+        "byte_length": 25,
+        "sha256": "ec26b138cb68e028a7b060f429d2694cf680fffd22e7e0fdd5b907f9986345ff"
+      }
+    }
+  ]
+}

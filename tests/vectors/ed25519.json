@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "suite": "ed25519",
+  "description": "Raw 32-byte public keys and deterministic signatures. WebCrypto exports raw directly; where it does not, the trailing 32 bytes of the SPKI export are the same value.",
+  "vectors": [
+    {
+      "name": "wallet-key-raw-encoding",
+      "input": {
+        "key": "wallet",
+        "message_b64url": ""
+      },
+      "expected": {
+        "public_key_raw_b64url": "Hful28gjM9ZLs2JUW1hAJhFc4vn_fXGHu8dQxdEhxEo",
+        "public_key_raw_length": 32,
+        "signature_b64url": "1Uyzfj4AFARwZVWvPX-Q7ot96I0zsxk7GkoEAohxSP14aiCbrLlmP6TPUuQEQyVLeDThp1yTucqyMx4TSjEVBw"
+      }
+    },
+    {
+      "name": "adhoc-key-over-32-bytes",
+      "input": {
+        "key": "adhoc",
+        "message_b64url": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+      },
+      "expected": {
+        "public_key_raw_b64url": "P4KG-E-O3truhhTKeqpMR0UuixytHJpNxBdCinJuX0c",
+        "public_key_raw_length": 32,
+        "signature_b64url": "4aC6HmYVj0xYN0IwtIuNjWp5qVPKc2yc8TTE17Ierdchn6Ku0O3CptGQIZ-IhVGX3Ld-Si8hHzM2ZAoW2gFgCA"
+      }
+    },
+    {
+      "name": "adhoc-key-over-a-digest",
+      "input": {
+        "key": "adhoc",
+        "message_b64url": "GIKywp1FqiR_It1dxce8YkAE9X7uC0Ov7LkpeMC6C-o"
+      },
+      "expected": {
+        "public_key_raw_b64url": "P4KG-E-O3truhhTKeqpMR0UuixytHJpNxBdCinJuX0c",
+        "public_key_raw_length": 32,
+        "signature_b64url": "MeWiXq_gEEDNMRyG2eb8O0eZCgtxgmeL6CYORNuWS2DYmkNAyU4s5s6jY5zT5C53Vemuk_8Jsu7m3NxoaQasCA"
+      }
+    }
+  ]
+}

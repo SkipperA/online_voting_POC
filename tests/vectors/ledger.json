@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "suite": "ledger",
+  "description": "entry_hash = SHA-256(index as 8 big-endian bytes || prev_hash || canonical_bytes(payload)). The independent checker recomputes this chain, so it is the one calculation two implementations must agree on for the inclusion check to mean anything.",
+  "vectors": [
+    {
+      "name": "three-entry-chain",
+      "input": {
+        "genesis_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+        "payloads": [
+          {
+            "selection": 1,
+            "adhoc_public_key": "AAA"
+          },
+          {
+            "selection": 2,
+            "adhoc_public_key": "BBB",
+            "voter_note": "Ágnes"
+          },
+          {
+            "selection": -1,
+            "adhoc_public_key": "CCC"
+          }
+        ]
+      },
+      "expected": {
+        "entries": [
+          {
+            "index": 0,
+            "prev_hash_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+            "entry_hash_hex": "a3f28eab3a54d0d580fa177f2214eed0beea037ebbd02b4e79cd9b26a608f65a"
+          },
+          {
+            "index": 1,
+            "prev_hash_hex": "a3f28eab3a54d0d580fa177f2214eed0beea037ebbd02b4e79cd9b26a608f65a",
+            "entry_hash_hex": "5eb4ebdb994177e4399699140b6f7d5e294ea34a6e7beae9850014e11453ba89"
+          },
+          {
+            "index": 2,
+            "prev_hash_hex": "5eb4ebdb994177e4399699140b6f7d5e294ea34a6e7beae9850014e11453ba89",
+            "entry_hash_hex": "de7bd6e3a88abe60da5eaf32c6f2af13eced3adea3783ac8bb646339f4eafe37"
+          }
+        ],
+        "head_hex": "de7bd6e3a88abe60da5eaf32c6f2af13eced3adea3783ac8bb646339f4eafe37",
+        "chain_verifies": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "suite": "fingerprint",
+  "description": "SHA-256 over the DER SubjectPublicKeyInfo. This is the value the voter application pins and displays; a client computing it differently would accept a VRO key the design forbids.",
+  "vectors": [
+    {
+      "name": "vro-token-signing-key",
+      "input": {
+        "spki_der_b64url": "MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAktE_wrn_a4WVKUgYb-sOzK2pVrlLQVkwQCearqgVYEd_Bwz5fpNYYCxpjJNAbzRqgk-kiSRx6HB4kIu6XhVs87Ax7_mmNCUqJN-ZfcWGnVzz8f9eI2N5uve-WhGjNbcq1JM5WlcbnEuGolnpEjGxgZZjtmL3f9JayURvgYDzU44ATNTmVXuHnNfDsPciD7sGAaG_6MMMsiqwNCS007E20_JKjEjVmaUYYlokIqLUAThdws4dZkiXIEz7eP71Po_OLCtg0G3Dk-0Zy9rYVRNEAqsGDE0BluQAOMvcaO0CLyy1CrstS6XHmDXHt_XKUmcRHamenG7ZtkfQpHCyXRcTIdcGo0aoJCH0PxL-d_b--kO8O1X8H0c2P3rOpjSvjbbQnmZ7zQ-mDdGynKJAxbZ_QJ7qARvdaH91vpfGNLDwW19m4XnzF-WcSG1r7luv0RbknryeU3G6SFpjrmqSll-vz9DreCyYW8OLoHgf1uMXTcmNAdzrP5jxqwD7wneSYMaXAgMBAAE"
+      },
+      "expected": {
+        "fingerprint_sha256": "f15adbf224a630305d0868ce629efad2e387b51575b029acb26011161da5583e"
+      }
+    }
+  ]
+}
