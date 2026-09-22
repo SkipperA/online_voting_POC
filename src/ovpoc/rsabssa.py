@@ -66,6 +66,23 @@ class BlindSignatureError(Exception):
     """Raised when a blind-signature operation fails its own sanity checks."""
 
 
+class ModulusCompromised(BlindSignatureError):
+    """A value was found that shares a factor with n_R -- the modulus is broken.
+
+    Separated from the other failures of this module because it is a different
+    kind of event.  A wrong length or a signature that does not verify is an
+    operation failing; this is the discovery that the VRO's modulus can be
+    factored, and the factor is in hand.  Section 5.2 of the paper calls it an
+    alarm rather than a case to retry, and retrying would hide the single most
+    consequential thing this code can observe.
+
+    A subclass, so that existing `except BlindSignatureError` sites keep
+    working and only a caller that cares has to know the difference -- which is
+    the voter's application, whose response to an alarm is to stop rather than
+    to draw again.
+    """
+
+
 # --------------------------------------------------------------------------
 # VRO key management
 # --------------------------------------------------------------------------
@@ -163,13 +180,13 @@ def blind(public_key: rsa.RSAPublicKey, msg: bytes) -> tuple[bytes, BlindState]:
     if m_int >= n:
         raise BlindSignatureError("encoded message not reduced mod n")
     if math.gcd(m_int, n) != 1:                              # RFC 9474 step 4
-        raise BlindSignatureError("encoded message is not coprime to n_R")
+        raise ModulusCompromised("encoded message is not coprime to n_R")
 
     r = secrets.randbelow(n - 1) + 1
     try:
         r_inv = pow(r, -1, n)
     except ValueError:
-        raise BlindSignatureError(
+        raise ModulusCompromised(
             "blinding factor is not invertible mod n_R: this draw has factored "
             "the modulus"
         ) from None

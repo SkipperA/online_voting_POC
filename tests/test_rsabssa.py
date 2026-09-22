@@ -9,7 +9,7 @@ import secrets
 import pytest
 
 from ovpoc import rsabssa
-from ovpoc.rsabssa import BlindSignatureError
+from ovpoc.rsabssa import BlindSignatureError, ModulusCompromised
 
 
 def test_round_trip_produces_a_valid_signature(vro_keypair):
@@ -107,3 +107,45 @@ def test_fingerprint_pins_a_single_vro_key(vro_keypair):
     _, pub = vro_keypair
     _, other_pub = rsabssa.generate_vro_keypair(2048)
     assert rsabssa.public_key_fingerprint(pub) != rsabssa.public_key_fingerprint(other_pub)
+
+
+def test_the_alarm_is_a_kind_of_blind_signature_error():
+    """Existing catch sites must keep working; only callers that care look closer."""
+    assert issubclass(ModulusCompromised, BlindSignatureError)
+
+
+def test_a_non_invertible_blinding_factor_is_an_alarm(vro_keypair, monkeypatch):
+    """A draw of r sharing a factor with n_R has factored the modulus (S5.2).
+
+    That is an alarm, not a case to retry.  The condition never arises by
+    chance, so the only way to constrain the behaviour is to force the draw --
+    here with a genuine factor of a genuine key, so that the arithmetic the
+    code meets is the arithmetic it would meet in the real event.
+    """
+    priv, pub = vro_keypair
+    p = priv.private_numbers().p
+    # The first draw is a factor of n_R; the second is ordinary.  Under the
+    # correct code the second is never reached.  Under a retrying
+    # implementation it is, and `blind` returns normally -- which is what makes
+    # this test fail against a retry rather than hang against one.
+    draws = iter([p - 1, p + 1])
+    monkeypatch.setattr(rsabssa.secrets, "randbelow", lambda _n: next(draws))
+
+    with pytest.raises(ModulusCompromised):
+        rsabssa.blind(pub, secrets.token_bytes(32))
+
+
+def test_an_encoded_message_sharing_a_factor_is_an_alarm(vro_keypair, monkeypatch):
+    """RFC 9474 step 4: is_coprime(m, n) must be checked, and it is the same event.
+
+    gcd(m, n) != 1 for 0 < m < n means the gcd *is* a factor of n_R, so this
+    failure and the one above are one discovery reached by two routes.
+    """
+    priv, pub = vro_keypair
+    n = pub.public_numbers().n
+    k = (n.bit_length() + 7) // 8
+    p = priv.private_numbers().p
+    monkeypatch.setattr(rsabssa, "emsa_pss_encode", lambda *a, **kw: p.to_bytes(k, "big"))
+
+    with pytest.raises(ModulusCompromised):
+        rsabssa.blind(pub, secrets.token_bytes(32))
