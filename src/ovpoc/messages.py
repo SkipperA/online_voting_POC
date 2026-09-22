@@ -3,8 +3,8 @@
 Canonical serialisation is not a detail.  A signature is over *bytes*, so if
 two implementations serialise the same logical ballot differently, signatures
 verify on one and fail on the other.  Everything signed here goes through
-`canonical_bytes`, which produces JSON with sorted keys, no whitespace, and
-base64url for binary fields.
+`canonical_bytes`, which produces JSON with sorted keys, no whitespace,
+non-ASCII characters left as UTF-8, and base64url for binary fields.
 """
 
 from __future__ import annotations
@@ -26,8 +26,19 @@ def unb64(text: str) -> bytes:
 
 
 def canonical_bytes(obj: dict[str, Any]) -> bytes:
-    """Deterministic byte encoding of a dict, for signing and hashing."""
-    return json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    """Deterministic byte encoding of a dict, for signing and hashing.
+
+    `ensure_ascii=False` is load-bearing, not cosmetic.  Python's default
+    escapes every non-ASCII character as \\uXXXX; JavaScript's JSON.stringify,
+    Swift's JSONEncoder and RFC 8785 all emit the character as UTF-8.  With the
+    default, a voter_id carrying an accent serialises to different bytes on
+    either side of the wire, so a signature made by one implementation fails to
+    verify under the other -- and it fails only for those identifiers, which no
+    single-implementation test can reveal.  See `docs/wire-contract.md`.
+    """
+    return json.dumps(
+        obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
 
 
 def digest(obj: dict[str, Any]) -> bytes:
