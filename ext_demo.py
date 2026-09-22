@@ -844,7 +844,19 @@ def scenario_malicious_response(ctx: Context) -> None:
 
     request = voter.build_auth_request()
     election.vro.issue_token(request)                    # the honest side of the exchange
-    other_priv, _ = rsabssa.generate_vro_keypair(ctx.keypair[1].key_size)
+    # A different key of the same byte length, and with a *larger* modulus.
+    # Both conditions are needed for the scenario to demonstrate what it
+    # claims.  `blind_sign` rejects an input at least as large as its own
+    # modulus, and c was produced under the office's; two independently drawn
+    # moduli of the same bit length differ by a few percent, so an unconstrained
+    # second key leaves c out of range perhaps one time in ten -- and the
+    # scenario then fails in `blind_sign` rather than reaching the device check
+    # it exists to show.  Generating at a larger *bit* length does not help:
+    # the length check in `blind_sign` would reject the input first.
+    while True:
+        other_priv, other_pub = rsabssa.generate_vro_keypair(ctx.keypair[1].key_size)
+        if other_pub.public_numbers().n > ctx.keypair[1].public_numbers().n:
+            break
     bad_sig = rsabssa.blind_sign(other_priv, request.blinded_key)
 
     head("What the office returns")
