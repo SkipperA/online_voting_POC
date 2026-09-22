@@ -1,1 +1,75 @@
+name: CI
 
+# Two implementations have to agree about the wire format, and only a machine
+# with both toolchains can check that.  Everything else here is runnable by
+# hand; the `interop` job is the one that cannot be.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Suite, vectors, demos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Test suite
+        run: python -m pytest -q
+      - name: Committed vectors still match the code
+        # Fails if behaviour changed without regenerating tests/vectors/.
+        # The vectors are what the other implementations read, so drift here
+        # is drift in the contract, not in a test fixture.
+        run: python tools/golden_vectors.py --check
+      - name: Regression anchors
+        run: |
+          python demo.py > /dev/null
+          python ext_demo.py > /dev/null
+
+  interop:
+    name: TypeScript reads the same vectors
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: interop/package-lock.json
+      - name: Install
+        run: npm ci
+        working-directory: interop
+      - name: Verify the golden vectors from a second implementation
+        run: npm run verify
+        working-directory: interop
+
+  sabotage:
+    name: Every defence is still detected
+    # Twenty-two mutations, each a full suite run.  Not on every push to every
+    # branch; on pull requests and on anything reaching main, which is early
+    # enough to catch a defence going quiet before it becomes permanent.
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Disable each defence in turn
+        run: python tools/sabotage.py
+      - name: docs/sabotage.md is current
+        # sabotage.py rewrites the report from the actual results, so an
+        # unchanged file means every mutation is still caught by the same
+        # tests.  Any difference -- a mutation gone undetected, a new one not
+        # regenerated, a renamed test -- shows up here.
+        run: git diff --exit-code docs/sabotage.md

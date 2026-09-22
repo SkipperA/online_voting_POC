@@ -1,0 +1,19 @@
+{
+  "name": "ovpoc-interop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Second-implementation consumer for the golden vectors in tests/vectors.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -b",
+    "verify": "tsc -b && node lib/verify-vectors.js"
+  },
+  "dependencies": {
+    "@cloudflare/blindrsa-ts": "0.4.4"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.14",
+    "typescript": "5.8.3"
+  }
+}

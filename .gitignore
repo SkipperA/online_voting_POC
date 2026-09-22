@@ -7,3 +7,6 @@ venv/
 build/
 dist/
 .DS_Store
+node_modules/
+interop/lib/
+*.tsbuildinfo

@@ -11,14 +11,14 @@ confident the surrounding comments sound.
 
 | Defense removed | Tests that caught it |
 |---|---|
-| token_verification_disabled | `test_a_valid_token_cannot_be_reused_with_a_different_key`<br>`test_finalize_rejects_a_dishonest_vro_response`<br>`test_forged_token_is_rejected_by_the_ballot_box`<br>`test_multiplicative_forgery_is_defeated_by_pss_encoding`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_signature_does_not_transfer_to_another_message` |
+| token_verification_disabled | `test_a_valid_token_cannot_be_reused_with_a_different_key`<br>`test_finalize_rejects_a_dishonest_vro_response`<br>`test_forged_token_is_rejected_by_the_ballot_box`<br>`test_multiplicative_forgery_is_defeated_by_pss_encoding`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_rsabssa_vectors`<br>`test_signature_does_not_transfer_to_another_message` |
 | ed25519_verification_disabled | `test_a_bystander_cannot_forge_such_a_proof`<br>`test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_an_unauthenticated_release_query_is_refused`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_tampering_with_the_selection_breaks_the_signature`<br>`test_the_audit_log_records_the_true_reason_in_every_case` |
 | eligibility_check_removed | `test_an_identified_person_not_on_the_electoral_register_is_told_so` |
 | one_token_per_voter_removed | `test_a_second_token_request_is_refused` |
 | wallet_signature_check_removed | `test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_the_audit_log_records_the_true_reason_in_every_case` |
 | finalize_selfcheck_removed | `test_finalize_rejects_a_dishonest_vro_response` |
 | chain_verification_disabled | `test_altering_a_recorded_ballot_breaks_the_hash_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain` |
-| ledger_chaining_removed | `test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_deleting_a_ballot_breaks_the_hash_chain` |
+| ledger_chaining_removed | `test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_ledger_vectors` |
 | rejected_ballots_supersede | `test_a_rejected_ballot_does_not_supersede_a_genuine_one` |
 | selection_range_check_removed | `test_a_protest_ballot_is_counted_as_invalid_not_rejected`<br>`test_distinct_protest_codes_are_not_merged` |
 | vro_key_pinning_removed | `test_a_substituted_vro_key_is_refused_by_the_voter_app` |
@@ -48,6 +48,7 @@ Caught by:
 - `test_forged_token_is_rejected_by_the_ballot_box`
 - `test_multiplicative_forgery_is_defeated_by_pss_encoding`
 - `test_release_denials_are_signed_under_a_separate_office_key`
+- `test_rsabssa_vectors`
 - `test_signature_does_not_transfer_to_another_message`
 
 ### `ed25519_verification_disabled`
@@ -125,6 +126,7 @@ Patched in `src/ovpoc/ledger.py`.
 Caught by:
 - `test_an_outsider_can_recompute_the_result_from_the_public_ledger`
 - `test_deleting_a_ballot_breaks_the_hash_chain`
+- `test_ledger_vectors`
 
 ### `rejected_ballots_supersede`
 
