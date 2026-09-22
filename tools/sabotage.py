@@ -211,6 +211,13 @@ MUTATIONS = [
         replace="        if False:  # SABOTAGE: tally always available",
     ),
     Mutation(
+        name="protest_distribution_collapsed",
+        what="The tally merges every out-of-range selection into one figure, losing the distinction between distinct protest codes.",
+        path="src/ovpoc/ballotbox.py",
+        find="                protest_codes[selection] += 1",
+        replace="                protest_codes[0] += 1  # SABOTAGE",
+    ),
+    Mutation(
         name="submissions_accepted_after_the_close",
         what="The ballot box keeps accepting ballots after the poll has closed.",
         path="src/ovpoc/ballotbox.py",
