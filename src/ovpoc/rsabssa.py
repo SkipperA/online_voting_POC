@@ -164,7 +164,7 @@ def blind(public_key: rsa.RSAPublicKey, msg: bytes) -> tuple[bytes, BlindState]:
         raise BlindSignatureError("encoded message not reduced mod n")
     if math.gcd(m_int, n) != 1:                              # RFC 9474 step 4
         raise BlindSignatureError("encoded message is not coprime to n_R")
-    
+
     r = secrets.randbelow(n - 1) + 1
     try:
         r_inv = pow(r, -1, n)
@@ -173,13 +173,6 @@ def blind(public_key: rsa.RSAPublicKey, msg: bytes) -> tuple[bytes, BlindState]:
             "blinding factor is not invertible mod n_R: this draw has factored "
             "the modulus"
         ) from None
-    while True:
-        r = secrets.randbelow(n - 1) + 1
-        try:
-            r_inv = pow(r, -1, n)
-        except ValueError:
-            continue  # r not invertible; vanishingly rare, retry
-        break
 
     blinded = (m_int * pow(r, e, n)) % n
     return blinded.to_bytes(k, "big"), BlindState(r_inv=r_inv, encoded_msg=encoded, modulus=n)
