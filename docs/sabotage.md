@@ -30,6 +30,7 @@ confident the surrounding comments sound.
 | blind_signature_fault_check_removed | `test_a_faulty_blind_signature_is_not_released` |
 | records_published_while_voting_is_open | `test_no_record_is_published_while_voting_is_open`<br>`test_the_voter_can_still_find_their_own_ballot_while_the_box_is_shut_to_others` |
 | tally_available_before_the_close | `test_a_running_tally_is_published_only_when_configured`<br>`test_three_voters_cast_and_verify` |
+| protest_distribution_collapsed | `test_distinct_protest_codes_are_not_merged` |
 | submissions_accepted_after_the_close | `test_a_ballot_arriving_after_the_close_is_not_recorded` |
 | receipt_omits_the_entry_position | `test_the_inclusion_check_works_from_the_receipt_alone` |
 
@@ -233,6 +234,15 @@ Caught by:
 - `test_a_running_tally_is_published_only_when_configured`
 - `test_three_voters_cast_and_verify`
 
+### `protest_distribution_collapsed`
+
+The tally merges every out-of-range selection into one figure, losing the distinction between distinct protest codes.
+
+Patched in `src/ovpoc/ballotbox.py`.
+
+Caught by:
+- `test_distinct_protest_codes_are_not_merged`
+
 ### `submissions_accepted_after_the_close`
 
 The ballot box keeps accepting ballots after the poll has closed.
@@ -253,5 +263,5 @@ Caught by:
 
 ## Summary
 
-- 21 of 21 mutations were detected.
+- 22 of 22 mutations were detected.
 - 0 were not.
