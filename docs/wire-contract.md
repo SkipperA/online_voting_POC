@@ -23,6 +23,35 @@ $`s_{vote}`$ the ballot signature.
 
 ---
 
+## 0. Canonical JSON
+
+Several rows below say "canonical JSON" without saying what it means, which
+was survivable while one implementation existed and is not now. Everything
+signed or hashed in this design is signed or hashed over these bytes, so a
+second implementation that serialises differently does not merely disagree
+about formatting: its signatures fail to verify here, and ours fail to verify
+there.
+
+| Rule | Why it is not a matter of taste |
+|---|---|
+| Keys sorted by code point | Insertion order is a property of the producing language, not of the message |
+| Separators `,` and `:` with no surrounding whitespace | Any other spacing is a different byte string and therefore a different message |
+| Non-ASCII characters emitted as UTF-8, **not** escaped as `\uXXXX` | Python's `json.dumps` escapes by default; `JSON.stringify`, Swift's `JSONEncoder` and RFC 8785 do not. An identifier carrying an accent is where this bites, and nowhere else — which is why no single-implementation test can find it |
+| Binary fields as base64url, padding stripped | One decoder rather than two, and no `+` or `/` to survive a URL |
+
+In code: `ovpoc.messages.canonical_bytes`, and `digest` for the SHA-256 over
+the result.
+
+**The vectors are the specification, not this table.** `tests/vectors/` carries
+fixed inputs with the bytes and digests this implementation produces from
+them, including accented, CJK and astral-plane cases. `tests/test_vectors.py`
+checks the Python against them and `interop/src/verify-vectors.ts` checks an
+independently written TypeScript implementation against the same files. A
+reader implementing this protocol should run against those files rather than
+against the prose above.
+
+---
+
 ## 1. Certificate lookup — VRO → population register
 
 External, and not part of the system (§3.2). Implemented in `driver/`.
@@ -51,7 +80,7 @@ Steps 3–4. The article's package $`[\,id,\, c,\, s\,]`$ (§5.3).
 | `voter_id` | `AuthRequest.voter_id` | Req. 1, §5.3 | The wallet holds it; the voting application never receives it, so no single component holds both `id` and $`k_p^a`$ |
 | `blinded_key` | `AuthRequest.blinded_key` | Req. 3, §5.2 | $`c = \mathrm{enc}(k_p^a)\cdot r^{e_R} \bmod n_R`$. Carries no information about $`k_p^a`$, so the office may log it without weakening anonymity |
 | `wallet_signature` | `AuthRequest.wallet_signature` | Req. 1, §5.3 | $`s = sig_{k_s^{(v)}}(hash([id,c]))`$. Binds the request to a named person and to *this* blinded value, so neither can be substituted in transit |
-| — (signed bytes) | `AuthRequest.signed_payload()` | §5.3 | Canonical JSON over `voter_id` and base64url `blinded_key`, then SHA-256. Signatures are over bytes: two serialisations of one logical request are two different messages |
+| — (signed bytes) | `AuthRequest.signed_payload()` | §5.3 | Canonical JSON (§0) over `voter_id` and base64url `blinded_key`, then SHA-256. Signatures are over bytes: two serialisations of one logical request are two different messages |
 
 ---
 
@@ -120,7 +149,7 @@ Step 9. The article's package $`[\,i,\, k_p^a,\, s_{k_p^a},\, s_{vote}\,]`$ (§5
 | `adhoc_public_key` | `Ballot.adhoc_public_key` | Req. 3, Req. 4 | $`k_p^a`$. The voter's anonymous handle. Before the close it is also a lookup secret (§3.7) |
 | `token` | `Ballot.token` | Req. 1 | $`s_{k_p^a}`$, an ordinary RSA-PSS signature over $`k_p^a`$ under $`k_p^{(R)}`$, so any third party verifies it with a standard library (§5.5) |
 | `vote_signature` | `Ballot.vote_signature` | Req. 1, Req. 4 | $`s_{vote} = sig_{k_s^a}(hash([i, k_p^a]))`$. Covers the selection *and* the key, so neither can be lifted from a published ballot and reused |
-| — (signed bytes) | `Ballot.signed_payload()` | §5.6 | Canonical JSON, as in §2 above |
+| — (signed bytes) | `Ballot.signed_payload()` | §5.6 | Canonical JSON (§0), as in §2 above |
 
 Nothing here identifies the voter. The link to eligibility runs only through
 `token`.

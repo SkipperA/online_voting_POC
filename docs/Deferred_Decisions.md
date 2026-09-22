@@ -156,30 +156,35 @@ after.
 
 ---
 
-## 3. Code (`src/ovpoc`)
+## 3. Tooling
 
-Both items below are one-line changes and both should land before any client is
-written against this code, since a TypeScript client following the article will
-disagree with the Python otherwise.
+### 3.1 `tools/sabotage.py` exits 0 even when a mutation goes undetected
 
-### 3.1 `rsabssa.py` retries a non-invertible blinding factor
+`main()` prints the undetected count and returns 0 regardless. The CI guarantee
+therefore rests entirely on `git diff --exit-code docs/sabotage.md`: an
+undetected mutation changes the report, so the diff catches it. That works, but
+indirectly, and a mutation added without regenerating the report would pass the
+exit code while failing the diff. The tool should return non-zero when
+`uncaught` is non-empty.
 
-§5.2: a draw of `r` not coprime to `n_R` "would have factored `n_R`; it is an
-alarm rather than a case to retry." `blind()` does `continue` and draws again.
-`@cloudflare/blindrsa-ts` raises `blinding error`. The paper agrees with the
-library, not with this implementation.
+### 3.2 `npm audit` reports two high-severity advisories
 
-### 3.2 `rsabssa.py` omits RFC 9474 step 4
+Both are `sjcl`, reached through `@cloudflare/blindrsa-ts`, and both concern
+missing point-on-curve validation in `sjcl.ecc`. The blind-signature path uses
+sjcl only for bignum arithmetic and never touches its ECC code, so the
+advisories do not apply here. `npm audit` is deliberately **not** a CI step for
+that reason; recorded so that the omission reads as a decision rather than an
+oversight. Revisit if blindrsa-ts changes its dependency or its usage.
 
-RFC 9474 requires `is_coprime(m, n)` on the encoded message, raising "invalid
-input" on failure. `blind()` checks `m_int >= n` instead, which is a different
-condition. The library performs the specified check.
+*(The two `rsabssa.py` items that stood here — the retried non-invertible
+blinding factor and the missing RFC 9474 step 4 — were closed in `66659cc` and
+`9dfa3b1`, with `ModulusCompromised` and three tests.)*
 
 ---
 
 ## 4. Surface map (`docs/Stage1_Surface_and_Boundary_Map.md`)
 
-### 4.1 Line 290 is wrong about WebCrypto
+### 4.1 Line 290 is wrong about WebCrypto (still open)
 
 The interop list states that WebCrypto "exports SPKI and JWK, not raw". It
 exports raw: `exportKey('raw', publicKey)` on an Ed25519 public key returns the
@@ -216,3 +221,13 @@ only on 2.2 above, which is now decided in outline.
 - `@cloudflare/blindrsa-ts` 0.4.4 exposes `RSABSSA.SHA384.PSS.Deterministic`
   and interoperates with `rsabssa.py` in both directions. Recorded in
   `CLAUDE.md`.
+- Canonical JSON emits non-ASCII as UTF-8 rather than escaping it
+  (`ensure_ascii=False`), which is what every other implementation does and
+  what RFC 8785 specifies. Defined in `docs/wire-contract.md` §0 and pinned by
+  `tests/vectors/canonical-json.json`.
+- The golden vectors are the conformance artefact for stages 1 and 3:
+  `tools/golden_vectors.py` generates them reproducibly, `tests/test_vectors.py`
+  and `interop/src/verify-vectors.ts` consume them, and CI runs both.
+- `ext_demo.py`'s wrong-key scenario drew a second modulus without constraining
+  it, so roughly one run in ten failed in `blind_sign` rather than reaching the
+  device check it exists to show. Fixed in `7d434da`.
