@@ -46,6 +46,7 @@ no independent review, and it must not be used in a real election.
 from __future__ import annotations
 
 import hashlib
+import math
 import secrets
 from dataclasses import dataclass
 
@@ -161,7 +162,17 @@ def blind(public_key: rsa.RSAPublicKey, msg: bytes) -> tuple[bytes, BlindState]:
     m_int = int.from_bytes(encoded, "big")
     if m_int >= n:
         raise BlindSignatureError("encoded message not reduced mod n")
-
+    if math.gcd(m_int, n) != 1:                              # RFC 9474 step 4
+        raise BlindSignatureError("encoded message is not coprime to n_R")
+    
+    r = secrets.randbelow(n - 1) + 1
+    try:
+        r_inv = pow(r, -1, n)
+    except ValueError:
+        raise BlindSignatureError(
+            "blinding factor is not invertible mod n_R: this draw has factored "
+            "the modulus"
+        ) from None
     while True:
         r = secrets.randbelow(n - 1) + 1
         try:
