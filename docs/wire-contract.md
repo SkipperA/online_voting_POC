@@ -241,7 +241,10 @@ of either.
    true reason, or forbids returning it.
 3. **The separate office statement key.** §3.3 requires the token key serve no
    other purpose, which implies this key must exist, but no clause names it or
-   says what signs a denial.
+   says what signs a denial. The design decision is taken: it is `k_p^(O)`,
+   published and pinned in the election configuration beside `k_p^(R)` (action
+   table A5). The article has not yet been amended — Table 1 footnote (a) still
+   omits it.
 4. **`phase` as an explicit artefact.** Table 1 describes the two phases; the
    article does not require the box to publish which one it is in.
 

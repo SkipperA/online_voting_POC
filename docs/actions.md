@@ -22,7 +22,8 @@ certificate lookup service is likewise external (§3.2).
 | A2 | Supply a register drawn for this election; entitlement differs from poll to poll | administering body | → VRO | register → VRO |
 | A3 | Administer the register: hold and read it, never populate it | VRO operator | VRO back-office | register → VRO (read-only) |
 | A4 | Generate the token signing key pair `k_s^(R)`, `k_p^(R)`, reserved to this election and to no other protocol | VRO operator | VRO back-office (§3.3) | internal to VRO |
-| A5 | Fix the election configuration: identifier, `k_p^(R)`, choice list `1..N`, opening and closing times, registry genesis hash | administering body | *not assigned in the article* | configuration → public |
+| A4b | Generate the office **statement** key pair `k_s^(O)`, `k_p^(O)`, under which denials and refusals are signed — never the token key, which is a blind-signing oracle any voter can drive (§3.3) | VRO operator | VRO back-office | internal to VRO |
+| A5 | Fix the election configuration: identifier, `k_p^(R)`, **`k_p^(O)`**, choice list `1..N`, opening and closing times, registry genesis hash | Voting Administrator | *not assigned in the article* | configuration → public |
 | A6 | Publish and pin the configuration before opening | administering body / VRO | published artefact, pinned in the voter app (Table 1, row 1) | publisher → voter app, and → anyone |
 | A7 | Initialise the registry at the genesis hash | ballot box operator | EBB | internal to EBB |
 | A8 | If no running tally is to be published: generate the election encryption key, distribute the private half in Shamir shares | several independent public bodies | outside the three components (§3.5) | key generator → share-holders |
@@ -112,18 +113,27 @@ Five gaps, each a decision rather than an omission to be patched mechanically.
 Open questions and pending amendments across all documents are tracked in
 `docs/Deferred_Decisions.md`.
 
-1. **The election configuration has no author.** Step A5 has contents (Table 1,
-   footnote a) but no named party, no signature, and no stated distribution path.
-   Everything downstream — pinning, token verification, range checking — rests on
-   it, making it the least specified object in the design.
+1. **The election configuration is unsigned and has no distribution path.**
+   The author is settled: the Voting Administrator. What remains open is that
+   nothing signs the configuration and nothing says how it reaches a voter's
+   application or a checker. Everything downstream — pinning, token
+   verification, range checking, and now the verification of signed office
+   statements — rests on it, which makes it the least specified object in the
+   design and the one with the most weight on it.
 
-2. **Nobody operates the checker.** Steps D1–D3 require independence from the
-   component under audit, which is a property, not a party. No operator is named.
+2. **The checker's code has no publication path.** Who *uses* it is settled:
+   any citizen. Each party may serve the check endpoints over its own data,
+   since the artefacts returned are self-authenticating. What is unsettled is
+   how a voter knows the page they were served is the page everyone else was
+   served — the candidate answer being that its digest belongs in the signed
+   configuration of gap 1.
 
-3. **The close is a time, not an act.** Step E1 is treated as a moment. With
-   re-voting and supersession the boundary matters: the article does not say
-   whether acceptance is judged by arrival at the box or by a published cut, nor
-   who attests that the box stopped.
+3. **The box attests its own close.** That the close is an act of the EBB is
+   settled. What remains is that the box is the sole witness to its own
+   stopping, and that A9 opens both the EBB and the VRO while E1 closes only
+   the EBB — so token issuance has no stated stop. A token issued after the
+   close is useless, since no ballot can be submitted with it, but the design
+   should say so rather than leave it silent.
 
 4. **The office is both committer and sole opener.** The nonce in B15 is generated
    by the VRO and returned to the voter in D1. The article notes the residue that

@@ -206,6 +206,11 @@ The statement key matters: the token key is a blind-signing oracle any voter
 can drive (§3.3). A false denial must be attributable, and signing it under
 the oracle key would make it forgeable.
 
+A signed denial is only worth the authenticity of the key that verifies it, so
+`k_p^(O)` is published and pinned in the election configuration beside
+`k_p^(R)` (action table A5). Reachable as a property on the `VRO` object is
+sufficient inside one process and is not a publication path.
+
 ### D3 — selection check, checker → EBB
 
 | Sends | Returns |

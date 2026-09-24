@@ -31,7 +31,27 @@ artefacts even when one body does both.
 **Applied in `docs/actions.md` already** (E8 and the new E10). The article has
 not been amended.
 
-### 1.2 Mirroring the chain head — §3.5
+### 1.2 The office statement key is not in the configuration — Table 1
+
+Table 1 footnote (a) lists the configuration as the election identifier,
+`k_p^{(R)}`, the choice list, the opening and closing times, and the genesis
+hash. The office's statement key is absent, yet §3.3 implies it must exist —
+the token key is a blind-signing oracle and cannot sign statements — and a
+signed denial is worth nothing unless the voter and the checker hold an
+authentic copy of the key that verifies it. Pinning is how every other key in
+this design is protected.
+
+The decision is taken and recorded in `docs/actions.md` (A4b, A5),
+`docs/wire-contract.md` and the surface map: the key is `k_p^{(O)}`, generated
+by the VRO operator, published and pinned in the configuration beside
+`k_p^{(R)}`. The article has not been amended.
+
+**Notation caution.** `S` is already the raw private-key operation in §5, so
+`k_p^{(S)}` would collide on the same page. `(O)` for "office statements" is
+provisional; if a better symbol is chosen it should be chosen before the
+current one spreads further.
+
+### 1.3 Mirroring the chain head — §3.5
 
 §3.5 currently names "several independent mirrors, a printed record, or a
 public notice" as the defence against a box maintaining two internally
@@ -76,7 +96,7 @@ elided:
 - A party observer in a polling station watches a process they understand. Here
   they hold 32 bytes. Comparing is trivial; knowing what was attested is not.
 
-### 1.3 Whether party supervision resolves A5 and E1 jointly
+### 1.4 Whether party supervision resolves A5 and E1 jointly
 
 If competing parties attest the genesis before the poll opens, the same act can
 cover `k_p^{(R)}`, the choice list and the times — which is gap 1 and clause
@@ -132,7 +152,7 @@ one machine under one operator cannot supply; a second origin on the same box
 demonstrates the shape of the property, not the property.
 
 So: a working head-history check on the checker, plus a clause naming party
-supervision (item 1.2) as the deployment answer and saying why the demo cannot
+supervision (item 1.3) as the deployment answer and saying why the demo cannot
 show it.
 
 ### 2.3 Clause numbering collides with action-table rows
@@ -228,6 +248,13 @@ only on 2.2 above, which is now decided in outline.
 - The golden vectors are the conformance artefact for stages 1 and 3:
   `tools/golden_vectors.py` generates them reproducibly, `tests/test_vectors.py`
   and `interop/src/verify-vectors.ts` consume them, and CI runs both.
+- The Voting Administrator authors the election configuration (A5). Any citizen
+  uses the check services; each party may serve the endpoints over its own data,
+  because what they return is self-authenticating. The close is an act of the
+  EBB (E1). Recorded in `docs/actions.md`, where the three gap entries are
+  narrowed to what actually remains.
+- The office statement key `k_p^{(O)}` goes into the election configuration;
+  refusals and denials are signed under it, never under the token key.
 - `ext_demo.py`'s wrong-key scenario drew a second modulus without constraining
   it, so roughly one run in ten failed in `blind_sign` rather than reaching the
   device check it exists to show. Fixed in `7d434da`.
