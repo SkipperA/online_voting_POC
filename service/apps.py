@@ -7,9 +7,8 @@ disclosure rule stays in `src/ovpoc`, where the sabotage suite can reach it --
 if a mutation stops being detected because a check moved in here, this layer
 has taken a decision that does not belong to it.
 
-Only the config origin is implemented in this step.  The rest answer
-`/health` and nothing else, so that the boundary tests have something to test
-and later steps have somewhere to land.
+The endpoints themselves are in `api.py`; this module owns the shared
+middleware and the assembly.
 """
 
 from __future__ import annotations
@@ -18,6 +17,7 @@ from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from . import origins
+from .api import ebb_app, setup_app, vro_app, wallet_app
 from .state import Deployment
 
 
@@ -100,7 +100,13 @@ def stub_app(origin: origins.Origin) -> FastAPI:
 
 
 def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
-    apps = {origins.CONFIG: config_app(deployment)}
+    apps = {
+        origins.CONFIG: config_app(deployment),
+        origins.WALLET: wallet_app(deployment, _base),
+        origins.VRO: vro_app(deployment, _base),
+        origins.EBB: ebb_app(deployment, _base),
+        origins.SETUP: setup_app(deployment, _base),
+    }
     for origin in origins.ALL:
         if origin not in apps:
             apps[origin] = stub_app(origin)
