@@ -12,7 +12,8 @@ decoder rather than two.
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException, Request
+import httpx
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from ovpoc import rsabssa
@@ -87,12 +88,22 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
             blinded_key=blinded,
             wallet_signature=wallet.sign(request.signed_payload()),
         )
-        response = deployment.vro.issue_token(request)
-        if response.issued:
-            deployment.token_replies[blinded] = response.blind_signature
+        # Transmitted to the office over the wire, from this origin to that
+        # one. A direct call into `deployment.vro` would be the arrangement
+        # §5.3 rejects, wearing the name of the one it argues for -- and no
+        # test could tell the two apart.
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            reply = await http.post(
+                f"{origins.VRO.url}/token-requests",
+                json={
+                    "voter_id": request.voter_id,
+                    "blinded_key": b64(request.blinded_key),
+                    "wallet_signature": b64(request.wallet_signature),
+                },
+            )
         # The outcome, and nothing that names anyone. The application learns
         # only whether to start collecting the reply.
-        return {"outcome": response.outcome.name}
+        return {"outcome": reply.json()["outcome"]}
 
     @app.post("/release-query-credentials")
     async def release_credentials() -> dict:
@@ -117,6 +128,12 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
 # VRO — 8003
 # --------------------------------------------------------------------------
 
+class TokenRequestBody(BaseModel):
+    voter_id: str
+    blinded_key: str
+    wallet_signature: str
+
+
 class ReleaseQueryBody(BaseModel):
     voter_id: str
     signature: str
@@ -125,6 +142,37 @@ class ReleaseQueryBody(BaseModel):
 def vro_app(deployment: Deployment, base) -> FastAPI:
     app = base(origins.VRO)
     vro = deployment.vro
+
+    @app.post("/token-requests")
+    async def token_request(body: TokenRequestBody) -> dict:
+        """B7–B15. The office receives `[id, c, s]` and decides.
+
+        Reachable by anyone who can address this origin, which is the point:
+        the office's checks must withstand a request that did not come from a
+        wallet at all. Every one of those checks is in `ovpoc.vro`; this
+        function chooses nothing and, in particular, does not decide what may
+        be disclosed -- the outcome enum already encodes that boundary, with
+        the two pre-identification failures collapsed into one refusal
+        (§3.2).
+        """
+        try:
+            blinded = unb64(body.blinded_key)
+            signature = unb64(body.wallet_signature)
+        except ValueError:
+            raise HTTPException(400, "malformed base64url field")
+
+        response = vro.issue_token(
+            AuthRequest(
+                voter_id=body.voter_id,
+                blinded_key=blinded,
+                wallet_signature=signature,
+            )
+        )
+        if response.issued:
+            # Held for collection at B16 rather than returned here: the reply
+            # belongs to the application, which is not the party that asked.
+            deployment.token_replies[blinded] = response.blind_signature
+        return {"outcome": response.outcome.name}
 
     @app.get("/token-replies/{blinded_key}")
     async def collect(blinded_key: str) -> dict:

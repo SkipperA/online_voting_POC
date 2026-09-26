@@ -51,6 +51,8 @@ def main() -> int:
                         help="origins not to start, by name")
     parser.add_argument("--bits", type=int, default=3072,
                         help="VRO token key size")
+    parser.add_argument("--choices", type=int, default=None,
+                        help="number of options on the ballot")
     args = parser.parse_args()
 
     unknown = set(args.without) - set(origins.BY_NAME)
@@ -58,7 +60,10 @@ def main() -> int:
         parser.error(f"unknown origin(s): {', '.join(sorted(unknown))}")
 
     names = {o.name for o in origins.ALL} - set(args.without)
-    deployment = Deployment.create(bits=args.bits)
+    kwargs = {"bits": args.bits}
+    if args.choices is not None:
+        kwargs["num_choices"] = args.choices
+    deployment = Deployment.create(**kwargs)
     try:
         asyncio.run(serve(names, deployment))
     except KeyboardInterrupt:

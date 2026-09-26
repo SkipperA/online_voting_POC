@@ -12,17 +12,27 @@ than an intention.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 HOST = "127.0.0.1"
+
+# Added to every port. Lets a test deployment run beside a development one
+# instead of fighting it for 8000-8009, without any origin learning that it
+# has moved: everything derives its neighbours' addresses from this table.
+OFFSET = int(os.environ.get("OVPOC_PORT_OFFSET", "0"))
 
 
 @dataclass(frozen=True)
 class Origin:
     name: str
-    port: int
+    base_port: int
     trust_domain: bool
     serves: str
+
+    @property
+    def port(self) -> int:
+        return self.base_port + OFFSET
 
     @property
     def url(self) -> str:
