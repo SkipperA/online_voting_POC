@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voter application — step 1</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; margin: 0 auto;
+         max-width: 54rem; padding: 2rem 1.25rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .25rem; }
+  .sub { color: #666; margin: 0 0 1.5rem; }
+  section { border: 1px solid #8884; border-radius: 6px; padding: .9rem 1.1rem;
+            margin: 0 0 1rem; }
+  h2 { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
+       color: #777; margin: 0 0 .7rem; }
+  .row { display: grid; grid-template-columns: 13rem 1fr; gap: .4rem 1rem;
+         padding: .18rem 0; }
+  .label { color: #666; }
+  .value { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px;
+           word-break: break-all; }
+  .ok { color: #15803d; } .warn { color: #b91c1c; font-weight: 600; }
+  #status { margin-top: 1.2rem; font-weight: 600; }
+  .note { background: #f59e0b18; border-left: 3px solid #f59e0b; padding: .7rem .9rem;
+          margin: 0 0 1.2rem; font-size: 13.5px; }
+  .note b { display: block; text-transform: uppercase; letter-spacing: .06em;
+            font-size: .72rem; color: #b45309; margin-bottom: .3rem; }
+</style>
+</head>
+<body data-config-origin="">
+<h1>Voter application</h1>
+<p class="sub">Step one: the cryptography, performed in this browser. No wallet,
+no ballot, no submission yet.</p>
+
+<div class="note">
+  <b>What this demo cannot show</b>
+  The fingerprint below is <em>recomputed here</em> from the published key, which
+  proves the config origin is internally consistent — not that the key is the
+  right one. Real pinning compares against a value built into the application
+  before the election, and this demo mints the key when the service starts, so
+  there is nothing to have pinned. Compare it by eye against the value the VRO
+  operator prints instead.
+</div>
+
+<section>
+  <h2>Election configuration · from the config origin</h2>
+  <div class="row"><span class="label">election</span><span class="value" id="election">…</span></div>
+  <div class="row"><span class="label">choices</span><span class="value" id="choices">…</span></div>
+  <div class="row"><span class="label">published digest</span><span class="value" id="digest">…</span></div>
+</section>
+
+<section>
+  <h2>k_p^(R) · the office's token key</h2>
+  <div class="row"><span class="label">modulus</span><span class="value" id="modulus">…</span></div>
+  <div class="row"><span class="label">fingerprint</span><span class="value" id="fingerprint">…</span></div>
+  <div class="row"><span class="label">agreement</span><span class="value" id="fp-agrees">…</span></div>
+</section>
+
+<section>
+  <h2>Ad-hoc key pair · generated here, for this election only</h2>
+  <div class="row"><span class="label">k_p^a</span><span class="value" id="adhoc">…</span></div>
+  <div class="row"><span class="label">k_s^a</span><span class="value" id="adhoc-private">…</span></div>
+</section>
+
+<section>
+  <h2>Blinding · RFC 9474</h2>
+  <div class="row"><span class="label">suite</span><span class="value" id="suite">…</span></div>
+  <div class="row"><span class="label">prepare()</span><span class="value" id="prepare">…</span></div>
+  <div class="row"><span class="label">c</span><span class="value" id="blinded">…</span></div>
+  <div class="row"><span class="label">r⁻¹</span><span class="value" id="inverse">…</span></div>
+</section>
+
+<p id="status">Working…</p>
+<script src="bundle.js"></script>
+</body>
+</html>

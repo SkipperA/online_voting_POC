@@ -13,12 +13,17 @@ middleware and the assembly.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI, Response
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import origins
 from .api import ebb_app, setup_app, vro_app, wallet_app
 from .state import Deployment
+
+VOTER_APP_STATIC = Path(__file__).resolve().parents[1] / "web" / "voter-app" / "static"
 
 
 def _base(origin: origins.Origin) -> FastAPI:
@@ -63,6 +68,20 @@ def config_app(deployment: Deployment) -> FastAPI:
     because the artefact it covers was fixed in advance.
     """
     app = _base(origins.CONFIG)
+
+    @app.middleware("http")
+    async def readable_by_the_voter_app(request, call_next):
+        """The configuration is public by design, so it is readable cross-origin.
+
+        Everything here is published to anyone before the poll opens; there
+        is nothing to protect with a same-origin rule, and the voter
+        application is on a different origin precisely so that it holds no
+        privilege this one could leak to it.
+        """
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
+
     payload = (deployment.document_root / "election.json").read_bytes()
     digest_line = (deployment.document_root / "election.json.sha256").read_text()
 
@@ -74,6 +93,40 @@ def config_app(deployment: Deployment) -> FastAPI:
     async def election_digest() -> PlainTextResponse:
         return PlainTextResponse(digest_line)
 
+    return app
+
+
+def voter_app(deployment: Deployment) -> FastAPI:
+    """8001 — the voter's application.
+
+    Static files only. Every cryptographic operation runs in the browser:
+    the ad-hoc key pair, the blinding, the unblinding, and the verification
+    of the token against the pinned key. This origin computes nothing and,
+    crucially, holds nothing -- there is no session, no cookie and no state
+    here for an identifier to be stored in even if one arrived.
+
+    The config origin's address is injected into the page rather than
+    hard-coded, so the port offset used by the tests reaches the browser.
+    """
+    app = _base(origins.VOTER_APP)
+    index = VOTER_APP_STATIC / "index.html"
+
+    @app.get("/", response_class=HTMLResponse)
+    async def page() -> HTMLResponse:
+        if not index.exists():
+            return HTMLResponse(
+                "<h1>The voter application has not been built.</h1>"
+                "<p>Run <code>npm install &amp;&amp; npm run build</code> in "
+                "<code>web/voter-app</code>.</p>",
+                status_code=503,
+            )
+        html = index.read_text(encoding="utf-8").replace(
+            'data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"'
+        )
+        return HTMLResponse(html)
+
+    if VOTER_APP_STATIC.exists():
+        app.mount("/", StaticFiles(directory=VOTER_APP_STATIC), name="static")
     return app
 
 
@@ -102,6 +155,7 @@ def stub_app(origin: origins.Origin) -> FastAPI:
 def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
     apps = {
         origins.CONFIG: config_app(deployment),
+        origins.VOTER_APP: voter_app(deployment),
         origins.WALLET: wallet_app(deployment, _base),
         origins.VRO: vro_app(deployment, _base),
         origins.EBB: ebb_app(deployment, _base),

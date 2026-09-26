@@ -173,3 +173,30 @@ def test_the_poll_runs_with_the_setup_console_stopped(deployment):
 
     with TestClient(runtime["config"]) as client:
         assert client.get("/election.json").status_code == 200
+
+
+# -- the voter application is static and holds nothing --------------------
+
+def test_the_voter_app_serves_the_page_with_the_config_origin_injected(clients):
+    """Injected, not hard-coded, so a shifted port map still reaches 8000."""
+    response = clients["voter-app"].get("/")
+    assert response.status_code in (200, 503)
+    if response.status_code == 503:
+        return  # the bundle has not been built in this checkout
+    assert f'data-config-origin="{origins.CONFIG.url}"' in response.text
+    assert 'src="bundle.js"' in response.text
+
+
+def test_the_voter_app_bundle_contains_no_identifier_handling(clients):
+    """A weak check, deliberately: the strong one is that no route returns an id.
+
+    What this adds is that the shipped JavaScript has no notion of a voter
+    identifier at all -- no field, no parameter, no fetch to the wallet. The
+    blinding runs here; identity does not.
+    """
+    response = clients["voter-app"].get("/bundle.js")
+    if response.status_code == 404:
+        return  # not built
+    source = response.text
+    assert "voter_id" not in source
+    assert "release-query-credentials" not in source
