@@ -176,6 +176,10 @@ main().catch((err) => {
  * described in a comment somewhere.
  */
 function offerBallot(token: Uint8Array) {
+  // One selection, so one control. The protest code is an option among the
+  // others rather than a field beside them: a ballot cannot carry both, and
+  // an interface that lets a voter set two things and silently honours one
+  // misrepresents what it is depicting.
   const list = document.getElementById('choices-list')!;
   list.innerHTML = '';
   for (let i = 1; i <= NUM_CHOICES; i++) {
@@ -184,16 +188,35 @@ function offerBallot(token: Uint8Array) {
     label.innerHTML = `<input type="radio" name="choice" value="${i}"> option ${i}`;
     list.append(label);
   }
-  document.getElementById('ballot-section')!.hidden = false;
-  const cast = document.getElementById('cast') as HTMLButtonElement;
-  cast.disabled = false;
+  const protestLabel = document.createElement('label');
+  protestLabel.style.display = 'block';
+  protestLabel.style.marginTop = '.4rem';
+  protestLabel.innerHTML =
+    '<input type="radio" name="choice" value="protest"> something else — ' +
+    '<input type="number" id="protest" style="width:7rem" value="-1" disabled>';
+  list.append(protestLabel);
 
-  const protest = document.getElementById('protest') as HTMLInputElement;
-  cast.onclick = async () => {
+  const protest = () => document.getElementById('protest') as HTMLInputElement;
+  const cast = document.getElementById('cast') as HTMLButtonElement;
+
+  list.onchange = () => {
     const picked = document.querySelector<HTMLInputElement>('input[name=choice]:checked');
-    const selection = protest.value !== '' ? Number(protest.value)
-                    : picked ? Number(picked.value) : null;
-    if (selection === null) { show('status', 'Choose an option, or enter a protest code.'); return; }
+    protest().disabled = picked?.value !== 'protest';
+    if (!protest().disabled) protest().focus();
+    cast.disabled = !picked;
+  };
+
+  document.getElementById('ballot-section')!.hidden = false;
+  cast.disabled = true;
+
+  cast.onclick = async () => {
+    const picked = document.querySelector<HTMLInputElement>('input[name=choice]:checked')!;
+    const selection = picked.value === 'protest'
+      ? Number(protest().value) : Number(picked.value);
+    if (!Number.isInteger(selection)) {
+      show('status', 'A protest code must be a whole number.');
+      return;
+    }
 
     cast.disabled = true;
     const canonical = JSON.stringify({
