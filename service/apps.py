@@ -20,10 +20,13 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import origins
-from .api import ebb_app, setup_app, vro_app, wallet_app
+from .api import ebb_app, setup_app, vro_app
+from .api import wallet_app as wallet_api
 from .state import Deployment
 
-VOTER_APP_STATIC = Path(__file__).resolve().parents[1] / "web" / "voter-app" / "static"
+WEB = Path(__file__).resolve().parents[1] / "web"
+VOTER_APP_STATIC = WEB / "voter-app" / "static"
+WALLET_STATIC = WEB / "wallet" / "static"
 
 
 def _base(origin: origins.Origin) -> FastAPI:
@@ -129,13 +132,45 @@ def voter_app(deployment: Deployment) -> FastAPI:
                 "and need not be restarted.</p>",
                 status_code=503,
             )
-        html = index.read_text(encoding="utf-8").replace(
-            'data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"'
+        html = (
+            index.read_text(encoding="utf-8")
+            .replace('data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"')
+            .replace('data-vro-origin=""', f'data-vro-origin="{origins.VRO.url}"')
         )
         return HTMLResponse(html)
 
     if VOTER_APP_STATIC.exists():
         app.mount("/", StaticFiles(directory=VOTER_APP_STATIC), name="static")
+    return app
+
+
+def wallet_app(deployment: Deployment) -> FastAPI:
+    """8002 — the wallet's endpoints, plus its own consent page.
+
+    The page is served from the same origin as the endpoints it calls, so
+    signing needs no cross-origin permission and none is granted. A wallet
+    that accepted instructions from any page that asked would not be a
+    wallet; what the voting application can do here is hand over a file, and
+    the voter carries it.
+    """
+    app = wallet_api(deployment, _base)
+    index = WALLET_STATIC / "index.html"
+
+    @app.get("/", response_class=HTMLResponse)
+    async def page() -> HTMLResponse:
+        return HTMLResponse(
+            index.read_text(encoding="utf-8").replace(
+                'data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"'
+            )
+        )
+
+    @app.get("/wallet.js")
+    async def script() -> Response:
+        return Response(
+            (WALLET_STATIC / "wallet.js").read_text(encoding="utf-8"),
+            media_type="text/javascript",
+        )
+
     return app
 
 
@@ -165,7 +200,7 @@ def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
     apps = {
         origins.CONFIG: config_app(deployment),
         origins.VOTER_APP: voter_app(deployment),
-        origins.WALLET: wallet_app(deployment, _base),
+        origins.WALLET: wallet_app(deployment),
         origins.VRO: vro_app(deployment, _base),
         origins.EBB: ebb_app(deployment, _base),
         origins.SETUP: setup_app(deployment, _base),

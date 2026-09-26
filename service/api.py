@@ -105,6 +105,14 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
         # only whether to start collecting the reply.
         return {"outcome": reply.json()["outcome"]}
 
+    @app.get("/personas")
+    async def personas() -> dict:
+        """The list exists only because one machine plays a whole electorate.
+
+        A real wallet has one owner and offers no such choice. Clause A3.
+        """
+        return {"personas": sorted(deployment.wallets)}
+
     @app.post("/release-query-credentials")
     async def release_credentials() -> dict:
         """D1. The wallet signs the query; the checker carries it.

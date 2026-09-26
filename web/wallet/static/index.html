@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Digital Identity Wallet</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; margin: 0 auto;
+         max-width: 44rem; padding: 2rem 1.25rem 4rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .25rem; }
+  .sub { color: #666; margin: 0 0 1.5rem; }
+  section { border: 1px solid #8884; border-radius: 6px; padding: .9rem 1.1rem; margin: 0 0 1rem; }
+  h2 { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: #777; margin: 0 0 .7rem; }
+  .row { display: grid; grid-template-columns: 11rem 1fr; gap: .4rem 1rem; padding: .18rem 0; }
+  .label { color: #666; }
+  .value { font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; }
+  .ok { color: #15803d; } .warn { color: #b91c1c; font-weight: 600; }
+  button { font: inherit; padding: .45rem .9rem; }
+  button:disabled { opacity: .45; }
+  #status { margin-top: 1.2rem; font-weight: 600; }
+  .note { background: #f59e0b18; border-left: 3px solid #f59e0b; padding: .7rem .9rem;
+          margin: 0 0 1.2rem; font-size: 13.5px; }
+  .note b { display:block; text-transform: uppercase; letter-spacing:.06em;
+            font-size:.72rem; color:#b45309; margin-bottom:.3rem; }
+</style>
+</head>
+<body data-config-origin="">
+<h1>Digital Identity Wallet</h1>
+<p class="sub">Holds <code>id</code> and the signature key. Signs the request and
+transmits it to the Registration Office itself.</p>
+
+<div class="note">
+  <b>What this demo substitutes</b>
+  A real wallet is an eIDAS application holding one citizen's key in hardware it
+  never leaves, invoked by the browser. This page holds several personas in
+  memory so one machine can play a whole electorate, and the request arrives as
+  a file you carry rather than an app-to-app call. The boundary is real; the
+  wallet is not.
+</div>
+
+<section>
+  <h2>1 · The request</h2>
+  <input type="file" id="file" accept="application/json">
+  <div class="row" style="margin-top:.7rem"><span class="label">election</span><span class="value" id="election">—</span></div>
+  <div class="row"><span class="label">configuration</span><span class="value" id="digest">—</span></div>
+  <div class="row"><span class="label">blinded value</span><span class="value" id="blinded">—</span></div>
+</section>
+
+<section>
+  <h2>2 · Who signs</h2>
+  <select id="persona"><option value="">—</option></select>
+  <p style="margin:.6rem 0 0;color:#666;font-size:13px">
+    A real wallet has one owner and no such control. Choosing here is the
+    substitution, not the boundary.
+  </p>
+</section>
+
+<section>
+  <h2>3 · Consent</h2>
+  <p style="margin:0 0 .7rem;color:#666;font-size:13.5px">
+    The wallet signs <code>hash([id, c])</code> and posts <code>[id, c, s]</code>
+    to the office from this origin. Nothing returns to the voting application:
+    it collects the office's reply itself, by presenting the <code>c</code> it
+    generated.
+  </p>
+  <button id="sign" disabled>Sign and transmit</button>
+  <div class="row" style="margin-top:.7rem"><span class="label">outcome</span><span class="value" id="outcome">—</span></div>
+</section>
+
+<p id="status">Choose a request file.</p>
+<script src="wallet.js" defer></script>
+</body>
+</html>

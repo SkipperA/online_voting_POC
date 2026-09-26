@@ -26,7 +26,7 @@
             font-size: .72rem; color: #b45309; margin-bottom: .3rem; }
 </style>
 </head>
-<body data-config-origin="">
+<body data-config-origin="" data-vro-origin="">
 <h1>Voter application</h1>
 <p class="sub">Step one: the cryptography, performed in this browser. No wallet,
 no ballot, no submission yet.</p>
@@ -67,6 +67,24 @@ no ballot, no submission yet.</p>
   <div class="row"><span class="label">prepare()</span><span class="value" id="prepare">…</span></div>
   <div class="row"><span class="label">c</span><span class="value" id="blinded">…</span></div>
   <div class="row"><span class="label">r⁻¹</span><span class="value" id="inverse">…</span></div>
+</section>
+
+<section>
+  <h2>Handover · the voter carries the request</h2>
+  <p style="margin:.2rem 0 .8rem;color:#666;font-size:13.5px">
+    Nothing passes between this origin and the wallet except the file you save.
+    <code>c</code> is not a secret: unblinding needs the <code>r⁻¹</code> above,
+    which never leaves this page, so an intercepted request is worth nothing.
+    In a deployment the browser would invoke the wallet app directly; the file
+    stands in for that.
+  </p>
+  <button id="save" disabled>Save token-request.json</button>
+</section>
+
+<section>
+  <h2>Token · collected from the office by presenting c</h2>
+  <div class="row"><span class="label">s_{k_p^a}</span><span class="value" id="token">…</span></div>
+  <div class="row"><span class="label">verification</span><span class="value" id="token-valid">…</span></div>
 </section>
 
 <p id="status">Loading the application…</p>

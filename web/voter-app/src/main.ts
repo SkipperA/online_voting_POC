@@ -1,21 +1,29 @@
 /**
- * Step one of the voter's application: the cryptography, and nothing else.
+ * The voter's application: blinding here, the token collected from the office.
  *
- * No wallet, no ballot, no submission. What this page establishes is that
- * the blinding the design requires can be performed on the voter's own
- * device, in a browser, against the key the election publishes -- because
- * everything later is built on that and it is the part that could have
- * failed.
+ * Nothing on this origin reads, requests or receives `id`, and there is no
+ * code path to one. The handover to the wallet is a file the voter saves and
+ * carries -- the browser's own download, then the browser's own file picker
+ * on the wallet's page. Clumsy on purpose: nothing passes between the two
+ * origins except what the voter moved, so the boundary is not a claim about
+ * configuration but a fact about what crossed.
  *
- * Nothing here reads, requests or receives `id`. There is no code path to
- * one: the wallet holds it, and this origin never speaks to the wallet in
- * this step at all.
+ * Nothing comes back through the page either. The wallet transmits `[id, c,
+ * s]` to the office itself (B7), and this application collects the reply by
+ * presenting `c`, which it has held since it generated it (B16). A 404 means
+ * "not yet". So the file crosses in one direction and there is no return
+ * channel to design, no correlation handle to invent, and no moment at which
+ * the application must be told anything.
  */
 
 import { RSABSSA } from '@cloudflare/blindrsa-ts';
 
 const CONFIG_ORIGIN = document.body.dataset.configOrigin!;
+const VRO_ORIGIN = document.body.dataset.vroOrigin!;
 const suite = RSABSSA.SHA384.PSS.Deterministic();
+
+const b64url = (b: Uint8Array): string =>
+  btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
 const unb64url = (s: string): Uint8Array =>
   Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
@@ -79,10 +87,62 @@ async function main() {
   const { blindedMsg, inv } = await suite.blind(tokenKey, prepared);
   show('suite', suite.toString(), 'ok');
   show('blinded', `${blindedMsg.length} bytes · ${hex(blindedMsg.slice(0, 16))}…`);
+  (document.getElementById('blinded') as HTMLElement).dataset.b64 = b64url(blindedMsg);
   show('inverse', `${inv.length} bytes, held here and nowhere else`);
 
-  document.getElementById('status')!.textContent =
-    'Blinding performed in this browser. No identifier was read, requested or received.';
+  // 5. The handover. `c` is not a secret worth protecting: §5.3 notes that an
+  //    intercepted `c` yields no advantage, because unblinding needs the `r`
+  //    that never leaves this application. A file in Downloads discloses
+  //    nothing about the voter or the vote.
+  const request = {
+    election_id: config.election_id,
+    config_digest: digestLine.split(/\s+/)[0],
+    blinded_key: b64url(blindedMsg),
+  };
+  const save = document.getElementById('save') as HTMLButtonElement;
+  save.disabled = false;
+  save.onclick = () => {
+    const blob = new Blob([JSON.stringify(request, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'token-request.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    poll(tokenKey, adhocPublic, inv);
+  };
+
+  show('status', 'Blinded. Save the request and take it to the wallet.');
+}
+
+/**
+ * B16–B18. Poll, unblind, and verify before `r` is discarded.
+ *
+ * The verification is the only moment at which the voter learns whether the
+ * office followed the protocol, and by then their single entitlement is
+ * already spent -- which is why §5.5 requires a documented re-issuance path.
+ */
+async function poll(tokenKey: CryptoKey, adhocPublic: Uint8Array, inv: Uint8Array) {
+  const c = (document.getElementById('blinded') as HTMLElement).dataset.b64!;
+  show('status', 'Waiting for the office to release a token…');
+  for (let attempt = 0; attempt < 600; attempt++) {
+    const response = await fetch(`${VRO_ORIGIN}/token-replies/${c}`);
+    if (response.ok) {
+      const blindSignature = unb64url((await response.json()).blind_signature);
+      const token = await suite.finalize(tokenKey, adhocPublic, blindSignature, inv);
+      const valid = await suite.verify(tokenKey, token, adhocPublic);
+      show('token', `${token.length} bytes · ${hex(token.slice(0, 16))}…`);
+      show('token-valid',
+           valid ? 'verifies under the pinned k_p^(R) — an ordinary RSA-PSS signature now'
+                 : 'DOES NOT VERIFY — the office did not follow the protocol',
+           valid ? 'ok' : 'warn');
+      show('status', valid
+        ? 'Token obtained and verified. The office cannot link it to the request it signed.'
+        : 'The office returned a signature that does not verify.');
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  show('status', 'No reply from the office. The wallet may not have transmitted yet.');
 }
 
 main().catch((err) => {

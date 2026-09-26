@@ -189,3 +189,58 @@ def test_the_wallet_does_not_echo_the_id_it_holds(live):
     # D1 needs [id, sig(id)], and §3.7 permits the wallet to produce it.
     credentials = live.http.post(f"{live.wallet}/release-query-credentials").json()
     assert credentials["voter_id"] == voter_id
+
+
+# -- the browser handover -------------------------------------------------
+
+def test_the_wallet_serves_its_own_consent_page(live):
+    """Same origin as the endpoints it calls, so no page is granted access.
+
+    A wallet reachable cross-origin by the voting application would be an
+    API with a consent screen painted on it.
+    """
+    page = live.http.get(f"{live.wallet}/")
+    assert page.status_code == 200
+    assert 'src="wallet.js"' in page.text
+    assert f'data-config-origin="{live.config}"' in page.text
+
+    script = live.http.get(f"{live.wallet}/wallet.js")
+    assert script.status_code == 200
+    assert "hash([id, c])" in script.text or "voter_id" in script.text
+
+
+def test_the_wallet_does_not_permit_cross_origin_calls(live):
+    """The config origin is public and says so; the wallet is not and does not."""
+    assert live.http.get(
+        f"{live.config}/election.json"
+    ).headers.get("access-control-allow-origin") == "*"
+    assert "access-control-allow-origin" not in {
+        k.lower() for k in live.http.get(f"{live.wallet}/personas").headers
+    }
+
+
+def test_the_personas_list_exists_only_because_one_machine_plays_many(live):
+    voter_id = "HU-PERSONA-001"
+    live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
+    assert voter_id in live.http.get(f"{live.wallet}/personas").json()["personas"]
+
+
+def test_the_handover_file_carries_no_identifier(live, token_key):
+    """What crosses between the origins is exactly this, and nothing else.
+
+    `c` is not a secret: unblinding needs the `r` that never leaves the
+    voting application (§5.3), so the file discloses nothing about the voter
+    or the vote. What matters is that it also carries no identifier, because
+    the application has none to put in it.
+    """
+    blinded, _ = rsabssa.blind(token_key, keys.SigningKeyPair.generate().public_bytes)
+    config = live.http.get(f"{live.config}/election.json").json()
+    digest = live.http.get(f"{live.config}/election.json.sha256").text.split()[0]
+
+    handover = {
+        "election_id": config["election_id"],
+        "config_digest": digest,
+        "blinded_key": b64(blinded),
+    }
+    assert set(handover) == {"election_id", "config_digest", "blinded_key"}
+    assert not any("id" == k for k in handover)
