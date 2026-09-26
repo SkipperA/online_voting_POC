@@ -110,14 +110,23 @@ def voter_app(deployment: Deployment) -> FastAPI:
     """
     app = _base(origins.VOTER_APP)
     index = VOTER_APP_STATIC / "index.html"
+    bundle = VOTER_APP_STATIC / "bundle.js"
 
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
-        if not index.exists():
+        # The guard is on the *bundle*, not on index.html. index.html is
+        # committed and therefore always present; bundle.js is generated and
+        # gitignored, so it is the one that can be missing -- and when it is,
+        # the page renders perfectly and silently does nothing. A failure
+        # indistinguishable from success is the worst of the three outcomes.
+        if not index.exists() or not bundle.exists():
             return HTMLResponse(
                 "<h1>The voter application has not been built.</h1>"
-                "<p>Run <code>npm install &amp;&amp; npm run build</code> in "
-                "<code>web/voter-app</code>.</p>",
+                "<p><code>static/bundle.js</code> is a build artefact and is "
+                "not committed. Run:</p>"
+                "<pre>cd web/voter-app\nnpm install\nnpm run build</pre>"
+                "<p>Then reload — the service reads it from disk per request "
+                "and need not be restarted.</p>",
                 status_code=503,
             )
         html = index.read_text(encoding="utf-8").replace(

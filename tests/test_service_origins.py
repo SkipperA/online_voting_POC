@@ -200,3 +200,23 @@ def test_the_voter_app_bundle_contains_no_identifier_handling(clients):
     source = response.text
     assert "voter_id" not in source
     assert "release-query-credentials" not in source
+
+
+def test_an_unbuilt_voter_app_says_so_rather_than_rendering_blank(deployment, tmp_path):
+    """The failure that actually happened: page fine, script absent, no error.
+
+    Guarding on index.html was useless — it is committed. The artefact that
+    can be missing is the bundle, and a page that renders perfectly while
+    doing nothing is worse than one that fails visibly.
+    """
+    import service.apps as apps_module
+
+    original = apps_module.VOTER_APP_STATIC
+    apps_module.VOTER_APP_STATIC = tmp_path / "never-built"
+    try:
+        client = TestClient(apps_module.voter_app(deployment))
+        response = client.get("/")
+        assert response.status_code == 503
+        assert "npm run build" in response.text
+    finally:
+        apps_module.VOTER_APP_STATIC = original

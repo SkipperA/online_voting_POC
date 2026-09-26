@@ -26,10 +26,15 @@ const hex = (b: Uint8Array): string =>
 function show(id: string, value: string, state: 'ok' | 'warn' | 'plain' = 'plain') {
   const el = document.getElementById(id)!;
   el.textContent = value;
-  el.className = `value ${state}`;
+  if (id !== 'status') el.className = `value ${state}`;
 }
 
 async function main() {
+  // Set by the script, so "Loading…" persisting means the script never ran
+  // rather than meaning it is slow. The previous wording made a bundle that
+  // failed to load look like one that was merely working.
+  show('status', 'Working…');
+
   // 1. The configuration, from the config origin. Never from the VRO: an
   //    office that supplied the key its own signatures are checked against
   //    would make the single-key discipline of §3.3 vacuous.
