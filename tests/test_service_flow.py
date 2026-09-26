@@ -244,3 +244,32 @@ def test_the_handover_file_carries_no_identifier(live, token_key):
     }
     assert set(handover) == {"election_id", "config_digest", "blinded_key"}
     assert not any("id" == k for k in handover)
+
+
+def test_only_the_reply_endpoint_is_readable_cross_origin(live, token_key):
+    """The voting application is on another origin and must collect the reply.
+
+    Safe, because the reply is useless without the `r` that never leaves the
+    application (§5.3). Everything else on the office's origin stays closed —
+    the release query above all, since §3.7 requires that check to be
+    independent of the voting application.
+    """
+    voter_id = "HU-CORS-001"
+    live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
+    adhoc, token, outcome = obtain_token(live, token_key, voter_id)
+    assert outcome == "ISSUED"
+
+    blinded, _ = rsabssa.blind(token_key, keys.SigningKeyPair.generate().public_bytes)
+    reply = live.http.get(f"{live.vro}/token-replies/{b64(blinded)}")
+    assert reply.headers.get("access-control-allow-origin") == "*", (
+        "the voting application cannot read the reply it is entitled to"
+    )
+
+    closed = live.http.post(f"{live.vro}/release-queries",
+                            json={"voter_id": voter_id, "signature": b64(b"x")})
+    assert "access-control-allow-origin" not in {k.lower() for k in closed.headers}, (
+        "a page served by the voting application must not be able to read D1"
+    )
+    assert "access-control-allow-origin" not in {
+        k.lower() for k in live.http.get(f"{live.vro}/release-log").headers
+    }

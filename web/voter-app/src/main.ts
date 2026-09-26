@@ -108,7 +108,12 @@ async function main() {
     a.download = 'token-request.json';
     a.click();
     URL.revokeObjectURL(a.href);
-    poll(tokenKey, adhocPublic, inv);
+    poll(tokenKey, adhocPublic, inv).catch((err) => {
+      // A rejected fetch here is almost always the office refusing to be read
+      // cross-origin. Left uncaught it leaves a status line that looks like
+      // patience rather than failure.
+      show('status', `Could not reach the office: ${err}`);
+    });
   };
 
   show('status', 'Blinded. Save the request and take it to the wallet.');

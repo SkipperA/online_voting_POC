@@ -89,6 +89,35 @@ hash is what makes tampering demonstrable.
 
 ---
 
+## Cross-origin reading
+
+Separate ports make the origins separate, which means every read across them
+needs permitting explicitly. Three allowances exist and no more:
+
+| From | To | What | Why it is safe |
+|---|---|---|---|
+| any origin | `config` 8000, all of it | the election configuration and its digest | Published to everyone before the poll opens. There is nothing here to protect with a same-origin rule |
+| `voter-app` 8001 | `vro` 8003, `GET /token-replies/…` only | the office's reply `s_c` | Useless without the `r` that never leaves the application (§5.3). An intercepted `c` yields an intercepted `s_c` and no advantage |
+| `voter-app` 8001 | `ebb` 8004 | submission, receipt, lookup by `k_p^a` | The lookup handle is a secret the application generated; the box holds nothing else about the voter |
+
+Everything else is closed, and two of the closures carry weight rather than
+being defaults.
+
+`POST /release-queries` and `GET /release-log` on the office must not be
+readable by a page the voting application serves. §3.7 requires the
+token-request check to be independent of the voting application; a blanket
+allowance on 8003 would hand 8001 exactly the access the design withholds.
+
+The wallet grants nothing to anyone. A wallet reachable cross-origin by the
+voting application would be an API with a consent screen painted on it. The
+only thing 8001 can put into 8002 is a file the voter carries.
+
+**Absence of a header is not a decision anyone can see**, so both the
+allowances and the closures are asserted in `tests/test_service_flow.py`
+rather than left to be noticed.
+
+---
+
 ## 3. Boundaries
 
 For each: direction, fields, and what the boundary would violate by carrying

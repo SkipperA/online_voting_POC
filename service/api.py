@@ -151,6 +151,27 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
     app = base(origins.VRO)
     vro = deployment.vro
 
+    @app.middleware("http")
+    async def reply_is_readable_cross_origin(request, call_next):
+        """Only `GET /token-replies/…` may be read by another origin.
+
+        The voting application is on 8001 and collects the reply from here,
+        so that one endpoint must be cross-origin readable. It is safe to make
+        it so: §5.3 notes that an intercepted `c` yields an intercepted `s_c`
+        and no advantage whatever, because unblinding needs the `r` that never
+        leaves the application.
+
+        Nothing else on this origin is opened. `/release-queries` in
+        particular must stay closed to a page the voting application serves:
+        §3.7 requires that check to be independent of the voting application,
+        and a blanket allowance would hand 8001 exactly the access the design
+        withholds.
+        """
+        response = await call_next(request)
+        if request.method == "GET" and request.url.path.startswith("/token-replies/"):
+            response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
+
     @app.post("/token-requests")
     async def token_request(body: TokenRequestBody) -> dict:
         """B7–B15. The office receives `[id, c, s]` and decides.
