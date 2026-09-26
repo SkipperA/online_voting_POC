@@ -13,7 +13,7 @@ decoder rather than two.
 from __future__ import annotations
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
 from ovpoc import rsabssa
@@ -262,6 +262,34 @@ class BallotBody(BaseModel):
 def ebb_app(deployment: Deployment, base) -> FastAPI:
     app = base(origins.EBB)
     box = deployment.ebb
+
+    # The voter casts from 8001 and checks from 8005, so the ballot paths and
+    # the published view must be readable across origins. `POST /ballots`
+    # carries a JSON content type, which is not a simple request, so the
+    # preflight has to be answered too.
+    #
+    # `/close` and `/tally` are deliberately left out. Closing the poll is an
+    # act of the box performed by an operator (E1); a page should not be able
+    # to provoke it, least of all a page the voting application serves.
+    CROSS_ORIGIN = {"/ballots", "/published"}
+
+    def _open(path: str) -> bool:
+        return path in CROSS_ORIGIN or path.startswith("/ballots/")
+
+    @app.middleware("http")
+    async def ballot_paths_are_cross_origin(request, call_next):
+        if not _open(request.url.path):
+            return await call_next(request)
+        if request.method == "OPTIONS":
+            return Response(status_code=204, headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "content-type",
+                "Access-Control-Max-Age": "600",
+            })
+        response = await call_next(request)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
 
     @app.post("/ballots")
     async def submit(body: BallotBody) -> dict:

@@ -20,6 +20,7 @@ import { RSABSSA } from '@cloudflare/blindrsa-ts';
 
 const CONFIG_ORIGIN = document.body.dataset.configOrigin!;
 const VRO_ORIGIN = document.body.dataset.vroOrigin!;
+const EBB_ORIGIN = document.body.dataset.ebbOrigin!;
 const suite = RSABSSA.SHA384.PSS.Deterministic();
 
 const b64url = (b: Uint8Array): string =>
@@ -71,7 +72,10 @@ async function main() {
   const adhoc = await crypto.subtle.generateKey(
     { name: 'Ed25519' }, false, ['sign', 'verify'],
   ) as CryptoKeyPair;
+  ADHOC = adhoc;
+  NUM_CHOICES = config.num_choices;
   const adhocPublic = new Uint8Array(await crypto.subtle.exportKey('raw', adhoc.publicKey));
+  ADHOC_PUBLIC = adhocPublic;
   show('adhoc', hex(adhocPublic));
   show('adhoc-private', 'non-extractable — this page cannot read it', 'ok');
 
@@ -126,6 +130,10 @@ async function main() {
  * office followed the protocol, and by then their single entitlement is
  * already spent -- which is why §5.5 requires a documented re-issuance path.
  */
+let ADHOC: CryptoKeyPair;
+let ADHOC_PUBLIC: Uint8Array;
+let NUM_CHOICES = 0;
+
 async function poll(tokenKey: CryptoKey, adhocPublic: Uint8Array, inv: Uint8Array) {
   const c = (document.getElementById('blinded') as HTMLElement).dataset.b64!;
   show('status', 'Waiting for the office to release a token…');
@@ -143,6 +151,7 @@ async function poll(tokenKey: CryptoKey, adhocPublic: Uint8Array, inv: Uint8Arra
       show('status', valid
         ? 'Token obtained and verified. The office cannot link it to the request it signed.'
         : 'The office returned a signature that does not verify.');
+      if (valid) offerBallot(token);
       return;
     }
     await new Promise((r) => setTimeout(r, 500));
@@ -154,3 +163,82 @@ main().catch((err) => {
   document.getElementById('status')!.textContent = `Failed: ${err}`;
   document.getElementById('status')!.className = 'warn';
 });
+
+
+/**
+ * C1-C6, in the browser.
+ *
+ * The signature is over SHA-256 of the canonical JSON of the selection and
+ * the ad-hoc public key -- sorted keys, no whitespace, base64url for binary,
+ * non-ASCII as UTF-8 (`docs/wire-contract.md` §0). If this page serialised
+ * it any other way the box would reject every ballot it sent, which is why
+ * the rule is pinned by `tests/vectors/canonical-json.json` rather than
+ * described in a comment somewhere.
+ */
+function offerBallot(token: Uint8Array) {
+  const list = document.getElementById('choices-list')!;
+  list.innerHTML = '';
+  for (let i = 1; i <= NUM_CHOICES; i++) {
+    const label = document.createElement('label');
+    label.style.display = 'block';
+    label.innerHTML = `<input type="radio" name="choice" value="${i}"> option ${i}`;
+    list.append(label);
+  }
+  document.getElementById('ballot-section')!.hidden = false;
+  const cast = document.getElementById('cast') as HTMLButtonElement;
+  cast.disabled = false;
+
+  const protest = document.getElementById('protest') as HTMLInputElement;
+  cast.onclick = async () => {
+    const picked = document.querySelector<HTMLInputElement>('input[name=choice]:checked');
+    const selection = protest.value !== '' ? Number(protest.value)
+                    : picked ? Number(picked.value) : null;
+    if (selection === null) { show('status', 'Choose an option, or enter a protest code.'); return; }
+
+    cast.disabled = true;
+    const canonical = JSON.stringify({
+      adhoc_public_key: b64url(ADHOC_PUBLIC),
+      selection,
+    });
+    const payload = new Uint8Array(
+      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical)));
+    const voteSignature = new Uint8Array(
+      await crypto.subtle.sign({ name: 'Ed25519' }, ADHOC.privateKey, payload));
+
+    let receipt;
+    try {
+      receipt = await (await fetch(`${EBB_ORIGIN}/ballots`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          selection,
+          adhoc_public_key: b64url(ADHOC_PUBLIC),
+          token: b64url(token),
+          vote_signature: b64url(voteSignature),
+        }),
+      })).json();
+    } catch (err) {
+      show('status', `Could not reach the ballot box: ${err}`);
+      cast.disabled = false;
+      return;
+    }
+
+    document.getElementById('receipt-section')!.hidden = false;
+    show('accepted', String(receipt.accepted), receipt.accepted ? 'ok' : 'warn');
+    show('position', String(receipt.index));
+    show('head', receipt.ledger_head);
+
+    // D3, from the same device here. The check is only meaningful from one
+    // the voting application does not control -- that is the checker origin,
+    // and this is a convenience rather than the audit.
+    const record = await (await fetch(
+      `${EBB_ORIGIN}/ballots/${b64url(ADHOC_PUBLIC)}`)).json();
+    const matches = record.selection === selection;
+    show('recorded', `${record.selection}${matches ? ' — matches what you chose' : ' — DOES NOT MATCH'}`,
+         matches ? 'ok' : 'warn');
+    show('status', receipt.accepted
+      ? 'Ballot accepted. You may cast again; the last accepted ballot counts.'
+      : `Rejected: ${receipt.reason}`);
+    cast.disabled = false;
+  };
+}

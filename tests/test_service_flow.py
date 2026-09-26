@@ -273,3 +273,55 @@ def test_only_the_reply_endpoint_is_readable_cross_origin(live, token_key):
     assert "access-control-allow-origin" not in {
         k.lower() for k in live.http.get(f"{live.vro}/release-log").headers
     }
+
+
+def test_the_ballot_paths_answer_a_preflight_and_the_operator_paths_do_not(live):
+    """The voter casts from 8001, so `POST /ballots` needs a preflight answer.
+
+    `/close` and `/tally` are left closed on purpose. Closing the poll is an
+    act of the box performed by an operator (E1); no page should be able to
+    provoke it, least of all one the voting application serves.
+    """
+    preflight = live.http.request(
+        "OPTIONS", f"{live.ebb}/ballots",
+        headers={"origin": live.url(8001),
+                 "access-control-request-method": "POST",
+                 "access-control-request-headers": "content-type"},
+    )
+    assert preflight.status_code == 204
+    assert preflight.headers["access-control-allow-origin"] == "*"
+    assert "content-type" in preflight.headers["access-control-allow-headers"].lower()
+
+    assert live.http.get(f"{live.ebb}/published").headers.get(
+        "access-control-allow-origin") == "*"
+
+    for path in ("/close", "/tally"):
+        response = live.http.request(
+            "OPTIONS", f"{live.ebb}{path}", headers={"origin": live.url(8001)})
+        assert "access-control-allow-origin" not in {
+            k.lower() for k in response.headers}, path
+
+
+def test_the_browser_canonical_form_is_the_one_the_box_verifies(live, token_key):
+    """What the page signs must be byte-identical to what `ovpoc` hashes.
+
+    The page builds `{"adhoc_public_key":…,"selection":…}` with sorted keys
+    and no whitespace. If it serialised it any other way every ballot would
+    be rejected, so this pins the agreement rather than trusting it.
+    """
+    import hashlib
+    import json
+
+    from ovpoc.messages import Ballot, canonical_bytes
+
+    adhoc = keys.SigningKeyPair.generate()
+    ballot = Ballot(selection=2, adhoc_public_key=adhoc.public_bytes,
+                    token=b"", vote_signature=b"")
+    browser_form = json.dumps(
+        {"adhoc_public_key": b64(adhoc.public_bytes), "selection": 2},
+        separators=(",", ":"), ensure_ascii=False,
+    ).encode()
+
+    assert browser_form == canonical_bytes(
+        {"adhoc_public_key": b64(adhoc.public_bytes), "selection": 2})
+    assert hashlib.sha256(browser_form).digest() == ballot.signed_payload()

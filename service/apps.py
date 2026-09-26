@@ -136,6 +136,7 @@ def voter_app(deployment: Deployment) -> FastAPI:
             index.read_text(encoding="utf-8")
             .replace('data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"')
             .replace('data-vro-origin=""', f'data-vro-origin="{origins.VRO.url}"')
+            .replace('data-ebb-origin=""', f'data-ebb-origin="{origins.EBB.url}"')
         )
         return HTMLResponse(html)
 
