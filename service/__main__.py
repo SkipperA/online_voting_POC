@@ -53,6 +53,12 @@ def main() -> int:
                         help="VRO token key size")
     parser.add_argument("--choices", type=int, default=None,
                         help="number of options on the ballot")
+    parser.add_argument("--data", default=None, metavar="DIR",
+                        help="the election's durable half (default: election-data)")
+    parser.add_argument("--init", action="store_true",
+                        help="mint a new election into --data and serve it")
+    parser.add_argument("--ephemeral", action="store_true",
+                        help="mint an election that is not written anywhere")
     args = parser.parse_args()
 
     unknown = set(args.without) - set(origins.BY_NAME)
@@ -60,10 +66,37 @@ def main() -> int:
         parser.error(f"unknown origin(s): {', '.join(sorted(unknown))}")
 
     names = {o.name for o in origins.ALL} - set(args.without)
+    from pathlib import Path
+
+    from .state import DATA_DIR
+    from .store import NoElection
+
+    data = Path(args.data) if args.data else DATA_DIR
     kwargs = {"bits": args.bits}
     if args.choices is not None:
         kwargs["num_choices"] = args.choices
-    deployment = Deployment.create(**kwargs)
+
+    if args.ephemeral:
+        # Used by the tests, which want a fresh election per run and write
+        # nothing. Not the default, because a restart that silently invents a
+        # new election voids every open page and every issued token.
+        deployment = Deployment.create(**kwargs)
+    elif args.init:
+        if (data / "election.store.json").exists():
+            parser.error(
+                f"{data} already holds an election. Delete it deliberately, or "
+                f"point --data elsewhere. Overwriting would void every token "
+                f"already issued under the old key."
+            )
+        deployment = Deployment.create(**kwargs)
+        deployment.data_dir = data
+        deployment.save(data)
+        print(f"minted a new election in {data}")
+    else:
+        try:
+            deployment = Deployment.load(data)
+        except NoElection as exc:
+            parser.error(str(exc))
     try:
         asyncio.run(serve(names, deployment))
     except KeyboardInterrupt:

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Election setup console</title>
+<style>
+ :root{color-scheme:light dark}
+ body{font:15px/1.55 ui-sans-serif,system-ui,sans-serif;margin:0 auto;max-width:46rem;padding:2rem 1.25rem 4rem}
+ h1{font-size:1.3rem;margin:0 0 .25rem} .sub{color:#666;margin:0 0 1.5rem}
+ section{border:1px solid #8884;border-radius:6px;padding:.9rem 1.1rem;margin:0 0 1rem}
+ h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:#777;margin:0 0 .7rem}
+ .fp{font-family:ui-monospace,monospace;font-size:15px;line-height:1.7;word-break:break-all;
+     background:#8881;padding:.6rem .7rem;border-radius:4px}
+ .row{display:grid;grid-template-columns:10rem 1fr;gap:.35rem 1rem;padding:.15rem 0}
+ .label{color:#666} .value{font-family:ui-monospace,monospace;font-size:13px;word-break:break-all}
+ ul{margin:.4rem 0 0;padding-left:1.1rem} li{font-family:ui-monospace,monospace;font-size:13px}
+ button{font:inherit;padding:.4rem .85rem} input[type=text]{font:inherit;padding:.35rem .5rem;width:18rem}
+ .note{background:#f59e0b18;border-left:3px solid #f59e0b;padding:.7rem .9rem;margin:0 0 1.2rem;font-size:13.5px}
+ .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b45309;margin-bottom:.3rem}
+ #status{margin-top:1rem;font-weight:600}
+</style></head>
+<body>
+<h1>Election setup console</h1>
+<p class="sub">Phase A: what is authored before the poll opens. This origin has
+no part in the poll itself — the service runs with it stopped.</p>
+
+<div class="note">
+  <b>What survives a restart</b>
+  The two key pairs, the electoral register and the wallet personas are written
+  to disk here and reloaded. The ballot box, the hash chain and the
+  released-token register are in memory and are lost. A real ballot box does
+  not forget its contents when its process stops; this one does, and says so.
+</div>
+
+<section>
+  <h2>Compare this by eye</h2>
+  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
+    The voter's application shows the same fingerprint for <code>k_p^(R)</code>.
+    Two surfaces, two glances: the voting application must not learn which key
+    to trust from the office whose signatures it checks.
+  </p>
+  <div class="fp" id="fingerprint">…</div>
+  <div class="row" style="margin-top:.7rem"><span class="label">election</span><span class="value" id="election">…</span></div>
+  <div class="row"><span class="label">config digest</span><span class="value" id="digest">…</span></div>
+</section>
+
+<section>
+  <h2>Electoral register</h2>
+  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
+    Presence in the register is the whole of the eligibility statement. The
+    office administers it and never populates it — here, enrolment also mints
+    a wallet persona, which is the demo standing in for a citizen who already
+    holds a qualified certificate.
+  </p>
+  <input type="text" id="voter" placeholder="identifier, e.g. Kovács Ágnes">
+  <button id="enrol">Enrol</button>
+  <ul id="register"></ul>
+</section>
+
+<p id="status">Loading…</p>
+<script src="setup.js" defer></script>
+</body></html>

@@ -20,13 +20,15 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import origins
-from .api import ebb_app, setup_app, vro_app
+from .api import ebb_app, vro_app
+from .api import setup_app as setup_api
 from .api import wallet_app as wallet_api
 from .state import Deployment
 
 WEB = Path(__file__).resolve().parents[1] / "web"
 VOTER_APP_STATIC = WEB / "voter-app" / "static"
 WALLET_STATIC = WEB / "wallet" / "static"
+SETUP_STATIC = WEB / "setup" / "static"
 
 
 def _base(origin: origins.Origin) -> FastAPI:
@@ -175,6 +177,22 @@ def wallet_app(deployment: Deployment) -> FastAPI:
     return app
 
 
+def setup_console(deployment: Deployment) -> FastAPI:
+    """8009 — the console, served from the same origin as its endpoints."""
+    app = setup_api(deployment, _base)
+
+    @app.get("/", response_class=HTMLResponse)
+    async def page() -> HTMLResponse:
+        return HTMLResponse((SETUP_STATIC / "index.html").read_text(encoding="utf-8"))
+
+    @app.get("/setup.js")
+    async def script() -> Response:
+        return Response((SETUP_STATIC / "setup.js").read_text(encoding="utf-8"),
+                        media_type="text/javascript")
+
+    return app
+
+
 def stub_app(origin: origins.Origin) -> FastAPI:
     """An origin that is bound and reachable but implements nothing yet.
 
@@ -204,7 +222,7 @@ def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
         origins.WALLET: wallet_app(deployment),
         origins.VRO: vro_app(deployment, _base),
         origins.EBB: ebb_app(deployment, _base),
-        origins.SETUP: setup_app(deployment, _base),
+        origins.SETUP: setup_console(deployment),
     }
     for origin in origins.ALL:
         if origin not in apps:

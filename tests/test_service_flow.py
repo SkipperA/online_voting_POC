@@ -325,3 +325,12 @@ def test_the_browser_canonical_form_is_the_one_the_box_verifies(live, token_key)
     assert browser_form == canonical_bytes(
         {"adhoc_public_key": b64(adhoc.public_bytes), "selection": 2})
     assert hashlib.sha256(browser_form).digest() == ballot.signed_payload()
+
+
+def test_the_setup_console_serves_its_own_page_and_the_register(live):
+    page = live.http.get(f"{live.setup}/")
+    assert page.status_code == 200 and 'src="setup.js"' in page.text
+    assert live.http.get(f"{live.setup}/setup.js").status_code == 200
+
+    live.http.post(f"{live.setup}/voters", json={"voter_id": "HU-CONSOLE-001"})
+    assert "HU-CONSOLE-001" in live.http.get(f"{live.setup}/voters").json()["voters"]

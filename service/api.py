@@ -381,6 +381,11 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         public_key = deployment.enrol(body.voter_id)
         return {"enrolled": True, "wallet_public_key": b64(public_key)}
 
+    @app.get("/voters")
+    async def voters() -> dict:
+        """The register, which is a set of identifiers and nothing else."""
+        return {"voters": sorted(deployment.vro.register)}
+
     @app.get("/configuration")
     async def configuration() -> dict:
         return {

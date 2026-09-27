@@ -57,7 +57,8 @@ class Deployment:
             PYTHONPATH=os.pathsep.join([str(ROOT / "src"), str(ROOT)]),
         )
         self.proc = subprocess.Popen(
-            [sys.executable, "-m", "service", "--bits", "2048", "--choices", "3"],
+            [sys.executable, "-m", "service", "--bits", "2048", "--choices", "3",
+             "--ephemeral"],
             cwd=ROOT, env=env,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         )

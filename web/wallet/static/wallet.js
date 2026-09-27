@@ -61,14 +61,18 @@ $('file').onchange = async (event) => {
   show('election', `${request.election_id}`, sameElection ? 'ok' : 'warn');
   show('digest', sameConfig
         ? 'matches the configuration this wallet fetched'
-        : 'MISMATCH — this request is for a different configuration',
+        : `MISMATCH\n  request : ${request.config_digest}\n  current : ${config.digest}\n` +
+          '  Most likely the service was restarted after the request was saved, ' +
+          'which mints a new election. Reload the voting application and save a ' +
+          'new request.',
       sameConfig ? 'ok' : 'warn');
   show('blinded', `${request.blinded_key.slice(0, 32)}…`);
 
   if (!sameElection || !sameConfig) {
     request = null;
     $('sign').disabled = true;
-    show('status', 'Refused: the request does not match this election.');
+    show('status', 'Refused: the request does not match this election. '
+                 + 'Reload the voting application and save a new request.');
     return;
   }
   show('status', 'Request loaded. Choose who signs, then consent.');
