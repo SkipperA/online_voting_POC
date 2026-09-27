@@ -11,4 +11,3 @@ node_modules/
 interop/lib/
 *.tsbuildinfo
 web/voter-app/static/bundle.js
-election-data/

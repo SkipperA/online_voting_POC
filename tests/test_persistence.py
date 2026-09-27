@@ -75,3 +75,30 @@ def test_enrolment_is_persisted_as_it_happens(tmp_path):
 
     restored = Deployment.load(data, document_root=tmp_path / "docs-b")
     assert "HU-LATE-001" in restored.vro.register
+
+
+def test_the_store_says_what_it_is(tmp_path):
+    """Committed with key material in the clear, so it must explain itself.
+
+    The reader gains from seeing exactly what the demo holds on each voter's
+    behalf — that is the substitution being made visible rather than hinted
+    at. What must not happen is anyone taking it for a deployment artefact.
+    """
+    import json
+
+    deployment = Deployment.create(bits=2048, num_choices=3,
+                                   document_root=tmp_path / "docs")
+    deployment.enrol("Kovács Ágnes")
+    deployment.save(tmp_path / "data")
+
+    body = json.loads((tmp_path / "data" / "election.store.json").read_text())
+    assert "DEMONSTRATION KEY MATERIAL" in body["warning"]
+    assert body["wallet_seeds"]["Kovács Ágnes"], "the seed is published on purpose"
+
+    readme = (tmp_path / "data" / "README.md").read_text()
+    assert "Committed on purpose" in readme
+    assert "lost when the process stops" in readme
+
+    # And it still loads, warning and all.
+    restored = Deployment.load(tmp_path / "data", document_root=tmp_path / "docs-b")
+    assert "Kovács Ágnes" in restored.vro.register

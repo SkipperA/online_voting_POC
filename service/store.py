@@ -17,6 +17,15 @@ anybody could have pinned.
 **The volatile half is a scope limit, not a design claim.** A real ballot box
 does not lose its contents when its process stops. Clause: the demo's box and
 release register are in memory.
+
+**The store is committed, key material and all.** Every wallet seed in it is
+in the clear, because one machine has to play a whole electorate and the
+substitution should be visible rather than hinted at. A reader can open the
+file and see exactly what the demo holds on each voter's behalf, which is
+worth more here than the habit of hiding keys -- the voters are fictional,
+the election is a demonstration, and `tests/vectors/keys.json` already
+publishes a private key on the same reasoning. What must not happen is anyone
+mistaking this for a deployment artefact, so the file says so about itself.
 """
 
 from __future__ import annotations
@@ -57,6 +66,23 @@ def write(path: Path, *, token_private, statement_key, register, personas,
           election_id: str, num_choices: int) -> None:
     """Write the durable half. Called by the setup console, never at runtime."""
     path.mkdir(parents=True, exist_ok=True)
+    (path / "README.md").write_text(
+        "# election-data\n\n"
+        "The durable half of a demonstration election, written by the setup\n"
+        "console (`python -m service --init`) and reloaded at every start.\n\n"
+        "**Committed on purpose, key material included.** `election.store.json`\n"
+        "carries every wallet seed in the clear and `vro_token_key.pem` is the\n"
+        "office's token signing key. Publishing them is the point: the demo\n"
+        "substitutes a file for an eIDAS wallet and a directory for an HSM, and\n"
+        "a reader should be able to see exactly what that substitution costs\n"
+        "rather than take it on trust. The voters are fictional and this\n"
+        "election is not one.\n\n"
+        "What is **not** here is everything the poll produced: the ballot box,\n"
+        "the hash chain and the released-token register are in memory and are\n"
+        "lost when the process stops. A real ballot box does not forget its\n"
+        "contents; this one does.\n",
+        encoding="utf-8",
+    )
     (path / "vro_token_key.pem").write_bytes(
         token_private.private_bytes(
             serialization.Encoding.PEM,
@@ -68,6 +94,14 @@ def write(path: Path, *, token_private, statement_key, register, personas,
         json.dumps(
             {
                 "store_version": STORE_VERSION,
+                "warning": (
+                    "DEMONSTRATION KEY MATERIAL, PUBLISHED DELIBERATELY. Every "
+                    "wallet seed below is in the clear so that a reader can see "
+                    "what this demo holds on each voter's behalf. The voters are "
+                    "fictional and this election is not one. A deployment keeps "
+                    "k_s^(v) in hardware it never leaves, and keeps k_s^(R) "
+                    "nowhere a file can reach."
+                ),
                 "election_id": election_id,
                 "num_choices": num_choices,
                 "vro_statement_seed": b64(seed_of(statement_key)),
@@ -97,6 +131,7 @@ def read(path: Path) -> dict:
             f"an election."
         )
     body = json.loads(store.read_text(encoding="utf-8"))
+    body.pop("warning", None)   # prose for the reader, not a field
     if body.get("store_version") != STORE_VERSION:
         raise NoElection(
             f"{store.name} declares store_version {body.get('store_version')!r}, "

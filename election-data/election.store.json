@@ -1,0 +1,16 @@
+{
+  "store_version": 1,
+  "election_id": "demo-2026",
+  "num_choices": 4,
+  "vro_statement_seed": "wMUXYiKJYATZYRTqUBa46kXwKIa8nJs2IPTaL3Fij9E",
+  "electoral_register": [
+    "Kovács Ágika",
+    "X Y",
+    "Ó Pál"
+  ],
+  "wallet_seeds": {
+    "Kovács Ágika": "BjybjJ67dA2oct6EJlP13ADjMspkTik7ygHtdrY84yY",
+    "X Y": "LRj6UNULMsrlDVYi7wcXNsilgz13lCcCSA596fydQN8",
+    "Ó Pál": "OdvndI99PiPUg2P4Ce7-ASVQ6WVBLOZz0JF8a-X8ttE"
+  }
+}
