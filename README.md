@@ -59,10 +59,61 @@ published ballot is bound to.
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest -q        # 46 tests
+python -m pytest -q        # the suite, including the service layer
 python tools/sabotage.py   # disable each defence, confirm the suite notices
-python demo.py          # narrated end-to-end run
+python demo.py             # narrated end-to-end run, in one process
 ```
+
+### Running it as a service
+
+Stage 1 puts the protocol behind HTTP: one process, seven ports, seven
+separate browser origins. The separation is the point — a browser origin is
+scheme, host *and* port, so paths under one origin would share a JavaScript
+context and the isolation would be a diagram rather than a fact.
+
+```bash
+pip install -e ".[dev]"            # brings fastapi and uvicorn
+python -m service --init           # once: mints an election into election-data/
+python -m service                  # thereafter: loads it
+```
+
+The runtime does **not** mint keys. Starting against a directory with no
+election refuses rather than inventing one, because an election that appears
+because a process started is not an election — and a fingerprint that changed
+at every restart would be nothing anyone could have pinned.
+
+| | | |
+|---|---|---|
+| 8000 | config | `election.json` and its digest, static |
+| 8001 | voter app | the voting client; never receives `id` |
+| 8002 | wallet | consent page and signing daemon |
+| 8003 | VRO | token endpoints, release query |
+| 8004 | EBB | submission, receipts, published view |
+| 8005 | checker | the independent checks of §3.7 |
+| 8009 | setup | build-time authoring; the poll runs with this stopped |
+
+**Use `127.0.0.1`, not `localhost`.** The service binds IPv4 only, and on
+macOS `localhost` resolves to `::1` first. They are also different browser
+origins, so mixing them mid-journey breaks the cross-origin assumptions the
+design rests on.
+
+The voter's application is a browser page and must be built once:
+
+```bash
+cd web/voter-app && npm install && npm run build
+```
+
+Then `http://127.0.0.1:8009` to enrol voters, and `http://127.0.0.1:8001` to
+vote. The demos also run against a live service:
+
+```bash
+python demo_svr.py        # the happy path, across five origins
+python ext_demo_svr.py    # fifteen adversarial scenarios
+```
+
+`docs/Stage1_Surface_and_Boundary_Map.md` sets out which origin may read what,
+and why each closure carries weight. `docs/Demo_Scope_Limits.md` says what the
+demonstration cannot show — read it before drawing conclusions from a run.
 
 Python 3.11+. One dependency: `cryptography`. Developed against 3.14; the
 Docker image pins 3.12.
@@ -89,13 +140,25 @@ src/ovpoc/
   ballotbox.py  validation, storage, publication schedule, tally
   voter.py      the voter's whole flow — read this first
 driver/         infrastructure the design *depends on*, not part of it
-tests/          including the adversarial suite
-docs/           protocol mapping, wire contract, and threat model
+service/        the HTTP layer: one app per origin, deciding nothing
+web/            browser pages — voter app, wallet consent, setup console
+interop/        a TypeScript consumer of the golden vectors
+tests/          including the adversarial suite and tests/vectors/
+election-data/  a demonstration election, key material published on purpose
+docs/           protocol mapping, wire contract, threat model, scope limits
 ```
 
 Protocol logic is pure Python with no HTTP or database layer. That is
-deliberate: the acceptance rules are testable in isolation, and a web layer
-added later cannot quietly change them.
+deliberate: the acceptance rules are testable in isolation, and the web layer
+cannot quietly change them.
+
+**`service/` is outside `src/ovpoc/` for the same reason `driver/` is.** It
+imports `ovpoc`; `ovpoc` never imports it. The transport parses requests,
+calls the protocol and serialises answers, and decides nothing — the test of
+that claim is that `tools/sabotage.py` still detects every mutation with the
+service layer in place. If a mutation stopped being detected because a check
+had moved into the transport, the transport would have taken a decision that
+does not belong to it.
 
 **`driver/` is outside the library on purpose.** It holds the population
 register: an external identity service that answers `id` with a qualified

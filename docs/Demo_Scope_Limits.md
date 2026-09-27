@@ -137,6 +137,88 @@ is closed by an operator action.*
 
 ---
 
+### A5 — Threshold encryption of the selection
+
+Covers action-table rows A8 and E2.
+
+§3.5 sets the condition: where no running tally is published, the operator
+would otherwise see selections individually while the public sees nothing, and
+that asymmetry should be removed by encrypting the selection under a key held
+in shares by several independent bodies. The design as formalised in §5
+withholds contents until the close and publishes no running tally, so §3.5's
+own condition is met and its own remedy applies. §3.5 then says plainly that
+§5 sets the design out with the selection in clear. This build follows §5.
+
+The extension is scoped rather than structural: acceptance turns on the two
+signatures and never on the selection value, so the ballot box's verification
+is unchanged.
+
+**Label:** *Selections are stored in clear, so the ballot box operator can read
+a ballot before the poll closes. The design says that where no running tally is
+published the selection should be encrypted under a key held in shares; this
+build does not do that.*
+
+---
+
+### A6 — Mirroring the chain head
+
+Covers action-table row C8.
+
+The row splits. Rollback and truncation are detectable by a single observer
+who retains `(index, head)` pairs over time, and the checker can do that
+honestly. Equivocation — a box showing one chain to one audience and another
+to another — requires genuinely separate observers with separate motives,
+which one machine under one operator cannot supply. A second origin on the
+same box demonstrates the shape of the property, not the property.
+
+The deployment answer is supervision by competing parties, who record signed
+`(index, head)` observations of their own choosing; two parties holding
+different heads at the same index is conclusive and needs no adjudicator.
+
+**Label:** *One machine cannot demonstrate that the ballot box is unable to
+show different histories to different people. What is shown here is that a
+single observer detects rollback.*
+
+---
+
+### A7 — The poll's own state is in memory
+
+The setup console writes the durable half of the election — both key pairs,
+the electoral register, the wallet personas — and the runtime reloads it, so a
+restart keeps the election. Everything the poll itself produces is in memory:
+the ballot box, the hash chain, the released-token register. A restart loses
+the votes.
+
+The split is deliberate and is the right way round for a demonstration: the
+election survives, the poll does not. But a real ballot box does not forget
+its contents when its process stops, and the receipts a voter holds would then
+refer to a chain that no longer exists — which is exactly the evidence the
+design says they are. The substitution is storage, not the protocol.
+
+**Label:** *Votes are held in memory. Restarting the service loses them and
+keeps the election.*
+
+---
+
+### A8 — Published wallet seeds
+
+`election-data/election.store.json` is committed with every wallet private
+seed in the clear, and `vro_token_key.pem` beside it. This is deliberate: one
+machine plays a whole electorate, and a reader should be able to open the file
+and see exactly what the demo holds on each voter's behalf rather than take
+the substitution on trust. `tests/vectors/keys.json` already publishes a
+private key on the same reasoning.
+
+A deployment keeps `k_s^(v)` in hardware it never leaves — under eIDAS that is
+a regulatory requirement, not a preference — and keeps `k_s^(R)` nowhere a
+file can reach. Both files say so about themselves, so neither can be
+mistaken for a deployment artefact by anyone who opens it.
+
+**Label:** *Every voter's wallet key is published in this repository. The
+voters are fictional; a deployment's keys never leave hardware.*
+
+---
+
 ## Out of scope
 
 ### O1 — Which public body holds which role
