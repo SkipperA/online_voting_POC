@@ -67,6 +67,18 @@ transmits it to the Registration Office itself.</p>
   <div class="row" style="margin-top:.7rem"><span class="label">outcome</span><span class="value" id="outcome">—</span></div>
 </section>
 
+<section>
+  <h2>4 · Ask the office whether a token was released</h2>
+  <p style="margin:0 0 .7rem;color:#666;font-size:13.5px">
+    D1. The query carries a signature of <code>id</code> made here, so only
+    this voter can ask. Save it and load it into the checker — the check
+    audits the office, so it must not be performed inside the voting
+    application, which could simply display whatever it liked.
+  </p>
+  <select id="query-persona"><option value="">—</option></select>
+  <button id="save-query" disabled>Save release-query.json</button>
+</section>
+
 <p id="status">Choose a request file.</p>
 <script src="wallet.js" defer></script>
 </body>

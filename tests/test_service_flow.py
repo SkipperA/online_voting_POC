@@ -246,13 +246,19 @@ def test_the_handover_file_carries_no_identifier(live, token_key):
     assert not any("id" == k for k in handover)
 
 
-def test_only_the_reply_endpoint_is_readable_cross_origin(live, token_key):
-    """The voting application is on another origin and must collect the reply.
+def test_the_office_opens_to_the_application_and_the_checker_and_nobody_else(
+        live, token_key):
+    """Two allowances, each for a different reason.
 
-    Safe, because the reply is useless without the `r` that never leaves the
-    application (§5.3). Everything else on the office's origin stays closed —
-    the release query above all, since §3.7 requires that check to be
-    independent of the voting application.
+    `GET /token-replies/…` opens to `*`: the reply is useless without the `r`
+    that never leaves the voting application (§5.3), so there is nothing to
+    withhold from anyone.
+
+    `/release-log` and `/release-queries` open to the *checker origin by
+    name*. §3.7 requires the token-request check to be independent of the
+    voting application, so `*` would hand 8001 exactly the access the design
+    withholds. Naming the checker keeps that argument intact rather than
+    trading it for convenience.
     """
     voter_id = "HU-CORS-001"
     live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
@@ -260,34 +266,38 @@ def test_only_the_reply_endpoint_is_readable_cross_origin(live, token_key):
     assert outcome == "ISSUED"
 
     blinded, _ = rsabssa.blind(token_key, keys.SigningKeyPair.generate().public_bytes)
-    reply = live.http.get(f"{live.vro}/token-replies/{b64(blinded)}")
-    assert reply.headers.get("access-control-allow-origin") == "*", (
-        "the voting application cannot read the reply it is entitled to"
-    )
+    assert live.http.get(
+        f"{live.vro}/token-replies/{b64(blinded)}"
+    ).headers.get("access-control-allow-origin") == "*"
 
-    closed = live.http.post(f"{live.vro}/release-queries",
-                            json={"voter_id": voter_id, "signature": b64(b"x")})
-    assert "access-control-allow-origin" not in {k.lower() for k in closed.headers}, (
-        "a page served by the voting application must not be able to read D1"
-    )
-    assert "access-control-allow-origin" not in {
-        k.lower() for k in live.http.get(f"{live.vro}/release-log").headers
-    }
+    checker_port = str(8005 + live.offset)
+    allowed = live.http.get(f"{live.vro}/release-log").headers.get(
+        "access-control-allow-origin")
+    assert allowed and allowed != "*" and allowed.endswith(checker_port), allowed
+
+    preflight = live.http.request(
+        "OPTIONS", f"{live.vro}/release-queries",
+        headers={"origin": f"http://127.0.0.1:{checker_port}",
+                 "access-control-request-method": "POST"})
+    assert preflight.status_code == 204
+    assert preflight.headers["access-control-allow-origin"].endswith(checker_port)
 
 
-def test_the_ballot_paths_answer_a_preflight_and_the_operator_paths_do_not(live):
-    """The voter casts from 8001, so `POST /ballots` needs a preflight answer.
+def test_the_ballot_paths_open_the_tally_to_the_checker_and_close_to_nobody(live):
+    """Three answers, three reasons.
 
-    `/close` and `/tally` are left closed on purpose. Closing the poll is an
-    act of the box performed by an operator (E1); no page should be able to
-    provoke it, least of all one the voting application serves.
+    `/ballots` and `/published` open to `*` — the voter casts from 8001 and
+    the published view is public by construction. `/tally` opens to the
+    checker alone: anyone may recompute the result from the released records,
+    so reading the box's own figure is no privilege, but it is the checker's
+    job rather than the application's. `/close` opens to nobody, because it
+    is an act of the box performed by an operator (E1).
     """
     preflight = live.http.request(
         "OPTIONS", f"{live.ebb}/ballots",
         headers={"origin": live.url(8001),
                  "access-control-request-method": "POST",
-                 "access-control-request-headers": "content-type"},
-    )
+                 "access-control-request-headers": "content-type"})
     assert preflight.status_code == 204
     assert preflight.headers["access-control-allow-origin"] == "*"
     assert "content-type" in preflight.headers["access-control-allow-headers"].lower()
@@ -295,11 +305,12 @@ def test_the_ballot_paths_answer_a_preflight_and_the_operator_paths_do_not(live)
     assert live.http.get(f"{live.ebb}/published").headers.get(
         "access-control-allow-origin") == "*"
 
-    for path in ("/close", "/tally"):
-        response = live.http.request(
-            "OPTIONS", f"{live.ebb}{path}", headers={"origin": live.url(8001)})
-        assert "access-control-allow-origin" not in {
-            k.lower() for k in response.headers}, path
+    tally = live.http.get(f"{live.ebb}/tally").headers.get("access-control-allow-origin")
+    assert tally and tally.endswith(str(8005 + live.offset)), tally
+
+    closed = live.http.request(
+        "OPTIONS", f"{live.ebb}/close", headers={"origin": live.url(8001)})
+    assert "access-control-allow-origin" not in {k.lower() for k in closed.headers}
 
 
 def test_the_browser_canonical_form_is_the_one_the_box_verifies(live, token_key):
@@ -334,3 +345,39 @@ def test_the_setup_console_serves_its_own_page_and_the_register(live):
 
     live.http.post(f"{live.setup}/voters", json={"voter_id": "HU-CONSOLE-001"})
     assert "HU-CONSOLE-001" in live.http.get(f"{live.setup}/voters").json()["voters"]
+
+
+def test_the_checker_serves_a_page_and_holds_nothing(live):
+    """8005 is static. It decides nothing and signs nothing.
+
+    Every conclusion it draws comes from artefacts published by the party
+    being audited — which is what makes them worth drawing, since the records
+    carry their own signatures and a denial is signed under `k_s^(O)`.
+    """
+    page = live.http.get(f"{live.url(8005)}/")
+    assert page.status_code == 200
+    assert live.vro in page.text and live.ebb in page.text
+    assert "Independence is a property, not an address" in page.text
+
+    script = live.http.get(f"{live.url(8005)}/checker.js")
+    assert script.status_code == 200
+    # It must not reach the voting application, and must not sign anything.
+    assert live.url(8001) not in script.text
+    assert "subtle.sign" not in script.text
+
+
+def test_the_wallet_can_produce_the_release_query_as_a_file(live):
+    """The same clumsy handover as the token request, for the same reason.
+
+    The wallet grants nothing cross-origin, so the credentials reach the
+    checker only because the voter carried them.
+    """
+    voter_id = "HU-D1-001"
+    live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
+    live.http.post(f"{live.wallet}/session", json={"voter_id": voter_id})
+    credentials = live.http.post(f"{live.wallet}/release-query-credentials").json()
+
+    assert set(credentials) == {"voter_id", "signature"}
+    answer = live.http.post(f"{live.vro}/release-queries", json=credentials).json()
+    assert answer["outcome"] == "NOT_RELEASED"
+    assert answer["signed_denial"], "an absence cannot be exhibited, so it is signed"

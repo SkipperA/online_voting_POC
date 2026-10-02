@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Independent checker</title>
+<style>
+ :root{color-scheme:light dark}
+ body{font:15px/1.6 ui-sans-serif,system-ui,sans-serif;margin:0 auto;max-width:52rem;padding:2rem 1.25rem 4rem}
+ h1{font-size:1.35rem;margin:0 0 .2rem} .sub{color:#666;margin:0 0 1.4rem}
+ section{border:1px solid #8884;border-radius:6px;padding:.9rem 1.1rem;margin:0 0 1rem}
+ h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:#777;margin:0 0 .7rem}
+ .row{display:grid;grid-template-columns:14rem 1fr;gap:.35rem 1rem;padding:.15rem 0}
+ .label{color:#666}
+ .value{font-family:ui-monospace,monospace;font-size:13px;word-break:break-all}
+ .ok{color:#15803d} .warn{color:#b91c1c;font-weight:600} .muted{color:#888}
+ button{font:inherit;padding:.4rem .85rem}
+ .note{background:#f59e0b18;border-left:3px solid #f59e0b;padding:.7rem .9rem;margin:0 0 1.2rem;font-size:13.5px}
+ .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b45309;margin-bottom:.3rem}
+ #status{margin-top:1rem;font-weight:600}
+</style></head>
+<body data-vro-origin="" data-ebb-origin="" data-config-origin="">
+<h1>Independent checker</h1>
+<p class="sub">The checks of §3.7, from an origin neither the voting
+application nor the wallet controls.</p>
+
+<div class="note">
+  <b>Independence is a property, not an address</b>
+  This page is served by the demo operator, who also runs the office and the
+  box — so in this deployment the independence is asserted rather than
+  demonstrated. What makes the checks worth anything is that the artefacts
+  are self-authenticating: the released records carry their own signatures,
+  and a denial is signed under <code>k_s^(O)</code>. Anyone may serve this
+  page and reach the same conclusions.
+</div>
+
+<section>
+  <h2>Anyone · the office's release register</h2>
+  <div class="row"><span class="label">tokens released</span><span class="value" id="released">…</span></div>
+  <div class="row"><span class="label">register head</span><span class="value" id="vro-head">…</span></div>
+  <p style="color:#666;font-size:13.5px;margin:.6rem 0 0">Commitments only. The
+  register never opens publicly: its harm is not a running result but a list
+  of who did and did not take part.</p>
+</section>
+
+<section>
+  <h2>Anyone · the ballot box</h2>
+  <div class="row"><span class="label">accepted entries</span><span class="value" id="accepted">…</span></div>
+  <div class="row"><span class="label">rejected entries</span><span class="value" id="rejected">…</span></div>
+  <div class="row"><span class="label">chain head</span><span class="value" id="ebb-head">…</span></div>
+  <div class="row"><span class="label">accepted ≤ released</span><span class="value" id="count-audit">…</span></div>
+  <div class="row"><span class="label">records</span><span class="value" id="records">…</span></div>
+</section>
+
+<section>
+  <h2>Anyone · recount, once the poll has closed</h2>
+  <div class="row"><span class="label">announced by the box</span><span class="value" id="announced">…</span></div>
+  <div class="row"><span class="label">recomputed here</span><span class="value" id="recomputed">…</span></div>
+  <div class="row"><span class="label">agreement</span><span class="value" id="agree">…</span></div>
+  <p style="color:#666;font-size:13.5px;margin:.6rem 0 0">Recomputed in this
+  page from the released records — supersession among accepted ballots only,
+  and the distribution over distinct out-of-range values preserved rather than
+  collapsed into one figure.</p>
+</section>
+
+<section>
+  <h2>One voter · was a token released in my name?</h2>
+  <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">D1. The query must
+  carry a signature of <code>id</code> made in the wallet, so only that voter
+  can ask: an unauthenticated lookup would turn the register into a public
+  record of who took part. Save the query from the wallet page and load it
+  here — the same clumsy handover as the token request, and for the same
+  reason.</p>
+  <input type="file" id="query" accept="application/json">
+  <div class="row" style="margin-top:.7rem"><span class="label">answer</span><span class="value" id="d1">—</span></div>
+  <div class="row"><span class="label">evidence</span><span class="value" id="d1-evidence">—</span></div>
+</section>
+
+<p id="status">Loading…</p>
+<script src="checker.js" defer></script>
+</body></html>

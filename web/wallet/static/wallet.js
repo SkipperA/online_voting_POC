@@ -31,13 +31,14 @@ async function loadConfig() {
 
 async function loadPersonas() {
   const personas = (await (await fetch('/personas')).json()).personas;
-  const select = $('persona');
-  select.innerHTML = '<option value="">—</option>';
-  for (const id of personas) {
-    const option = document.createElement('option');
-    option.value = id;
-    option.textContent = id;
-    select.append(option);
+  for (const select of [$('persona'), $('query-persona')]) {
+    select.innerHTML = '<option value="">—</option>';
+    for (const id of personas) {
+      const option = document.createElement('option');
+      option.value = id;
+      option.textContent = id;
+      select.append(option);
+    }
   }
 }
 
@@ -97,6 +98,27 @@ $('sign').onclick = async () => {
   show('status', outcome === 'ISSUED'
     ? 'Transmitted. Return to the voting application — it is collecting the reply.'
     : `The office refused: ${outcome}.`);
+};
+
+$('query-persona').onchange = () => {
+  $('save-query').disabled = !$('query-persona').value;
+};
+
+$('save-query').onclick = async () => {
+  await fetch('/session', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ voter_id: $('query-persona').value }),
+  });
+  const credentials = await (await fetch('/release-query-credentials', {
+    method: 'POST' })).json();
+  const blob = new Blob([JSON.stringify(credentials, null, 2)],
+                        { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'release-query.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  show('status', 'Saved. Load it into the checker on 8005.');
 };
 
 (async () => {

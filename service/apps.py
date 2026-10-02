@@ -31,6 +31,7 @@ VOTER_APP_STATIC = WEB / "voter-app" / "static"
 WALLET_STATIC = WEB / "wallet" / "static"
 SETUP_STATIC = WEB / "setup" / "static"
 INDEX_STATIC = WEB / "index" / "static"
+CHECKER_STATIC = WEB / "checker" / "static"
 
 
 def _base(origin: origins.Origin) -> FastAPI:
@@ -212,6 +213,34 @@ def setup_console(deployment: Deployment) -> FastAPI:
     return app
 
 
+def checker_app(deployment: Deployment) -> FastAPI:
+    """8005 — the checks of §3.7, served without any of the audited parties.
+
+    Static files and nothing else: this origin holds no election state, makes
+    no decisions and signs nothing. Every conclusion it draws comes from
+    artefacts published by the party being audited, which is what makes them
+    worth drawing — the released records carry their own signatures and a
+    denial is signed under the office's statement key.
+    """
+    app = _base(origins.CHECKER)
+
+    @app.get("/", response_class=HTMLResponse)
+    async def page() -> HTMLResponse:
+        return HTMLResponse(
+            (CHECKER_STATIC / "index.html").read_text(encoding="utf-8")
+            .replace('data-vro-origin=""', f'data-vro-origin="{origins.VRO.url}"')
+            .replace('data-ebb-origin=""', f'data-ebb-origin="{origins.EBB.url}"')
+            .replace('data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"')
+        )
+
+    @app.get("/checker.js")
+    async def script() -> Response:
+        return Response((CHECKER_STATIC / "checker.js").read_text(encoding="utf-8"),
+                        media_type="text/javascript")
+
+    return app
+
+
 def stub_app(origin: origins.Origin) -> FastAPI:
     """An origin that is bound and reachable but implements nothing yet.
 
@@ -241,6 +270,7 @@ def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
         origins.WALLET: wallet_app(deployment),
         origins.VRO: vro_app(deployment, _base),
         origins.EBB: ebb_app(deployment, _base),
+        origins.CHECKER: checker_app(deployment),
         origins.SETUP: setup_console(deployment),
     }
     for origin in origins.ALL:

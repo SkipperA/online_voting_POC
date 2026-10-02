@@ -167,9 +167,25 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         and a blanket allowance would hand 8001 exactly the access the design
         withholds.
         """
+        path = request.url.path
+        # The checker audits this office, so it must be able to read the
+        # register and ask the release question. Named origin, not `*`: the
+        # closure that matters is against a page the *voting application*
+        # serves (§3.7), and naming the checker keeps that argument intact
+        # instead of trading it for convenience.
+        for_checker = path in ("/release-log", "/release-queries")
+        if request.method == "OPTIONS" and for_checker:
+            return Response(status_code=204, headers={
+                "Access-Control-Allow-Origin": origins.CHECKER.url,
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "content-type",
+                "Access-Control-Max-Age": "600",
+            })
         response = await call_next(request)
-        if request.method == "GET" and request.url.path.startswith("/token-replies/"):
+        if request.method == "GET" and path.startswith("/token-replies/"):
             response.headers["Access-Control-Allow-Origin"] = "*"
+        elif for_checker:
+            response.headers["Access-Control-Allow-Origin"] = origins.CHECKER.url
         return response
 
     @app.post("/token-requests")
@@ -289,6 +305,19 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
             })
         response = await call_next(request)
         response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
+
+    @app.middleware("http")
+    async def tally_is_readable_by_the_checker(request, call_next):
+        """`/tally` opens to the checker alone; `/close` to nobody.
+
+        Anyone may recompute the result from the released records, so reading
+        the box's own figure is no privilege. Closing the poll is an act of
+        the box performed by an operator (E1), and no page should provoke it.
+        """
+        response = await call_next(request)
+        if request.url.path == "/tally":
+            response.headers["Access-Control-Allow-Origin"] = origins.CHECKER.url
         return response
 
     @app.post("/ballots")
