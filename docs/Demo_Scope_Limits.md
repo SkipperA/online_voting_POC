@@ -214,6 +214,10 @@ a regulatory requirement, not a preference — and keeps `k_s^(R)` nowhere a
 file can reach. Both files say so about themselves, so neither can be
 mistaken for a deployment artefact by anyone who opens it.
 
+The register ships populated with four invented names so that a clone can be
+voted in at once. Two carry non-ASCII characters, which exercises the
+canonical-JSON agreement the whole wire contract rests on.
+
 **Label:** *Every voter's wallet key is published in this repository. The
 voters are fictional; a deployment's keys never leave hardware.*
 

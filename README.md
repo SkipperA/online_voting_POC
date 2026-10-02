@@ -73,9 +73,15 @@ context and the isolation would be a diagram rather than a fact.
 
 ```bash
 pip install -e ".[dev]"            # brings fastapi and uvicorn
-python -m service --init           # once: mints an election into election-data/
-python -m service                  # thereafter: loads it
+python -m service                  # loads the election in election-data/
+python -m service --init --data … # mint a fresh one somewhere else
 ```
+
+The repository ships with a demonstration election already in
+`election-data/`: four fictional voters, and every key in the clear. That is
+deliberate — the demo substitutes a file for an eIDAS wallet, and a reader
+should be able to open it and see what the substitution costs rather than take
+it on trust. Nobody named there exists.
 
 The runtime does **not** mint keys. Starting against a directory with no
 election refuses rather than inventing one, because an election that appears
@@ -144,7 +150,8 @@ service/        the HTTP layer: one app per origin, deciding nothing
 web/            browser pages — voter app, wallet consent, setup console
 interop/        a TypeScript consumer of the golden vectors
 tests/          including the adversarial suite and tests/vectors/
-election-data/  a demonstration election, key material published on purpose
+election-data/  a demonstration election: fictional voters, key material
+                published on purpose, pre-populated so a clone can be voted in
 docs/           protocol mapping, wire contract, threat model, scope limits
 ```
 

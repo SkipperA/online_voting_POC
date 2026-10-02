@@ -4,6 +4,16 @@
   "election_id": "demo-2026",
   "num_choices": 4,
   "vro_statement_seed": "GqJ7wd9EHYCcGkn5WRxhP40BAOB3FJ42h8kzq6KFziE",
-  "electoral_register": [],
-  "wallet_seeds": {}
+  "electoral_register": [
+    "HU-1970-0442",
+    "Kovács Ágnes",
+    "Nagy Béla",
+    "Þórdís Ólafsdóttir"
+  ],
+  "wallet_seeds": {
+    "HU-1970-0442": "tggVbAZwIS0O7dU9YOUAuR463x3-uPl5YEmole8T69w",
+    "Kovács Ágnes": "pd7GEYdkoUcF5T5oXw8Vc47OUzcE1_qAhxa3GT6I19Y",
+    "Nagy Béla": "cYEkch3m7p-X52e-6awcY0OJE65-XjXjmd6yM24YVW8",
+    "Þórdís Ólafsdóttir": "WTUSc50PnjejJ47UbdmgREQOnBfCDM8rtWrmjGCoyYg"
+  }
 }
