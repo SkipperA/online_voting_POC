@@ -5,15 +5,25 @@
   "num_choices": 4,
   "vro_statement_seed": "GqJ7wd9EHYCcGkn5WRxhP40BAOB3FJ42h8kzq6KFziE",
   "electoral_register": [
+    "András Zsolt",
     "HU-1970-0442",
+    "HU-2000-3131",
+    "HU-2001-48229",
     "Kovács Ágnes",
     "Nagy Béla",
+    "Zala Béla",
+    "Ó Pál",
     "Þórdís Ólafsdóttir"
   ],
   "wallet_seeds": {
+    "András Zsolt": "mwNGCvzJC9y8jW-gB0i-_qwCh00gxJyJKPpduZLE8kE",
     "HU-1970-0442": "tggVbAZwIS0O7dU9YOUAuR463x3-uPl5YEmole8T69w",
+    "HU-2000-3131": "StebOo7QguKvhkb8olmTvEL55TWXMhvZZAVWLUxsah0",
+    "HU-2001-48229": "lC-vz-vaVFV7nj0yNF3Agp6Xxt1NgOu0f9JIqwJumGM",
     "Kovács Ágnes": "pd7GEYdkoUcF5T5oXw8Vc47OUzcE1_qAhxa3GT6I19Y",
     "Nagy Béla": "cYEkch3m7p-X52e-6awcY0OJE65-XjXjmd6yM24YVW8",
+    "Zala Béla": "YaxG4y9P8mNskj5bqyCqwr_s1G81gQar-UIy1p2Ht5o",
+    "Ó Pál": "Ujkg2DzPl50uekFQV5QDuJ5eY1RzS3J4Aivmm2ntHdE",
     "Þórdís Ólafsdóttir": "WTUSc50PnjejJ47UbdmgREQOnBfCDM8rtWrmjGCoyYg"
   }
 }

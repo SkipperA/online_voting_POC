@@ -13,6 +13,7 @@ middleware and the assembly.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, Response
@@ -29,6 +30,7 @@ WEB = Path(__file__).resolve().parents[1] / "web"
 VOTER_APP_STATIC = WEB / "voter-app" / "static"
 WALLET_STATIC = WEB / "wallet" / "static"
 SETUP_STATIC = WEB / "setup" / "static"
+INDEX_STATIC = WEB / "index" / "static"
 
 
 def _base(origin: origins.Origin) -> FastAPI:
@@ -86,6 +88,23 @@ def config_app(deployment: Deployment) -> FastAPI:
         response = await call_next(request)
         response.headers["Access-Control-Allow-Origin"] = "*"
         return response
+
+    # The index for the whole deployment. It lives here because the config
+    # origin is the one every other surface already fetches from, and because
+    # a page that merely describes the deployment has no business on an origin
+    # that holds a part of it.
+    origin_table = json.dumps([
+        {"url": o.url, "trust": o.trust_domain, "serves": o.serves}
+        for o in origins.ALL
+    ])
+
+    @app.get("/", response_class=HTMLResponse)
+    async def index() -> HTMLResponse:
+        return HTMLResponse(
+            (INDEX_STATIC / "index.html").read_text(encoding="utf-8").replace(
+                'data-origins=""', f"data-origins='{origin_table}'"
+            )
+        )
 
     payload = (deployment.document_root / "election.json").read_bytes()
     digest_line = (deployment.document_root / "election.json.sha256").read_text()

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Anonymous Authenticated Ballot System — demonstration</title>
+<style>
+ :root{color-scheme:light dark}
+ body{font:15px/1.6 ui-sans-serif,system-ui,sans-serif;margin:0 auto;max-width:56rem;padding:2rem 1.25rem 4rem}
+ h1{font-size:1.4rem;margin:0 0 .2rem} .sub{color:#666;margin:0 0 1.6rem}
+ h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:#777;margin:1.8rem 0 .7rem}
+ table{border-collapse:collapse;width:100%;font-size:14px}
+ td,th{text-align:left;padding:.42rem .6rem;border-bottom:1px solid #8883;vertical-align:top}
+ th{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:#777;font-weight:600}
+ a{color:inherit} code,.mono{font-family:ui-monospace,SFMono-Regular,monospace;font-size:13px;word-break:break-all}
+ .dom{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#15803d}
+ .nodom{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#888}
+ .fp{font-family:ui-monospace,monospace;font-size:14px;background:#8881;padding:.55rem .7rem;border-radius:4px;word-break:break-all}
+ .note{background:#f59e0b18;border-left:3px solid #f59e0b;padding:.75rem .95rem;margin:1.2rem 0;font-size:13.5px}
+ .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b45309;margin-bottom:.3rem}
+ ol{padding-left:1.2rem} li{margin:.3rem 0}
+</style></head>
+<body data-origins="">
+<h1>Anonymous Authenticated Ballot System</h1>
+<p class="sub">A demonstration of the design in <em>Proposal for a Secure,
+Private, and Coercion-Resistant Online Voting System</em>. Seven origins, one
+process — for now.</p>
+
+<div class="note">
+  <b>This is a demonstration, not an election</b>
+  The voters are fictional and every key in this repository is published on
+  purpose. Several parts of the design are substituted or absent here, and
+  each is labelled where it occurs rather than only in a document. Read
+  <code>docs/Demo_Scope_Limits.md</code> before drawing conclusions from a run.
+</div>
+
+<h2>This election</h2>
+<div class="fp" id="fingerprint">…</div>
+<table style="margin-top:.6rem"><tbody>
+<tr><td style="width:13rem">identifier</td><td class="mono" id="election">…</td></tr>
+<tr><td>choices</td><td class="mono" id="choices">…</td></tr>
+<tr><td>configuration digest</td><td class="mono" id="digest">…</td></tr>
+<tr><td>statement key <code>k_p^(O)</code></td><td class="mono" id="statement">…</td></tr>
+</tbody></table>
+<p style="color:#666;font-size:13.5px">The fingerprint is of
+<code>k_p^(R)</code>, the key every token must verify under. The setup console
+shows the same value. Two surfaces, two glances: the voting application must
+not learn which key to trust from the office whose signatures it checks.</p>
+
+<h2>Origins</h2>
+<p style="color:#666;font-size:13.5px;margin-top:-.3rem">A browser origin is
+scheme, host <em>and</em> port, so separate ports make these genuinely
+separate — separate script contexts, separate fetch policies, no shared
+cookies. Five are trust domains; the other two are not.</p>
+<table><thead><tr><th>Origin</th><th></th><th>Serves</th></tr></thead>
+<tbody id="origins"></tbody></table>
+
+<h2>A run, in order</h2>
+<ol>
+  <li><b>Setup console</b> — enrol voters. Phase A: what is authored before the
+      poll opens. The poll runs with this origin stopped.</li>
+  <li><b>Voter application</b> — generates an ad-hoc key pair, blinds its public
+      half, saves <code>token-request.json</code>.</li>
+  <li><b>Wallet</b> — load that file, check it against the configuration,
+      consent. The wallet signs <code>hash([id, c])</code> and transmits
+      <code>[id, c, s]</code> to the office itself. Nothing comes back through
+      the voting application.</li>
+  <li><b>Voter application</b> — collects the reply by presenting <code>c</code>,
+      unblinds, verifies, marks a ballot and casts it.</li>
+  <li><b>Checker</b> — the checks of §3.7, from an origin the voting application
+      does not control.</li>
+</ol>
+
+<h2>What is published, and when</h2>
+<table><tbody>
+<tr><td style="width:18rem">while voting is open</td><td>commitments, positions, the chain head, running counts — and the token-release register as commitments, naming nobody</td></tr>
+<tr><td>on the voter's own lookup</td><td>their ballot record, retrieved by <code>k_p^a</code>, a lookup secret until the close</td></tr>
+<tr><td>at the close</td><td>every record in clear, accepted and rejected alike, and the tally</td></tr>
+<tr><td>never</td><td>the release register's commitments are never opened publicly — their harm is not a running result but a list of who did and did not take part</td></tr>
+</tbody></table>
+
+<script>
+const O = JSON.parse(document.body.dataset.origins);
+const rows = document.getElementById('origins');
+for (const o of O) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><a href="${o.url}">${o.url}</a></td>` +
+    `<td><span class="${o.trust ? 'dom' : 'nodom'}">${o.trust ? 'trust domain' : 'not a domain'}</span></td>` +
+    `<td>${o.serves}</td>`;
+  rows.append(tr);
+}
+(async () => {
+  const c = await (await fetch('election.json')).json();
+  const d = await (await fetch('election.json.sha256')).text();
+  document.getElementById('fingerprint').textContent = c.vro_token_key_fingerprint;
+  document.getElementById('election').textContent = c.election_id;
+  document.getElementById('choices').textContent = `1..${c.num_choices}`;
+  document.getElementById('digest').textContent = d.split(/\s+/)[0];
+  document.getElementById('statement').textContent = c.vro_statement_key;
+})();
+</script>
+</body></html>

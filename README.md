@@ -109,8 +109,9 @@ The voter's application is a browser page and must be built once:
 cd web/voter-app && npm install && npm run build
 ```
 
-Then `http://127.0.0.1:8009` to enrol voters, and `http://127.0.0.1:8001` to
-vote. The demos also run against a live service:
+Then `http://127.0.0.1:8000` — the index: every origin, the election's
+fingerprint and digest, the order a run goes in, and what is published when.
+From there, `8009` to enrol voters and `8001` to vote. The demos also run against a live service:
 
 ```bash
 python demo_svr.py        # the happy path, across five origins

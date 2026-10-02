@@ -220,3 +220,27 @@ def test_an_unbuilt_voter_app_says_so_rather_than_rendering_blank(deployment, tm
         assert "npm run build" in response.text
     finally:
         apps_module.VOTER_APP_STATIC = original
+
+
+def test_the_config_origin_serves_an_index_of_the_whole_deployment(clients):
+    """One page a newcomer can open. Still inert: it describes, it holds nothing.
+
+    The origin table is injected from `service/origins.py` rather than typed
+    into the HTML, so a port that moves in code moves on the page too. The
+    surface map's prose table has no such link and can drift.
+    """
+    response = clients["config"].get("/")
+    assert response.status_code == 200
+    for origin in origins.ALL:
+        assert origin.url in response.text, origin.name
+    assert "demonstration, not an election" in response.text
+    assert "Demo_Scope_Limits" in response.text
+
+
+def test_the_index_does_not_disclose_an_identifier(clients, deployment):
+    """It is served by an origin that holds no identifiers, and must stay so."""
+    for voter_id in TEST_VOTER_IDS:
+        deployment.vro.enrol(voter_id)
+    body = clients["config"].get("/").text
+    for voter_id in TEST_VOTER_IDS:
+        assert voter_id not in body
