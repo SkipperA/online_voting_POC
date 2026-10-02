@@ -187,7 +187,20 @@ indirectly, and a mutation added without regenerating the report would pass the
 exit code while failing the diff. The tool should return non-zero when
 `uncaught` is non-empty.
 
-### 3.2 `npm audit` reports two high-severity advisories
+### 3.2 `docs/sabotage.md` has no cheap staleness check
+
+`tools/golden_vectors.py --check` reports drift in a second. The sabotage
+report has no equivalent: the only way to learn it is stale is to spend four
+and a half minutes regenerating it, or to push and watch CI fail. A `--check`
+mode would not help, since it would still have to run every mutation.
+
+The cheap alternative is a hint rather than a check: record in the report the
+names of the tests present at generation time, so a mismatch against the
+current suite is detectable instantly. Imperfect — a test could change
+behaviour without changing name — but it catches the common case, which is a
+new test added and the report not regenerated.
+
+### 3.3 `npm audit` reports two high-severity advisories
 
 Both are `sjcl`, reached through `@cloudflare/blindrsa-ts`, and both concern
 missing point-on-curve validation in `sjcl.ecc`. The blind-signature path uses
@@ -199,6 +212,38 @@ oversight. Revisit if blindrsa-ts changes its dependency or its usage.
 *(The two `rsabssa.py` items that stood here — the retried non-invertible
 blinding factor and the missing RFC 9474 step 4 — were closed in `66659cc` and
 `9dfa3b1`, with `ModulusCompromised` and three tests.)*
+
+---
+
+## 3b. Stage 1 defects, open
+
+### 3b.1 The voter application loses its ad-hoc key on reload
+
+The key pair is generated non-extractable and nothing is stored, so reloading
+8001 orphans the ballot: the voter cannot find their record, cannot re-vote,
+and their single entitlement is already spent. A real application would not
+behave this way.
+
+Fixing it means generating the key extractable and putting it in
+`localStorage`, which withdraws the "this page cannot read `k_s^a`" property
+the page currently advertises — and §3.7's second qualification becomes
+sharper, since a compromised device that holds the signing key can cast a
+silent override after the voter's last check. At stage 3 the iOS keychain
+gives both; in a browser it is a choice.
+
+Undecided. Either persist and withdraw the claim, or keep the claim and warn
+on the page that a reload loses the ballot.
+
+### 3b.2 The close has no interface
+
+`POST /close` is reachable only by curl, and is deliberately shut to
+cross-origin requests: closing is an act of the box performed by an operator
+(E1), so no page should be able to provoke it. But the EBB has no operator
+surface at all, which makes the one act with the clearest institutional
+meaning the only one with no way to perform it.
+
+Either a sixth browser surface for the box operator, or a clause saying the
+act is deliberately curl-only and why. Undecided.
 
 ---
 
@@ -277,6 +322,23 @@ only on 2.2 above, which is now decided in outline.
   both key pairs, the electoral register and the wallet personas; the runtime
   loads them and refuses to start if they are absent. The ballot box, the hash
   chain and the released-token register are in memory. Clause A7.
+- **The checker is served at 8005 and holds nothing.** Static files; every
+  conclusion it draws comes from artefacts published by the party being
+  audited. D1 arrives as a file the voter carries from the wallet, so the
+  wallet still grants nothing cross-origin. The page states that in this
+  deployment the independence is asserted rather than demonstrated, since one
+  operator runs the checker and the audited parties alike.
+- **Cross-origin allowances are named, not wildcarded, where the argument
+  depends on who is asking.** `/release-log`, `/release-queries` and `/tally`
+  open to the checker origin by name: `*` would hand the voting application
+  exactly the access §3.7 withholds. `/token-replies/…`, `/ballots` and
+  `/published` open to `*`, because there is nothing in them to withhold from
+  anyone. `/close` opens to nobody.
+- **The config origin serves an index of the whole deployment.** Seven
+  origins with their trust-domain status, the election's fingerprint and
+  digest, the order a run goes in, and what is published when. The origin
+  table is injected from `service/origins.py`, so a port that moves in code
+  moves on the page — unlike the surface map's prose table, which can drift.
 - `ext_demo.py`'s wrong-key scenario drew a second modulus without constraining
   it, so roughly one run in ten failed in `blind_sign` rather than reaching the
   device check it exists to show. Fixed in `7d434da`.
