@@ -2,111 +2,49 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Voter application — step 1</title>
+<title>Voter application</title>
 <style>
-  :root { color-scheme: light dark; }
-  body { font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; margin: 0 auto;
-         max-width: 54rem; padding: 2rem 1.25rem 4rem; }
-  h1 { font-size: 1.3rem; margin: 0 0 .25rem; }
-  .sub { color: #666; margin: 0 0 1.5rem; }
-  section { border: 1px solid #8884; border-radius: 6px; padding: .9rem 1.1rem;
-            margin: 0 0 1rem; }
-  h2 { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase;
-       color: #777; margin: 0 0 .7rem; }
-  .row { display: grid; grid-template-columns: 13rem 1fr; gap: .4rem 1rem;
-         padding: .18rem 0; }
-  .label { color: #666; }
-  .value { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px;
-           word-break: break-all; }
-  .ok { color: #15803d; } .warn { color: #b91c1c; font-weight: 600; }
-  #status { margin-top: 1.2rem; font-weight: 600; }
-  .note { background: #f59e0b18; border-left: 3px solid #f59e0b; padding: .7rem .9rem;
-          margin: 0 0 1.2rem; font-size: 13.5px; }
-  .note b { display: block; text-transform: uppercase; letter-spacing: .06em;
-            font-size: .72rem; color: #b45309; margin-bottom: .3rem; }
+ :root{color-scheme:light dark; --line:#8884; --dim:#777}
+ body{font:15px/1.55 ui-sans-serif,system-ui,sans-serif;margin:0 auto;max-width:58rem;padding:2rem 1.25rem 5rem}
+ h1{font-size:1.35rem;margin:0 0 .2rem} .sub{color:var(--dim);margin:0 0 1.4rem}
+ .step{border:1px solid var(--line);border-radius:6px;margin:0 0 1rem;overflow:hidden}
+ .step.todo{opacity:.5} .step.done{border-color:#15803d55}
+ .head{display:flex;gap:.7rem;align-items:baseline;padding:.65rem .9rem;background:#8880}
+ .fig{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:#0d9488;
+      border:1px solid #0d948855;border-radius:3px;padding:.05rem .35rem;white-space:nowrap}
+ .title{font-weight:600} .where{margin-left:auto;font-size:12px;color:var(--dim)}
+ .body{padding:.75rem .9rem;border-top:1px solid var(--line)}
+ .why{color:var(--dim);font-size:13.5px;margin:0 0 .7rem}
+ pre{font-family:ui-monospace,SFMono-Regular,monospace;font-size:12.5px;line-height:1.45;
+     background:#8881;border-radius:4px;padding:.6rem .7rem;margin:.4rem 0;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
+ .secret{background:#b91c1c14;border:1px solid #b91c1c55;border-radius:4px;padding:.5rem .7rem;margin:.5rem 0}
+ .secret h4{margin:0 0 .35rem;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;color:#b91c1c}
+ .secret pre{background:transparent;padding:0;margin:.2rem 0;color:#b91c1c}
+ .secret p{margin:.4rem 0 0;font-size:12.5px;color:#b91c1c}
+ button{font:inherit;padding:.4rem .9rem;margin-right:.45rem}
+ .ok{color:#15803d} .warn{color:#b91c1c;font-weight:600}
+ .note{background:#f59e0b18;border-left:3px solid #f59e0b;padding:.75rem .95rem;margin:0 0 1.3rem;font-size:13.5px}
+ .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b45309;margin-bottom:.3rem}
+ label{display:block;margin:.15rem 0}
+ #status{margin-top:1.2rem;font-weight:600}
 </style>
 </head>
 <body data-config-origin="" data-vro-origin="" data-ebb-origin="">
 <h1>Voter application</h1>
-<p class="sub">Step one: the cryptography, performed in this browser. No wallet,
-no ballot, no submission yet.</p>
+<p class="sub">Every step is shown before it happens and happens when you ask
+for it. Numbers refer to the figure in the article.</p>
 
 <div class="note">
-  <b>What this demo cannot show</b>
-  The fingerprint below is <em>recomputed here</em> from the published key, which
-  proves the config origin is internally consistent — not that the key is the
-  right one. Real pinning compares against a value built into the application
-  before the election, and this demo mints the key when the service starts, so
-  there is nothing to have pinned. Compare it by eye against the value the VRO
-  operator prints instead.
+  <b>Keys in red never leave the device in a deployment</b>
+  This page displays <code>k_s^a</code>, the blinding factor and the
+  unblinding inverse so that a demonstration can be followed. In a production
+  system those values are non-exportable: they exist only inside the
+  operations that use them — signing and blinding — and no interface, log or
+  file ever contains them. Nothing in red would be visible or savable on a
+  real device.
 </div>
 
-<section>
-  <h2>Election configuration · from the config origin</h2>
-  <div class="row"><span class="label">election</span><span class="value" id="election">…</span></div>
-  <div class="row"><span class="label">choices</span><span class="value" id="choices">…</span></div>
-  <div class="row"><span class="label">published digest</span><span class="value" id="digest">…</span></div>
-</section>
-
-<section>
-  <h2>k_p^(R) · the office's token key</h2>
-  <div class="row"><span class="label">modulus</span><span class="value" id="modulus">…</span></div>
-  <div class="row"><span class="label">fingerprint</span><span class="value" id="fingerprint">…</span></div>
-  <div class="row"><span class="label">agreement</span><span class="value" id="fp-agrees">…</span></div>
-</section>
-
-<section>
-  <h2>Ad-hoc key pair · generated here, for this election only</h2>
-  <div class="row"><span class="label">k_p^a</span><span class="value" id="adhoc">…</span></div>
-  <div class="row"><span class="label">k_s^a</span><span class="value" id="adhoc-private">…</span></div>
-</section>
-
-<section>
-  <h2>Blinding · RFC 9474</h2>
-  <div class="row"><span class="label">suite</span><span class="value" id="suite">…</span></div>
-  <div class="row"><span class="label">prepare()</span><span class="value" id="prepare">…</span></div>
-  <div class="row"><span class="label">c</span><span class="value" id="blinded">…</span></div>
-  <div class="row"><span class="label">r⁻¹</span><span class="value" id="inverse">…</span></div>
-</section>
-
-<section>
-  <h2>Handover · the voter carries the request</h2>
-  <p style="margin:.2rem 0 .8rem;color:#666;font-size:13.5px">
-    Nothing passes between this origin and the wallet except the file you save.
-    <code>c</code> is not a secret: unblinding needs the <code>r⁻¹</code> above,
-    which never leaves this page, so an intercepted request is worth nothing.
-    In a deployment the browser would invoke the wallet app directly; the file
-    stands in for that.
-  </p>
-  <button id="save" disabled>Save token-request.json</button>
-</section>
-
-<section>
-  <h2>Token · collected from the office by presenting c</h2>
-  <div class="row"><span class="label">s_{k_p^a}</span><span class="value" id="token">…</span></div>
-  <div class="row"><span class="label">verification</span><span class="value" id="token-valid">…</span></div>
-</section>
-
-<section id="ballot-section" hidden>
-  <h2>Ballot · marked here, signed with k_s^a</h2>
-  <p style="margin:0 0 .7rem;color:#666;font-size:13.5px">
-    One ballot carries exactly one selection. A value outside the list
-    authenticates like any other and is recorded as <em>invalid</em>, not
-    rejected — it supersedes an earlier ballot exactly as a listed choice
-    would, and no authority approves what it means.
-  </p>
-  <div id="choices-list"></div>
-  <p style="margin:.9rem 0 0"><button id="cast" disabled>Cast ballot</button></p>
-</section>
-
-<section id="receipt-section" hidden>
-  <h2>Receipt · the voter's evidence of the registry at that moment</h2>
-  <div class="row"><span class="label">accepted</span><span class="value" id="accepted">…</span></div>
-  <div class="row"><span class="label">position</span><span class="value" id="position">…</span></div>
-  <div class="row"><span class="label">chain head</span><span class="value" id="head">…</span></div>
-  <div class="row"><span class="label">recorded selection</span><span class="value" id="recorded">…</span></div>
-</section>
-
+<div id="steps"></div>
 <p id="status">Loading the application…</p>
 <script src="bundle.js" defer></script>
 </body>

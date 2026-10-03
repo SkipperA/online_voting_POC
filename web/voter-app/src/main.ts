@@ -1,19 +1,24 @@
 /**
- * The voter's application: blinding here, the token collected from the office.
+ * The voter's application, as a sequence of steps the voter performs.
  *
- * Nothing on this origin reads, requests or receives `id`, and there is no
- * code path to one. The handover to the wallet is a file the voter saves and
- * carries -- the browser's own download, then the browser's own file picker
- * on the wallet's page. Clumsy on purpose: nothing passes between the two
- * origins except what the voter moved, so the boundary is not a claim about
- * configuration but a fact about what crossed.
+ * The protocol used to run under the hood: one button, and five cryptographic
+ * operations between two renders. That is no use to an audience, and not much
+ * use to a reader either. Here every step shows the exact payload before it
+ * crosses, names its number in the figure, and waits to be asked.
  *
- * Nothing comes back through the page either. The wallet transmits `[id, c,
- * s]` to the office itself (B7), and this application collects the reply by
- * presenting `c`, which it has held since it generated it (B16). A 404 means
- * "not yet". So the file crosses in one direction and there is no return
- * channel to design, no correlation handle to invent, and no moment at which
- * the application must be told anything.
+ * **Transport stays HTTP.** Saving a step as a file is offered beside each
+ * one, because a payload you can hand to an audience is worth having, but the
+ * file is never the transport. Three of these steps are party-to-party
+ * transmissions in the design, and a file would depict a voter carrying their
+ * identifier around by hand, which is neither what the article says nor what
+ * a deployment would do. The one genuine file handover, application to
+ * wallet, is a file precisely because on a real device it is an app-to-app
+ * invocation between two applications on the same phone.
+ *
+ * **Secrets are shown in red and labelled.** `k_s^a` and the unblinding
+ * inverse are displayed so the demonstration can be followed. In production
+ * they are non-exportable and exist only inside the operations that use them.
+ * The page says so where they appear rather than once in a document.
  */
 
 import { RSABSSA } from '@cloudflare/blindrsa-ts';
@@ -25,243 +30,309 @@ const suite = RSABSSA.SHA384.PSS.Deterministic();
 
 const b64url = (b: Uint8Array): string =>
   btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
 const unb64url = (s: string): Uint8Array =>
   Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
-
 const hex = (b: Uint8Array): string =>
   [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+const status = (text: string, cls = '') => {
+  const el = document.getElementById('status')!;
+  el.textContent = text;
+  el.className = cls;
+};
 
-function show(id: string, value: string, state: 'ok' | 'warn' | 'plain' = 'plain') {
-  const el = document.getElementById(id)!;
-  el.textContent = value;
-  if (id !== 'status') el.className = `value ${state}`;
+interface Step {
+  id: string;
+  fig: string;
+  title: string;
+  where: string;
+  why: string;
+  action?: { label: string; run: () => Promise<void> };
 }
 
-async function main() {
-  // Set by the script, so "Loading…" persisting means the script never ran
-  // rather than meaning it is slow. The previous wording made a bundle that
-  // failed to load look like one that was merely working.
-  show('status', 'Working…');
+const stepsEl = document.getElementById('steps')!;
 
-  // 1. The configuration, from the config origin. Never from the VRO: an
-  //    office that supplied the key its own signatures are checked against
-  //    would make the single-key discipline of §3.3 vacuous.
-  const config = await (await fetch(`${CONFIG_ORIGIN}/election.json`)).json();
-  const digestLine = await (await fetch(`${CONFIG_ORIGIN}/election.json.sha256`)).text();
-  show('election', config.election_id);
-  show('choices', `1..${config.num_choices}`);
-  show('digest', digestLine.split(/\s+/)[0]);
-
-  // 2. Import k_p^(R) and recompute its fingerprint rather than believing
-  //    the one printed beside it.
-  const spki = unb64url(config.vro_token_key_spki);
-  const tokenKey = await crypto.subtle.importKey(
-    'spki', spki, { name: 'RSA-PSS', hash: 'SHA-384' }, true, ['verify'],
-  );
-  const fingerprint = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', spki)));
-  const agrees = fingerprint === config.vro_token_key_fingerprint;
-  show('fingerprint', fingerprint, agrees ? 'ok' : 'warn');
-  show('fp-agrees', agrees ? 'recomputed here, matches the published value'
-                           : 'MISMATCH — this key is not the one published',
-       agrees ? 'ok' : 'warn');
-  show('modulus', `${(tokenKey.algorithm as RsaHashedKeyAlgorithm).modulusLength} bits`);
-
-  // 3. The ad-hoc key pair. Generated here, and the private half never
-  //    leaves: `extractable: false` means the page itself cannot export it.
-  const adhoc = await crypto.subtle.generateKey(
-    { name: 'Ed25519' }, false, ['sign', 'verify'],
-  ) as CryptoKeyPair;
-  ADHOC = adhoc;
-  NUM_CHOICES = config.num_choices;
-  const adhocPublic = new Uint8Array(await crypto.subtle.exportKey('raw', adhoc.publicKey));
-  ADHOC_PUBLIC = adhocPublic;
-  show('adhoc', hex(adhocPublic));
-  show('adhoc-private', 'non-extractable — this page cannot read it', 'ok');
-
-  // 4. Blind it. This is the step the whole design rests on: the office
-  //    signs a value it cannot recognise, so it cannot later link the token
-  //    to the citizen who asked for it.
-  const prepared = suite.prepare(adhocPublic);
-  const identical = prepared.length === adhocPublic.length &&
-    prepared.every((b, i) => b === adhocPublic[i]);
-  show('prepare', identical ? 'identity, as the Deterministic variant requires'
-                            : 'UNEXPECTED — prepare() altered the message', identical ? 'ok' : 'warn');
-
-  const { blindedMsg, inv } = await suite.blind(tokenKey, prepared);
-  show('suite', suite.toString(), 'ok');
-  show('blinded', `${blindedMsg.length} bytes · ${hex(blindedMsg.slice(0, 16))}…`);
-  (document.getElementById('blinded') as HTMLElement).dataset.b64 = b64url(blindedMsg);
-  show('inverse', `${inv.length} bytes, held here and nowhere else`);
-
-  // 5. The handover. `c` is not a secret worth protecting: §5.3 notes that an
-  //    intercepted `c` yields no advantage, because unblinding needs the `r`
-  //    that never leaves this application. A file in Downloads discloses
-  //    nothing about the voter or the vote.
-  const request = {
-    election_id: config.election_id,
-    config_digest: digestLine.split(/\s+/)[0],
-    blinded_key: b64url(blindedMsg),
-  };
-  const save = document.getElementById('save') as HTMLButtonElement;
-  save.disabled = false;
-  save.onclick = () => {
-    const blob = new Blob([JSON.stringify(request, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'token-request.json';
-    a.click();
-    URL.revokeObjectURL(a.href);
-    poll(tokenKey, adhocPublic, inv).catch((err) => {
-      // A rejected fetch here is almost always the office refusing to be read
-      // cross-origin. Left uncaught it leaves a status line that looks like
-      // patience rather than failure.
-      show('status', `Could not reach the office: ${err}`);
-    });
-  };
-
-  show('status', 'Blinded. Save the request and take it to the wallet.');
+function render(step: Step): void {
+  const el = document.createElement('div');
+  el.className = 'step todo';
+  el.id = `step-${step.id}`;
+  el.innerHTML =
+    `<div class="head"><span class="fig">${step.fig}</span>` +
+    `<span class="title">${step.title}</span>` +
+    `<span class="where">${step.where}</span></div>` +
+    `<div class="body"><p class="why">${step.why}</p><div class="content"></div></div>`;
+  stepsEl.append(el);
+  if (step.action) {
+    const button = document.createElement('button');
+    button.textContent = step.action.label;
+    button.onclick = async () => {
+      button.disabled = true;
+      try { await step.action!.run(); }
+      catch (err) { status(`${step.title} failed: ${err}`, 'warn'); button.disabled = false; }
+    };
+    el.querySelector('.content')!.append(button);
+  }
 }
 
-/**
- * B16–B18. Poll, unblind, and verify before `r` is discarded.
- *
- * The verification is the only moment at which the voter learns whether the
- * office followed the protocol, and by then their single entitlement is
- * already spent -- which is why §5.5 requires a documented re-issuance path.
- */
+const body = (id: string) => document.querySelector(`#step-${id} .content`)!;
+const enable = (id: string) =>
+  document.getElementById(`step-${id}`)!.classList.remove('todo');
+const complete = (id: string) => {
+  const el = document.getElementById(`step-${id}`)!;
+  el.classList.remove('todo');
+  el.classList.add('done');
+};
+
+function payload(id: string, caption: string, value: unknown, savable?: string) {
+  const wrap = document.createElement('div');
+  const pre = document.createElement('pre');
+  pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  wrap.innerHTML = `<div style="font-size:12px;color:var(--dim)">${caption}</div>`;
+  wrap.append(pre);
+  if (savable) {
+    const save = document.createElement('button');
+    save.textContent = `Save ${savable}`;
+    save.onclick = () => {
+      const blob = new Blob([pre.textContent!], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = savable;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+    wrap.append(save);
+  }
+  body(id).append(wrap);
+}
+
+/** Values a production device would never expose. Shown, in red, and labelled. */
+function secrets(id: string, entries: [string, string][]) {
+  const box = document.createElement('div');
+  box.className = 'secret';
+  box.innerHTML = '<h4>never leaves the device in a deployment</h4>' +
+    entries.map(([k, v]) => `<pre>${k} = ${v}</pre>`).join('') +
+    '<p>Non-exportable in production: usable by the signing and blinding ' +
+    'operations and readable by nothing — not the application, not a file, ' +
+    'not a log.</p>';
+  body(id).append(box);
+}
+
+let CONFIG: any;
+let DIGEST = '';
+let TOKEN_KEY: CryptoKey;
 let ADHOC: CryptoKeyPair;
 let ADHOC_PUBLIC: Uint8Array;
-let NUM_CHOICES = 0;
+let BLINDED: Uint8Array;
+let INV: Uint8Array;
+let TOKEN: Uint8Array;
 
-async function poll(tokenKey: CryptoKey, adhocPublic: Uint8Array, inv: Uint8Array) {
-  const c = (document.getElementById('blinded') as HTMLElement).dataset.b64!;
-  show('status', 'Waiting for the office to release a token…');
+async function main() {
+  status('Working…');
+
+  render({
+    id: 'config', fig: 'config', title: 'Pin the election configuration',
+    where: 'from the config origin',
+    why: 'The key every token must verify under comes from the published ' +
+         'configuration, never from the office. An office that supplied the ' +
+         'key its own signatures are checked against would make the ' +
+         'single-key discipline of §3.3 vacuous.',
+  });
+  CONFIG = await (await fetch(`${CONFIG_ORIGIN}/election.json`)).json();
+  DIGEST = (await (await fetch(`${CONFIG_ORIGIN}/election.json.sha256`)).text())
+    .split(/\s+/)[0];
+  const spki = unb64url(CONFIG.vro_token_key_spki);
+  TOKEN_KEY = await crypto.subtle.importKey(
+    'spki', spki, { name: 'RSA-PSS', hash: 'SHA-384' }, true, ['verify']);
+  const fingerprint = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', spki)));
+  payload('config', 'recomputed here, then compared with the published value', {
+    election_id: CONFIG.election_id,
+    choices: `1..${CONFIG.num_choices}`,
+    config_digest: DIGEST,
+    'k_p^(R) fingerprint': fingerprint,
+    agrees_with_published: fingerprint === CONFIG.vro_token_key_fingerprint,
+  });
+  complete('config');
+
+  render({
+    id: 'blind', fig: '1/A · 1/B · 2', title: 'Generate the ad-hoc key, and blind it',
+    where: 'this device',
+    why: 'A one-time key pair for this election, and a random blinding ' +
+         'factor. Blinding multiplies the padded encoding of the public key ' +
+         'by r^e, so the office signs a value it cannot recognise — which is ' +
+         'what makes the token unlinkable to the request that produced it.',
+    action: { label: 'Generate and blind', run: doBlind },
+  });
+  enable('blind');
+  status('Ready. Each step waits for you.');
+}
+
+async function doBlind() {
+  ADHOC = await crypto.subtle.generateKey(
+    { name: 'Ed25519' }, true, ['sign', 'verify']) as CryptoKeyPair;
+  ADHOC_PUBLIC = new Uint8Array(await crypto.subtle.exportKey('raw', ADHOC.publicKey));
+  const jwk = await crypto.subtle.exportKey('jwk', ADHOC.privateKey);
+
+  const blind = await suite.blind(TOKEN_KEY, suite.prepare(ADHOC_PUBLIC));
+  BLINDED = blind.blindedMsg;
+  INV = blind.inv;
+
+  payload('blind', 'k_p^a — the ad-hoc public key, and the message the office will sign',
+          b64url(ADHOC_PUBLIC));
+  secrets('blind', [
+    ['k_s^a', String(jwk.d)],
+    ['r⁻¹  ', b64url(INV)],
+  ]);
+  payload('blind', 'c — the blinded value. Discloses nothing: without r⁻¹ it is ' +
+          'a uniform number in [0, n_R).', b64url(BLINDED));
+  complete('blind');
+
+  render({
+    id: 'handover', fig: '→ 3', title: 'Hand the blinded value to the wallet',
+    where: 'this device → the wallet',
+    why: 'The only file in the sequence, and a file for a reason: on a real ' +
+         'device this is an app-to-app invocation between two applications on ' +
+         'the same phone. Nothing identifying is in it, and c is not a secret.',
+  });
+  payload('handover', 'token-request.json', {
+    _transport: 'app-to-app invocation on a real device; a file here only ' +
+                'because a browser page cannot invoke the wallet application',
+    election_id: CONFIG.election_id,
+    config_digest: DIGEST,
+    blinded_key: b64url(BLINDED),
+  }, 'token-request.json');
+  complete('handover');
+
+  render({
+    id: 'collect', fig: '→ 8', title: 'Collect the office’s reply',
+    where: 'this device → the office',
+    why: 'The application asks the office directly, presenting c. The reply ' +
+         'names nobody and is useless without r⁻¹, so it need not come back ' +
+         'through the wallet. 404 until the wallet has transmitted.',
+    action: { label: 'Collect s_c', run: doCollect },
+  });
+  enable('collect');
+  status('Save the request and take it to the wallet, then collect the reply.');
+}
+
+async function doCollect() {
   for (let attempt = 0; attempt < 600; attempt++) {
-    const response = await fetch(`${VRO_ORIGIN}/token-replies/${c}`);
+    const response = await fetch(`${VRO_ORIGIN}/token-replies/${b64url(BLINDED)}`);
     if (response.ok) {
-      const blindSignature = unb64url((await response.json()).blind_signature);
-      const token = await suite.finalize(tokenKey, adhocPublic, blindSignature, inv);
-      const valid = await suite.verify(tokenKey, token, adhocPublic);
-      show('token', `${token.length} bytes · ${hex(token.slice(0, 16))}…`);
-      show('token-valid',
-           valid ? 'verifies under the pinned k_p^(R) — an ordinary RSA-PSS signature now'
-                 : 'DOES NOT VERIFY — the office did not follow the protocol',
-           valid ? 'ok' : 'warn');
-      show('status', valid
-        ? 'Token obtained and verified. The office cannot link it to the request it signed.'
-        : 'The office returned a signature that does not verify.');
-      if (valid) offerBallot(token);
+      const sc = unb64url((await response.json()).blind_signature);
+      payload('collect', 's_c — the raw private-key operation applied to c', b64url(sc));
+      complete('collect');
+      await doUnblind(sc);
       return;
     }
+    status(`Waiting for the office… (${attempt + 1})`);
     await new Promise((r) => setTimeout(r, 500));
   }
-  show('status', 'No reply from the office. The wallet may not have transmitted yet.');
+  throw new Error('no reply — has the wallet transmitted?');
 }
 
-main().catch((err) => {
-  document.getElementById('status')!.textContent = `Failed: ${err}`;
-  document.getElementById('status')!.className = 'warn';
-});
+async function doUnblind(sc: Uint8Array) {
+  render({
+    id: 'unblind', fig: '8', title: 'Remove the blinding, and verify',
+    where: 'this device',
+    why: 'Multiplying by r⁻¹ turns the office’s operation on c into an ' +
+         'ordinary signature on k_p^a. This verification is the only moment ' +
+         'the voter learns whether the office followed the protocol — and the ' +
+         'entitlement is already spent if it did not (§5.5).',
+  });
+  TOKEN = await suite.finalize(TOKEN_KEY, ADHOC_PUBLIC, sc, INV);
+  const valid = await suite.verify(TOKEN_KEY, TOKEN, ADHOC_PUBLIC);
+  payload('unblind', 's_{k_p^a} — the token. An ordinary RSA-PSS signature now; ' +
+          'any library checks it against the published key.', {
+    token: b64url(TOKEN), verifies_under_pinned_key: valid });
+  complete('unblind');
+  if (!valid) { status('The office returned a signature that does not verify.', 'warn'); return; }
 
-
-/**
- * C1-C6, in the browser.
- *
- * The signature is over SHA-256 of the canonical JSON of the selection and
- * the ad-hoc public key -- sorted keys, no whitespace, base64url for binary,
- * non-ASCII as UTF-8 (`docs/wire-contract.md` §0). If this page serialised
- * it any other way the box would reject every ballot it sent, which is why
- * the rule is pinned by `tests/vectors/canonical-json.json` rather than
- * described in a comment somewhere.
- */
-function offerBallot(token: Uint8Array) {
-  // One selection, so one control. The protest code is an option among the
-  // others rather than a field beside them: a ballot cannot carry both, and
-  // an interface that lets a voter set two things and silently honours one
-  // misrepresents what it is depicting.
-  const list = document.getElementById('choices-list')!;
-  list.innerHTML = '';
-  for (let i = 1; i <= NUM_CHOICES; i++) {
-    const label = document.createElement('label');
-    label.style.display = 'block';
-    label.innerHTML = `<input type="radio" name="choice" value="${i}"> option ${i}`;
-    list.append(label);
+  render({
+    id: 'mark', fig: '9', title: 'Mark the ballot',
+    where: 'this device',
+    why: 'One ballot carries exactly one selection. A value outside the list ' +
+         'authenticates like any other and is recorded as invalid rather than ' +
+         'rejected; no authority approves what it means.',
+  });
+  const list = document.createElement('div');
+  for (let i = 1; i <= CONFIG.num_choices; i++) {
+    list.innerHTML += `<label><input type="radio" name="choice" value="${i}"> option ${i}</label>`;
   }
-  const protestLabel = document.createElement('label');
-  protestLabel.style.display = 'block';
-  protestLabel.style.marginTop = '.4rem';
-  protestLabel.innerHTML =
-    '<input type="radio" name="choice" value="protest"> something else — ' +
-    '<input type="number" id="protest" style="width:7rem" value="-1" disabled>';
-  list.append(protestLabel);
-
-  const protest = () => document.getElementById('protest') as HTMLInputElement;
-  const cast = document.getElementById('cast') as HTMLButtonElement;
-
+  list.innerHTML += '<label style="margin-top:.4rem"><input type="radio" name="choice" ' +
+    'value="protest"> something else — <input type="number" id="protest" ' +
+    'style="width:7rem" value="-1" disabled></label>';
+  body('mark').append(list);
+  const sign = document.createElement('button');
+  sign.textContent = 'Sign the ballot';
+  sign.disabled = true;
+  sign.style.marginTop = '.6rem';
+  body('mark').append(sign);
   list.onchange = () => {
     const picked = document.querySelector<HTMLInputElement>('input[name=choice]:checked');
-    protest().disabled = picked?.value !== 'protest';
-    if (!protest().disabled) protest().focus();
-    cast.disabled = !picked;
+    (document.getElementById('protest') as HTMLInputElement).disabled =
+      picked?.value !== 'protest';
+    sign.disabled = !picked;
   };
-
-  document.getElementById('ballot-section')!.hidden = false;
-  cast.disabled = true;
-
-  cast.onclick = async () => {
+  sign.onclick = async () => {
+    sign.disabled = true;
     const picked = document.querySelector<HTMLInputElement>('input[name=choice]:checked')!;
-    const selection = picked.value === 'protest'
-      ? Number(protest().value) : Number(picked.value);
-    if (!Number.isInteger(selection)) {
-      show('status', 'A protest code must be a whole number.');
-      return;
-    }
-
-    cast.disabled = true;
-    const canonical = JSON.stringify({
-      adhoc_public_key: b64url(ADHOC_PUBLIC),
-      selection,
-    });
-    const payload = new Uint8Array(
-      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical)));
-    const voteSignature = new Uint8Array(
-      await crypto.subtle.sign({ name: 'Ed25519' }, ADHOC.privateKey, payload));
-
-    let receipt;
-    try {
-      receipt = await (await fetch(`${EBB_ORIGIN}/ballots`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          selection,
-          adhoc_public_key: b64url(ADHOC_PUBLIC),
-          token: b64url(token),
-          vote_signature: b64url(voteSignature),
-        }),
-      })).json();
-    } catch (err) {
-      show('status', `Could not reach the ballot box: ${err}`);
-      cast.disabled = false;
-      return;
-    }
-
-    document.getElementById('receipt-section')!.hidden = false;
-    show('accepted', String(receipt.accepted), receipt.accepted ? 'ok' : 'warn');
-    show('position', String(receipt.index));
-    show('head', receipt.ledger_head);
-
-    // D3, from the same device here. The check is only meaningful from one
-    // the voting application does not control -- that is the checker origin,
-    // and this is a convenience rather than the audit.
-    const record = await (await fetch(
-      `${EBB_ORIGIN}/ballots/${b64url(ADHOC_PUBLIC)}`)).json();
-    const matches = record.selection === selection;
-    show('recorded', `${record.selection}${matches ? ' — matches what you chose' : ' — DOES NOT MATCH'}`,
-         matches ? 'ok' : 'warn');
-    show('status', receipt.accepted
-      ? 'Ballot accepted. You may cast again; the last accepted ballot counts.'
-      : `Rejected: ${receipt.reason}`);
-    cast.disabled = false;
+    complete('mark');
+    await doSign(picked.value === 'protest'
+      ? Number((document.getElementById('protest') as HTMLInputElement).value)
+      : Number(picked.value));
   };
+  enable('mark');
+  status('Token obtained and verified. The office cannot link it to the request it signed.');
 }
+
+async function doSign(selection: number) {
+  const canonical = JSON.stringify({
+    adhoc_public_key: b64url(ADHOC_PUBLIC), selection });
+  const digest = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical)));
+  const voteSignature = new Uint8Array(
+    await crypto.subtle.sign({ name: 'Ed25519' }, ADHOC.privateKey, digest));
+  const ballot = {
+    selection,
+    adhoc_public_key: b64url(ADHOC_PUBLIC),
+    token: b64url(TOKEN),
+    vote_signature: b64url(voteSignature),
+  };
+
+  render({
+    id: 'cast', fig: '9 → 10/1', title: 'Cast the ballot',
+    where: 'this device → the ballot box',
+    why: 'The signature covers the canonical form of the selection and the ' +
+         'ad-hoc key, so altering either in transit invalidates it. The box ' +
+         'checks the token under the published key, and the selection under ' +
+         'the key that token certifies.',
+    action: { label: 'Send to the ballot box', run: () => doCast(ballot) },
+  });
+  payload('cast', 'the ballot, exactly as it will be sent', ballot, 'ballot.json');
+  payload('cast', 'the bytes the ballot signature covers', canonical);
+  enable('cast');
+  status('Ballot signed. Nothing has been sent yet.');
+}
+
+async function doCast(ballot: object) {
+  const receipt = await (await fetch(`${EBB_ORIGIN}/ballots`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(ballot),
+  })).json();
+  complete('cast');
+
+  render({
+    id: 'receipt', fig: '11/A', title: 'Receipt',
+    where: 'the ballot box → this device',
+    why: 'The position in the registry and the head of the hash chain at the ' +
+         'moment of acceptance. With these a voter can later show that the ' +
+         'entry has not been removed, reordered or altered — demonstrable ' +
+         'rather than merely alleged.',
+  });
+  payload('receipt', 'keep this: it is the evidence', receipt, 'receipt.json');
+  complete('receipt');
+  status(receipt.accepted
+    ? 'Ballot accepted. You may cast again; the last accepted ballot counts.'
+    : `Rejected: ${receipt.reason}`, receipt.accepted ? 'ok' : 'warn');
+}
+
+main().catch((err) => status(`Failed: ${err}`, 'warn'));
