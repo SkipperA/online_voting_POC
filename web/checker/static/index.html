@@ -19,6 +19,8 @@
 <h1>Independent checker</h1>
 <p class="sub">The checks of §3.7, from an origin neither the voting
 application nor the wallet controls.</p>
+<p style="margin:-.8rem 0 1.3rem"><button id="refresh">Re-read the published
+artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span></p>
 
 <div class="note">
   <b>Independence is a property, not an address</b>
@@ -70,6 +72,11 @@ application nor the wallet controls.</p>
   <input type="file" id="query" accept="application/json">
   <div class="row" style="margin-top:.7rem"><span class="label">answer</span><span class="value" id="d1">—</span></div>
   <div class="row"><span class="label">evidence</span><span class="value" id="d1-evidence">—</span></div>
+  <div class="row"><span class="label">asked at</span><span class="value" id="d1-asof">—</span></div>
+  <p style="color:#666;font-size:13.5px;margin:.6rem 0 0">An answer is true of
+  the moment it was asked and of no other. A token released after you asked
+  will not appear above until you ask again.</p>
+  <button id="d1-again" disabled style="margin-top:.5rem">Ask again</button>
 </section>
 
 <p id="status">Loading…</p>

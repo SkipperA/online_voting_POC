@@ -17,6 +17,12 @@
   .ok { color: #15803d; } .warn { color: #b91c1c; font-weight: 600; }
   button { font: inherit; padding: .45rem .9rem; }
   button:disabled { opacity: .45; }
+  pre{font-family:ui-monospace,monospace;font-size:12.5px;background:#8881;border-radius:4px;
+      padding:.55rem .7rem;margin:.3rem 0;white-space:pre-wrap;word-break:break-all}
+  .secret{background:#b91c1c14;border:1px solid #b91c1c55;border-radius:4px;padding:.5rem .7rem;margin:.6rem 0}
+  .secret h4{margin:0 0 .35rem;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;color:#b91c1c}
+  .secret pre{background:transparent;padding:0;color:#b91c1c}
+  .secret p{margin:.4rem 0 0;font-size:12.5px;color:#b91c1c}
   #status { margin-top: 1.2rem; font-weight: 600; }
   .note { background: #f59e0b18; border-left: 3px solid #f59e0b; padding: .7rem .9rem;
           margin: 0 0 1.2rem; font-size: 13.5px; }
@@ -25,7 +31,7 @@
 </style>
 </head>
 <body data-config-origin="">
-<h1>Digital Identity Wallet</h1>
+<h1 id="title">Digital Identity Wallet</h1>
 <p class="sub">Holds <code>id</code> and the signature key. Signs the request and
 transmits it to the Registration Office itself.</p>
 
@@ -39,7 +45,18 @@ transmits it to the Registration Office itself.</p>
 </div>
 
 <section>
-  <h2>1 · The request</h2>
+  <h2>1 · Whose wallet is this</h2>
+  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
+    A wallet belongs to one citizen. Choose first: everything after this is
+    done on their behalf, and the page says whose it is from then on. A real
+    wallet has no such control — it has an owner.
+  </p>
+  <select id="persona"><option value="">—</option></select>
+  <div id="keys"></div>
+</section>
+
+<section>
+  <h2>2 · The blinded key to be signed</h2>
   <input type="file" id="file" accept="application/json">
   <div class="row" style="margin-top:.7rem"><span class="label">election</span><span class="value" id="election">—</span></div>
   <div class="row"><span class="label">configuration</span><span class="value" id="digest">—</span></div>
@@ -47,24 +64,17 @@ transmits it to the Registration Office itself.</p>
 </section>
 
 <section>
-  <h2>2 · Who signs</h2>
-  <select id="persona"><option value="">—</option></select>
-  <p style="margin:.6rem 0 0;color:#666;font-size:13px">
-    A real wallet has one owner and no such control. Choosing here is the
-    substitution, not the boundary.
-  </p>
-</section>
-
-<section>
-  <h2>3 · Consent</h2>
+  <h2>3 · Consent, sign and transmit</h2>
   <p style="margin:0 0 .7rem;color:#666;font-size:13.5px">
     The wallet signs <code>hash([id, c])</code> and posts <code>[id, c, s]</code>
-    to the office from this origin. Nothing returns to the voting application:
+    to the office from this origin, where <code>s</code> is the wallet's
+    signature. Nothing returns to the voting application:
     it collects the office's reply itself, by presenting the <code>c</code> it
     generated.
   </p>
   <button id="sign" disabled>Sign and transmit</button>
   <div class="row" style="margin-top:.7rem"><span class="label">outcome</span><span class="value" id="outcome">—</span></div>
+  <div id="sent"></div>
 </section>
 
 <section>

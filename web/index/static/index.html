@@ -32,15 +32,24 @@ process — for now.</p>
 </div>
 
 <h2>This election</h2>
+<p style="margin:0 0 .4rem;font-size:13.5px">Hash of the VRO's token signing
+key (<code>k<sub>p</sub><sup>(R)</sup></code>):</p>
 <div class="fp" id="fingerprint">…</div>
 <table style="margin-top:.6rem"><tbody>
 <tr><td style="width:13rem">identifier</td><td class="mono" id="election">…</td></tr>
 <tr><td>choices</td><td class="mono" id="choices">…</td></tr>
 <tr><td>configuration digest</td><td class="mono" id="digest">…</td></tr>
-<tr><td>statement key <code>k_p^(O)</code></td><td class="mono" id="statement">…</td></tr>
+<tr><td>VRO's statement key <code>k<sub>p</sub><sup>(O)</sup></code></td><td class="mono" id="statement">…</td></tr>
 </tbody></table>
+<p style="color:#666;font-size:13.5px">The configuration digest is SHA-256
+over the exact bytes served at <code>election.json</code> — the file as
+written, including its indentation and trailing newline, not over a canonical
+form or a subset. Download the file and run
+<code>shasum -a 256 election.json</code> and you get the value above: it
+covers what you actually received.</p>
 <p style="color:#666;font-size:13.5px">The fingerprint is of
-<code>k_p^(R)</code>, the key every token must verify under. The setup console
+<code>k<sub>p</sub><sup>(R)</sup></code>, the key every token must verify
+under. The setup console
 shows the same value. Two surfaces, two glances: the voting application must
 not learn which key to trust from the office whose signatures it checks.</p>
 

@@ -13,6 +13,7 @@ decoder rather than two.
 from __future__ import annotations
 
 import httpx
+from cryptography.hazmat.primitives import serialization
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
@@ -101,9 +102,54 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
                     "wallet_signature": b64(request.wallet_signature),
                 },
             )
-        # The outcome, and nothing that names anyone. The application learns
-        # only whether to start collecting the reply.
-        return {"outcome": reply.json()["outcome"]}
+        # The outcome, and nothing that names anyone, is all the *application*
+        # may be told. This is the wallet's own page asking, from the wallet's
+        # own origin, so it may also see what the wallet built and sent --
+        # which is the point of a demonstration.
+        return {
+            "outcome": reply.json()["outcome"],
+            "transmitted": {
+                "_transport": (
+                    "sent by the wallet to the office over HTTP, from this "
+                    "origin to that one. It does not pass through the voting "
+                    "application: §5.3 -- one component holding both id and "
+                    "k_p^a would keep the association the blind signature "
+                    "exists to sever, with the office's signature as proof."
+                ),
+                "voter_id": request.voter_id,
+                "blinded_key": b64(request.blinded_key),
+                "wallet_signature": b64(request.wallet_signature),
+            },
+            "signed_bytes": request.signed_payload().hex(),
+        }
+
+    @app.get("/keys")
+    async def wallet_keys() -> dict:
+        """The persona's key pair, for the demonstration.
+
+        A real wallet exposes no such endpoint. Under eIDAS the signature key
+        is hardware-bound by regulation: it cannot be read by the wallet
+        application itself, let alone returned over HTTP. It is shown here
+        because a demonstration in which the keys are invisible teaches
+        nothing about what the keys do.
+        """
+        voter_id = _active()
+        pair = deployment.wallets[voter_id]
+        return {
+            "_never_exposed_in_a_deployment": (
+                "k_s^(v) is hardware-bound under eIDAS. No interface, file or "
+                "log may contain it. This endpoint exists for the demo only."
+            ),
+            "voter_id": voter_id,
+            "k_p^(v)": b64(pair.public_bytes),
+            "k_s^(v)": b64(
+                pair.private.private_bytes(
+                    serialization.Encoding.Raw,
+                    serialization.PrivateFormat.Raw,
+                    serialization.NoEncryption(),
+                )
+            ),
+        }
 
     @app.get("/personas")
     async def personas() -> dict:

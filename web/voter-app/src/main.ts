@@ -148,57 +148,74 @@ async function main() {
     choices: `1..${CONFIG.num_choices}`,
     config_digest: DIGEST,
     'k_p^(R) fingerprint': fingerprint,
-    agrees_with_published: fingerprint === CONFIG.vro_token_key_fingerprint,
+    'agrees_with_published_by_VRO': fingerprint === CONFIG.vro_token_key_fingerprint,
   });
   complete('config');
 
   render({
-    id: 'blind', fig: '1/A · 1/B · 2', title: 'Generate the ad-hoc key, and blind it',
+    id: 'keygen', fig: '1/A', title: 'Generate the ad-hoc key pair',
     where: 'this device',
-    why: 'A one-time key pair for this election, and a random blinding ' +
-         'factor. Blinding multiplies the padded encoding of the public key ' +
-         'by r^e, so the office signs a value it cannot recognise — which is ' +
-         'what makes the token unlinkable to the request that produced it.',
-    action: { label: 'Generate and blind', run: doBlind },
+    why: 'One key pair, for this election only. Its public half is what the ' +
+         'office will certify; its private half signs the ballot and nothing ' +
+         'else, and is discarded when the election ends.',
+    action: { label: 'Generate k_s^a, k_p^a', run: doKeygen },
   });
-  enable('blind');
+  enable('keygen');
   status('Ready. Each step waits for you.');
 }
 
-async function doBlind() {
+async function doKeygen() {
   ADHOC = await crypto.subtle.generateKey(
     { name: 'Ed25519' }, true, ['sign', 'verify']) as CryptoKeyPair;
   ADHOC_PUBLIC = new Uint8Array(await crypto.subtle.exportKey('raw', ADHOC.publicKey));
   const jwk = await crypto.subtle.exportKey('jwk', ADHOC.privateKey);
 
+  payload('keygen', 'k_p^a — the ad-hoc public key. This is the message the ' +
+          'office will sign, without being able to see it.', b64url(ADHOC_PUBLIC));
+  secrets('keygen', [['k_s^a', String(jwk.d)]]);
+  complete('keygen');
+
+  render({
+    id: 'blind', fig: '1/B · 2', title: 'Draw a blinding factor, and blind the key',
+    where: 'this device',
+    why: 'Blinding multiplies the padded encoding of k_p^a by r^e, so the ' +
+         'office applies its private key to a value it cannot recognise. ' +
+         'That is what makes the token unlinkable to the request that ' +
+         'produced it — and the unlinkability is unconditional, not a ' +
+         'promise by the office.',
+    action: { label: 'Blind k_p^a', run: doBlind },
+  });
+  enable('blind');
+  status('Key pair generated. Nothing has left this device.');
+}
+
+async function doBlind() {
   const blind = await suite.blind(TOKEN_KEY, suite.prepare(ADHOC_PUBLIC));
   BLINDED = blind.blindedMsg;
   INV = blind.inv;
 
-  payload('blind', 'k_p^a — the ad-hoc public key, and the message the office will sign',
-          b64url(ADHOC_PUBLIC));
-  secrets('blind', [
-    ['k_s^a', String(jwk.d)],
-    ['r⁻¹  ', b64url(INV)],
-  ]);
+  secrets('blind', [['r⁻¹', b64url(INV)]]);
   payload('blind', 'c — the blinded value. Discloses nothing: without r⁻¹ it is ' +
           'a uniform number in [0, n_R).', b64url(BLINDED));
   complete('blind');
 
   render({
-    id: 'handover', fig: '→ 3', title: 'Hand the blinded value to the wallet',
+    id: 'handover', fig: '→ 3', title: 'Hand the blinded key to the wallet',
     where: 'this device → the wallet',
     why: 'The only file in the sequence, and a file for a reason: on a real ' +
          'device this is an app-to-app invocation between two applications on ' +
-         'the same phone. Nothing identifying is in it, and c is not a secret.',
+         'the same phone. Nothing that identifies the voter is in it, and c is ' +
+         'not a secret.',
   });
-  payload('handover', 'token-request.json', {
+  payload('handover', 'blinded-key.json — NOT the token request. The token ' +
+          'request is the package [id, c, s] that the wallet builds: it adds ' +
+          'the identifier and its signature. This file carries only c.', {
     _transport: 'app-to-app invocation on a real device; a file here only ' +
                 'because a browser page cannot invoke the wallet application',
     election_id: CONFIG.election_id,
     config_digest: DIGEST,
     blinded_key: b64url(BLINDED),
-  }, 'token-request.json');
+  }, 'blinded-key.json');
   complete('handover');
 
   render({

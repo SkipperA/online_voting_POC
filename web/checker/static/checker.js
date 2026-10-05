@@ -4,7 +4,10 @@ const EBB = document.body.dataset.ebbOrigin;
 const $ = (id) => document.getElementById(id);
 const show = (id, text, cls) => { const e = $(id); e.textContent = text; e.className = `value ${cls || ''}`; };
 
+const stamp = () => new Date().toLocaleTimeString();
+
 async function refresh() {
+  $('asof').textContent = 'reading…';
   const log = await (await fetch(`${VRO}/release-log`)).json();
   show('released', String(log.count));
   show('vro-head', log.head);
@@ -30,6 +33,7 @@ async function refresh() {
     for (const id of ['announced', 'recomputed', 'agree']) {
       show(id, 'not until the poll closes', 'muted');
     }
+    $('asof').textContent = `as of ${stamp()}`;
     show('status', 'Voting is open. Contents are withheld; the chain is not.');
     return;
   }
@@ -54,16 +58,33 @@ async function refresh() {
   show('recomputed', JSON.stringify(mine) + ' protest ' + JSON.stringify(protest));
   show('agree', same ? 'the box announced what the records say'
                      : 'DISAGREEMENT — the announced result does not follow', same ? 'ok' : 'warn');
+  $('asof').textContent = `as of ${stamp()}`;
   show('status', 'Poll closed. Everything above was recomputed from published records.');
 }
+
+let CREDENTIALS = null;
+
+$('refresh').onclick = () => refresh();
+$('d1-again').onclick = () => CREDENTIALS && ask(CREDENTIALS);
 
 $('query').onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  let credentials;
-  try { credentials = JSON.parse(await file.text()); }
+  try { CREDENTIALS = JSON.parse(await file.text()); }
   catch { show('d1', 'That file is not a release query.', 'warn'); return; }
+  $('d1-again').disabled = false;
+  await ask(CREDENTIALS);
+};
 
+/**
+ * D1, asked now.
+ *
+ * The answer describes the register at the instant of asking and at no
+ * other. A negative answer left on screen after a token has been released
+ * is not merely stale: it displays, as current, the very claim the check
+ * exists to make. Hence the timestamp and the Ask again control.
+ */
+async function ask(credentials) {
   const answer = await (await fetch(`${VRO}/release-queries`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify(credentials),
@@ -86,6 +107,8 @@ $('query').onchange = async (e) => {
       : 'unsigned: the office said nothing you could rely on later',
       answer.signed_denial ? '' : 'warn');
   }
-};
+  $('d1-asof').textContent = stamp();
+  await refresh();
+}
 
 refresh().catch((err) => show('status', `Could not read the published artefacts: ${err}`));

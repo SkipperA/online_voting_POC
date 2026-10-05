@@ -381,3 +381,53 @@ def test_the_wallet_can_produce_the_release_query_as_a_file(live):
     answer = live.http.post(f"{live.vro}/release-queries", json=credentials).json()
     assert answer["outcome"] == "NOT_RELEASED"
     assert answer["signed_denial"], "an absence cannot be exhibited, so it is signed"
+
+
+def test_the_wallet_shows_its_key_pair_and_what_it_transmitted(live, token_key):
+    """A demonstration in which the keys are invisible teaches nothing.
+
+    Both responses are marked as impossible in a deployment: under eIDAS
+    `k_s^(v)` is hardware-bound and cannot be read by the wallet application
+    itself, let alone returned over HTTP.
+    """
+    voter_id = "HU-SHOW-001"
+    live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
+    live.http.post(f"{live.wallet}/session", json={"voter_id": voter_id})
+
+    keys_shown = live.http.get(f"{live.wallet}/keys").json()
+    assert keys_shown["k_s^(v)"] and keys_shown["k_p^(v)"]
+    assert "hardware-bound" in keys_shown["_never_exposed_in_a_deployment"]
+
+    blinded, _ = rsabssa.blind(token_key, keys.SigningKeyPair.generate().public_bytes)
+    result = live.http.post(
+        f"{live.wallet}/requests", json={"blinded_key": b64(blinded)}).json()
+
+    assert result["outcome"] == "ISSUED"
+    # The wallet's own page may see what the wallet sent; the voting
+    # application may not, and reaches a different origin to ask.
+    assert set(result["transmitted"]) == {
+        "_transport", "voter_id", "blinded_key", "wallet_signature"}
+    assert "§5.3" in result["transmitted"]["_transport"]
+    assert len(result["signed_bytes"]) == 64, "hash([id, c]) as hex"
+
+
+def test_the_voter_app_still_cannot_reach_what_the_wallet_shows(live):
+    """The wallet's pages are same-origin; 8001 is granted nothing."""
+    assert "access-control-allow-origin" not in {
+        k.lower() for k in live.http.get(f"{live.wallet}/keys").headers}
+
+
+def test_the_checker_can_re_read_and_timestamps_its_answers(live):
+    """A D1 answer describes the register at the instant it was asked.
+
+    Left on screen after a token has been released, a negative answer does
+    not merely go stale: it displays, as current, the very claim the check
+    exists to make. The page carries a re-read control and stamps both the
+    published view and the D1 answer with the time they were obtained.
+    """
+    page = live.http.get(f"{live.url(8005)}/").text
+    assert 'id="refresh"' in page and 'id="asof"' in page
+    assert 'id="d1-again"' in page and 'id="d1-asof"' in page
+
+    script = live.http.get(f"{live.url(8005)}/checker.js").text
+    assert "d1-again" in script and "toLocaleTimeString" in script

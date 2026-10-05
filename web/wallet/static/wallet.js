@@ -82,22 +82,63 @@ $('file').onchange = async (event) => {
 
 $('persona').onchange = ready;
 
-$('sign').onclick = async () => {
-  $('sign').disabled = true;
-  show('status', 'Signing and transmitting…');
+function dump(target, caption, value, filename) {
+  const el = $(target);
+  const pre = document.createElement('pre');
+  pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  const cap = document.createElement('div');
+  cap.style.cssText = 'font-size:12px;color:#777;margin-top:.5rem';
+  cap.textContent = caption;
+  el.append(cap, pre);
+  if (filename) {
+    const b = document.createElement('button');
+    b.textContent = `Save ${filename}`;
+    b.onclick = () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([pre.textContent],
+                                            { type: 'application/json' }));
+      a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+    };
+    el.append(b);
+  }
+}
+
+$('persona').onchange = async () => {
+  ready();
+  $('keys').innerHTML = '';
+  if (!$('persona').value) return;
   await fetch('/session', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ voter_id: $('persona').value }),
   });
+  document.getElementById('title').textContent =
+    `Digital Identity Wallet — ${$('persona').value}`;
+  const keys = await (await fetch('/keys')).json();
+  const box = document.createElement('div');
+  box.className = 'secret';
+  box.innerHTML = '<h4>never exists outside hardware in a deployment</h4>' +
+    `<pre>k_p^(v) = ${keys['k_p^(v)']}</pre>` +
+    `<pre>k_s^(v) = ${keys['k_s^(v)']}</pre>` +
+    `<p>${keys._never_exposed_in_a_deployment}</p>`;
+  $('keys').append(box);
+};
+
+$('sign').onclick = async () => {
+  $('sign').disabled = true;
+  show('status', 'Signing and transmitting…');
   const response = await fetch('/requests', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ blinded_key: request.blinded_key }),
   });
-  const outcome = (await response.json()).outcome;
-  show('outcome', outcome, outcome === 'ISSUED' ? 'ok' : 'warn');
-  show('status', outcome === 'ISSUED'
-    ? 'Transmitted. Return to the voting application — it is collecting the reply.'
-    : `The office refused: ${outcome}.`);
+  const result = await response.json();
+  show('outcome', result.outcome, result.outcome === 'ISSUED' ? 'ok' : 'warn');
+  $('sent').innerHTML = '';
+  dump('sent', 'hash([id, c]) — exactly the bytes signed', result.signed_bytes);
+  dump('sent', '[id, c, s] — transmitted by the wallet to the office',
+       result.transmitted, 'auth-request.json');
+  show('status', result.outcome === 'ISSUED'
+    ? 'Transmitted. Return to the voting application — it collects the reply itself.'
+    : `The office refused: ${result.outcome}.`);
 };
 
 $('query-persona').onchange = () => {
