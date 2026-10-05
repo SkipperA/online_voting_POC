@@ -431,3 +431,38 @@ def test_the_checker_can_re_read_and_timestamps_its_answers(live):
 
     script = live.http.get(f"{live.url(8005)}/checker.js").text
     assert "d1-again" in script and "toLocaleTimeString" in script
+
+
+def test_the_office_console_shows_recorded_beside_disclosed(live, token_key):
+    """§3.2 is the gap between the two columns, so both must be visible.
+
+    The office records which of the two pre-identification failures actually
+    occurred and discloses neither. A console that showed only the disclosed
+    outcome would hide the mechanism; one that showed only the recorded
+    reason would imply the office tells the requester.
+    """
+    live.http.post(f"{live.setup}/voters", json={"voter_id": "HU-AUDIT-001"})
+    forged = keys.SigningKeyPair.generate()
+    blinded, _ = rsabssa.blind(token_key, keys.SigningKeyPair.generate().public_bytes)
+    live.http.post(f"{live.vro}/token-requests", json={
+        "voter_id": "HU-AUDIT-001", "blinded_key": b64(blinded),
+        "wallet_signature": b64(forged.sign(b"nope"))})
+
+    audit = live.http.get(f"{live.vro}/back-office/audit").json()
+    entry = next(e for e in audit["entries"] if e["voter_id"] == "HU-AUDIT-001")
+    assert entry["disclosed"] == "NOT_IDENTIFIED"
+    assert entry["reason_withheld"] is True
+    assert entry["recorded"] != entry["disclosed"], (
+        "the recorded reason must be more specific than the one disclosed")
+    assert "coercer" in audit["_never_exposed_in_a_deployment"]
+
+
+def test_the_office_console_names_what_each_key_is_for(live):
+    body = live.http.get(f"{live.vro}/back-office/keys").json()
+    assert "oracle" in body["_never_exposed_in_a_deployment"] or body["k_p^(R)"]
+    assert "never a token" in body["k_p^(O) purpose"]
+    assert "§3.3" in body["k_p^(R) purpose"]
+
+    page = live.http.get(f"{live.vro}/").text
+    assert "No deployment exposes this" in page
+    assert live.http.get(f"{live.vro}/office.js").status_code == 200

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Voter Registration Office — back office</title>
+<style>
+ :root{color-scheme:light dark;--dim:#777}
+ body{font:15px/1.6 ui-sans-serif,system-ui,sans-serif;margin:0 auto;max-width:56rem;padding:2rem 1.25rem 4rem}
+ h1{font-size:1.35rem;margin:0 0 .2rem} .sub{color:var(--dim);margin:0 0 1.3rem}
+ section{border:1px solid #8884;border-radius:6px;padding:.9rem 1.1rem;margin:0 0 1rem}
+ h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 .7rem}
+ table{border-collapse:collapse;width:100%;font-size:13.5px}
+ td,th{text-align:left;padding:.35rem .55rem;border-bottom:1px solid #8883;vertical-align:top}
+ th{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+ .mono{font-family:ui-monospace,monospace;font-size:12.5px;word-break:break-all}
+ pre{font-family:ui-monospace,monospace;font-size:12.5px;background:#8881;border-radius:4px;
+     padding:.55rem .7rem;margin:.3rem 0;white-space:pre-wrap;word-break:break-all}
+ .secret{background:#b91c1c14;border:1px solid #b91c1c55;border-radius:4px;padding:.55rem .75rem;margin:.5rem 0}
+ .secret h4{margin:0 0 .3rem;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;color:#b91c1c}
+ .secret p{margin:.3rem 0 0;font-size:12.5px;color:#b91c1c}
+ .held{color:#b45309;font-weight:600} .same{color:#15803d}
+ button{font:inherit;padding:.4rem .85rem}
+ .note{background:#f59e0b18;border-left:3px solid #f59e0b;padding:.75rem .95rem;margin:0 0 1.2rem;font-size:13.5px}
+ .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b45309;margin-bottom:.3rem}
+</style></head>
+<body>
+<h1>Voter Registration Office — back office</h1>
+<p class="sub">The office looking at itself. Everything below is recorded by the
+office in the ordinary course; none of it is disclosed to anyone.</p>
+
+<div class="note">
+  <b>No deployment exposes this</b>
+  The office's log names who asked for a token and when. That is a
+  participation list — the object §3.7 spends a page keeping out of anyone
+  else's hands, because the <em>absence</em> of an entry is conclusive
+  evidence that a citizen did not vote, which is exactly what an enforcer of
+  a boycott needs. It is on screen here so the difference between what the
+  office knows and what it says can be seen at once, and nowhere else.
+</div>
+
+<section>
+  <h2>Two key pairs, and why there are two</h2>
+  <div id="keys">…</div>
+</section>
+
+<section>
+  <h2>Recorded, and disclosed</h2>
+  <p style="margin:0 0 .6rem;color:var(--dim);font-size:13.5px">
+    §3.2: the two failures that arise <em>before</em> the office knows who it
+    is speaking to must be reported identically. Otherwise anyone able to
+    spell an identifier could submit an unsigned request and learn from the
+    answer whether that citizen holds a certificate and sits on the register
+    — the token endpoint would become a register lookup service, which
+    nothing in the design intends and to which no citizen consented.
+    Rows where the two columns differ are the boundary doing its work.
+  </p>
+  <table><thead><tr><th>identifier</th><th>recorded by the office</th>
+  <th>disclosed to the requester</th></tr></thead><tbody id="audit"></tbody></table>
+</section>
+
+<section>
+  <h2>Token-release register</h2>
+  <p style="margin:0 0 .6rem;color:var(--dim);font-size:13.5px">
+    Published as tokens are released, as commitments rather than identifiers.
+    The count lets anyone check that accepted ballots do not outnumber the
+    tokens issued; the commitments let one voter, and only that voter,
+    establish whether a token was released in their name. A plaintext
+    register would have to surrender one of those.
+  </p>
+  <div class="mono" id="register">…</div>
+</section>
+
+<p><button id="refresh">Re-read</button> <span id="asof" style="color:#888;font-size:13px">—</span></p>
+<script src="office.js" defer></script>
+</body></html>

@@ -293,6 +293,70 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             out["signed_denial"] = b64(answer.signed_denial)
         return out
 
+    @app.get("/back-office/keys")
+    async def office_keys() -> dict:
+        """The office's two key pairs, for the demonstration.
+
+        No deployment exposes this. `k_s^(R)` is the blind-signing key and is
+        an oracle by construction — anything that could read it could mint
+        tokens at will. It is shown because a demonstration in which the keys
+        are invisible teaches nothing about why there are two of them.
+        """
+        return {
+            "_never_exposed_in_a_deployment":
+                "k_s^(R) and k_s^(O) exist only inside the signing operations.",
+            "k_p^(R)": b64(
+                vro.public_key.public_bytes(
+                    serialization.Encoding.DER,
+                    serialization.PublicFormat.SubjectPublicKeyInfo)),
+            "k_p^(R) fingerprint": rsabssa.public_key_fingerprint(vro.public_key),
+            "k_p^(R) purpose": (
+                "signs tokens, and nothing else, for this election only. One "
+                "key for every voter: a per-voter key would let the office "
+                "re-link a ballot to the citizen who asked (§3.3)."
+            ),
+            "k_p^(O)": b64(vro.office_public_key),
+            "k_p^(O) purpose": (
+                "signs the office's statements — the denial of §3.7 — and "
+                "never a token. A statement signed under the token key could "
+                "be manufactured by any registered voter through an ordinary "
+                "request, so it would be worthless as evidence."
+            ),
+        }
+
+    @app.get("/back-office/audit")
+    async def office_audit() -> dict:
+        """What the office recorded, beside what it disclosed.
+
+        §3.2 is entirely about the gap between these two columns. The office
+        records the true reason for every refusal; it returns one
+        indistinguishable answer for the two failures that arise before it
+        knows who it is speaking to, because otherwise anyone able to spell
+        an identifier could learn from the answer whether that citizen holds
+        a certificate and appears on the register.
+
+        A console may show both, because it is the office looking at itself.
+        No deployment exposes this over HTTP, and the office's own log is a
+        participation list — which is the thing §3.7 spends a page keeping
+        out of anyone else's hands.
+        """
+        return {
+            "_never_exposed_in_a_deployment": (
+                "This is the office's private log. It names who asked and "
+                "when, which is precisely what a coercer demanding "
+                "participation needs."
+            ),
+            "entries": [
+                {
+                    "voter_id": entry.voter_id,
+                    "recorded": entry.reason,
+                    "disclosed": entry.outcome.name,
+                    "reason_withheld": entry.outcome.name == "NOT_IDENTIFIED",
+                }
+                for entry in vro.audit_log
+            ],
+        }
+
     @app.get("/release-log")
     async def release_log() -> dict:
         """The published register: commitments, and nothing about whose.
