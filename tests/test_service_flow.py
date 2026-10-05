@@ -478,3 +478,22 @@ def test_the_file_pickers_accept_by_extension_as_well_as_mime_type(live):
     for url in (f"{live.wallet}/", f"{live.url(8005)}/"):
         page = live.http.get(url).text
         assert 'accept=".json' in page, url
+
+
+def test_the_wallet_has_exactly_one_persona_control(live):
+    """A wallet belongs to one citizen; two selectors meant one session.
+
+    The release-query step used to offer its own dropdown, and choosing a
+    name there re-opened the session — so the next token request was signed
+    under that identifier instead of the one the wallet was opened as. One
+    control, chosen first, and every later step acts for that person.
+    """
+    page = live.http.get(f"{live.wallet}/").text
+    assert page.count("<select") == 1, "only the step-1 persona selector may exist"
+    assert 'id="query-whose"' in page, "the query step must name whose wallet it is"
+
+    script = live.http.get(f"{live.wallet}/wallet.js").text
+    assert "query-persona" not in script
+    # The release query must not re-open the session.
+    after = script[script.index("save-query').onclick"):]
+    assert "'/session'" not in after[:400]

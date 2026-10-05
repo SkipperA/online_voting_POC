@@ -31,14 +31,13 @@ async function loadConfig() {
 
 async function loadPersonas() {
   const personas = (await (await fetch('/personas')).json()).personas;
-  for (const select of [$('persona'), $('query-persona')]) {
-    select.innerHTML = '<option value="">—</option>';
-    for (const id of personas) {
-      const option = document.createElement('option');
-      option.value = id;
-      option.textContent = id;
-      select.append(option);
-    }
+  const select = $('persona');
+  select.innerHTML = '<option value="">—</option>';
+  for (const id of personas) {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = id;
+    select.append(option);
   }
 }
 
@@ -113,6 +112,8 @@ $('persona').onchange = async () => {
   });
   document.getElementById('title').textContent =
     `Digital Identity Wallet — ${$('persona').value}`;
+  $('query-whose').textContent = $('persona').value;
+  $('save-query').disabled = false;
   const keys = await (await fetch('/keys')).json();
   const box = document.createElement('div');
   box.className = 'secret';
@@ -141,15 +142,11 @@ $('sign').onclick = async () => {
     : `The office refused: ${result.outcome}.`);
 };
 
-$('query-persona').onchange = () => {
-  $('save-query').disabled = !$('query-persona').value;
-};
-
+// No persona selector here. A wallet belongs to one citizen, chosen in step
+// 1, and this query is made on their behalf. A second selector would also
+// re-open the session, so choosing a name here would silently reassign the
+// whole wallet -- and the next token request would carry that identifier.
 $('save-query').onclick = async () => {
-  await fetch('/session', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ voter_id: $('query-persona').value }),
-  });
   const credentials = await (await fetch('/release-query-credentials', {
     method: 'POST' })).json();
   const blob = new Blob([JSON.stringify(credentials, null, 2)],
