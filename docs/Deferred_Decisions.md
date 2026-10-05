@@ -96,7 +96,54 @@ elided:
 - A party observer in a polling station watches a process they understand. Here
   they hold 32 bytes. Comparing is trivial; knowing what was attested is not.
 
-### 1.4 Whether party supervision resolves A5 and E1 jointly
+### 1.5 Token release is not atomic — §5.4
+
+§5.4 establishes the order: record the release, then return `s_c`. The
+argument is about interruption, and it is right — recording first fails in
+the harmless direction, since a logged release that never completed appears
+only as a token nobody used. But it reasons about one request in isolation,
+and the silence about concurrent ones is the kind a reader implementing the
+design would not notice until load testing.
+
+**The defect.** The office checks that no token has been released for this
+`id`, then records, then signs. Nothing makes those three steps atomic. Two
+requests for the same identifier arriving together can both pass the check
+before either records, and both receive a token. Requirement 2 is then broken
+— one voter, two counted ballots — and *nothing in the published artefacts
+shows it*, because two commitments for one citizen are indistinguishable from
+two citizens. The aggregate audit still balances. The voter's own D1 check
+still answers truthfully. There is no observer who can see it.
+
+**What the design needs.** The eligibility check and the release must be one
+atomic act: claim the identifier or fail, and only the winner proceeds to
+sign. That is a reservation held from before the check until the commitment
+is written — a state the design does not currently name, and which a
+deployment needs whether or not anything ever pauses in the middle.
+
+Two consequences to specify with it.
+
+*The reservation must publish nothing.* No commitment, no increment to the
+count, until the release itself. Otherwise the pause becomes visible in the
+published artefacts, and a third party could distinguish an office that is
+deliberating from one that is not — which is not a property the design
+offers, and not one it should acquire by accident.
+
+*A reservation that never completes needs a documented route back.* In
+production the gap is closed by a crash rather than by anyone deciding; the
+consequence is the same either way — a citizen reserved, nothing published,
+no token, and no way to ask again. §5.5 already requires a documented
+re-issuance path with an audit trail for the case where the voter's own
+verification of `s_{k_p^a}` fails. This is the second caller for that same
+procedure, which is an argument for specifying it in the article rather than
+leaving it to deployment.
+
+**Status.** The POC is single-threaded, so it cannot exhibit the race. The
+operator-triggered signing console (item 3b.3) is the first consumer of the
+reservation state: it holds a real state open long enough to be looked at,
+rather than inventing a demonstration-only one. The console is therefore
+worth building *after* this is settled, not as the reason for settling it.
+
+### 1.6 Whether party supervision resolves A5 and E1 jointly
 
 If competing parties attest the genesis before the poll opens, the same act can
 cover `k_p^{(R)}`, the choice list and the times — which is gap 1 and clause
@@ -244,6 +291,25 @@ meaning the only one with no way to perform it.
 
 Either a sixth browser surface for the box operator, or a clause saying the
 act is deliberately curl-only and why. Undecided.
+
+### 3b.3 Operator-triggered signing, and the state it needs
+
+The office's console should let an operator see a validated request and
+perform the blind signature as a deliberate act, which is what makes 6/A
+visible at all. `issue_token` already falls into two halves — six checks that
+return early, then recording and signing — so the split itself is small.
+
+What is not small is the seam. Pausing between validation and signature turns
+§5.4's "interruption" from a fault into a normal operating state, so the
+reservation of item 1.5 has to exist first. With it the console is
+straightforward: validate reserves, sign releases and commits, cancel clears
+the reservation, and every transition appears in the audit log beside what
+was disclosed.
+
+Needs a sabotage mutation of its own: publish the commitment at validation
+rather than at signature, and something must notice that the count now
+overstates. An invariant with no mutation behind it is described rather than
+defended.
 
 ---
 
