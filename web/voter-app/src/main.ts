@@ -61,6 +61,16 @@ function render(step: Step): void {
     `<span class="where">${step.where}</span></div>` +
     `<div class="body"><p class="why">${step.why}</p><div class="content"></div></div>`;
   stepsEl.append(el);
+  // The page only grows downwards, so a step appended below the fold is a
+  // step the voter does not know exists -- which is how "the button is
+  // disabled" happens when the enabled one is simply off-screen.
+  if (stepsEl.children.length > 1) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.animate(
+      [{ outline: '2px solid #0d9488' }, { outline: '2px solid transparent' }],
+      { duration: 1600, easing: 'ease-out' },
+    );
+  }
   if (step.action) {
     const button = document.createElement('button');
     button.textContent = step.action.label;
@@ -269,7 +279,10 @@ async function doUnblind(sc: Uint8Array) {
     where: 'this device',
     why: 'One ballot carries exactly one selection. A value outside the list ' +
          'authenticates like any other and is recorded as invalid rather than ' +
-         'rejected; no authority approves what it means.',
+         'rejected; no authority approves what it means. Marking again after ' +
+         'a receipt adds a fresh Cast step below: the ballot is re-signed ' +
+         'with the same ad-hoc key and the same token, and the later ' +
+         'accepted ballot supersedes the earlier one.',
   });
   const list = document.createElement('div');
   for (let i = 1; i <= CONFIG.num_choices; i++) {
@@ -330,6 +343,8 @@ async function doSign(selection: number) {
           `ballot-${ROUND}.json`);
   payload(`cast-${ROUND}`, 'the bytes the ballot signature covers', canonical);
   enable(`cast-${ROUND}`);
+  document.getElementById(`step-cast-${ROUND}`)!
+    .scrollIntoView({ behavior: 'smooth', block: 'center' });
   status('Ballot signed. Nothing has been sent yet.');
 }
 
@@ -366,7 +381,9 @@ async function doCast(ballot: object) {
   (document.getElementById('protest') as HTMLInputElement).disabled = true;
 
   status(receipt.accepted
-    ? 'Ballot accepted. You may mark and cast again — the last accepted ballot counts.'
+    ? 'Ballot accepted. To change it: mark again above — a new Cast step is ' +
+      'added at the foot of the page. The same token is reused; a second one ' +
+      'is neither needed nor available.'
     : `Rejected: ${receipt.reason}`, receipt.accepted ? 'ok' : 'warn');
 }
 
