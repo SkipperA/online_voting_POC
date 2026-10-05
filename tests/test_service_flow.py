@@ -466,3 +466,15 @@ def test_the_office_console_names_what_each_key_is_for(live):
     page = live.http.get(f"{live.vro}/").text
     assert "No deployment exposes this" in page
     assert live.http.get(f"{live.vro}/office.js").status_code == 200
+
+
+def test_the_file_pickers_accept_by_extension_as_well_as_mime_type(live):
+    """Safari matches `accept` against the type the OS reports for the file.
+
+    A downloaded .json is often not reported as application/json, and the
+    picker then greys out the very file the page just produced. Listing the
+    extension is what makes the control usable.
+    """
+    for url in (f"{live.wallet}/", f"{live.url(8005)}/"):
+        page = live.http.get(url).text
+        assert 'accept=".json' in page, url
