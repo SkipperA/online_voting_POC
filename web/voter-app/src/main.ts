@@ -124,6 +124,7 @@ let ADHOC_PUBLIC: Uint8Array;
 let BLINDED: Uint8Array;
 let INV: Uint8Array;
 let TOKEN: Uint8Array;
+let ROUND = 0;   // a voter may cast again; each attempt gets its own steps
 
 async function main() {
   status('Working…');
@@ -292,7 +293,6 @@ async function doUnblind(sc: Uint8Array) {
   sign.onclick = async () => {
     sign.disabled = true;
     const picked = document.querySelector<HTMLInputElement>('input[name=choice]:checked')!;
-    complete('mark');
     await doSign(picked.value === 'protest'
       ? Number((document.getElementById('protest') as HTMLInputElement).value)
       : Number(picked.value));
@@ -302,6 +302,7 @@ async function doUnblind(sc: Uint8Array) {
 }
 
 async function doSign(selection: number) {
+  ROUND += 1;
   const canonical = JSON.stringify({
     adhoc_public_key: b64url(ADHOC_PUBLIC), selection });
   const digest = new Uint8Array(
@@ -316,7 +317,8 @@ async function doSign(selection: number) {
   };
 
   render({
-    id: 'cast', fig: '9 → 10/1', title: 'Cast the ballot',
+    id: `cast-${ROUND}`, fig: '9 → 10/1',
+    title: ROUND === 1 ? 'Cast the ballot' : `Cast the ballot (attempt ${ROUND})`,
     where: 'this device → the ballot box',
     why: 'The signature covers the canonical form of the selection and the ' +
          'ad-hoc key, so altering either in transit invalidates it. The box ' +
@@ -324,9 +326,10 @@ async function doSign(selection: number) {
          'the key that token certifies.',
     action: { label: 'Send to the ballot box', run: () => doCast(ballot) },
   });
-  payload('cast', 'the ballot, exactly as it will be sent', ballot, 'ballot.json');
-  payload('cast', 'the bytes the ballot signature covers', canonical);
-  enable('cast');
+  payload(`cast-${ROUND}`, 'the ballot, exactly as it will be sent', ballot,
+          `ballot-${ROUND}.json`);
+  payload(`cast-${ROUND}`, 'the bytes the ballot signature covers', canonical);
+  enable(`cast-${ROUND}`);
   status('Ballot signed. Nothing has been sent yet.');
 }
 
@@ -335,20 +338,35 @@ async function doCast(ballot: object) {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify(ballot),
   })).json();
-  complete('cast');
+  complete(`cast-${ROUND}`);
 
   render({
-    id: 'receipt', fig: '11/A', title: 'Receipt',
+    id: `receipt-${ROUND}`, fig: '11/A',
+    title: ROUND === 1 ? 'Receipt' : `Receipt (attempt ${ROUND})`,
     where: 'the ballot box → this device',
     why: 'The position in the registry and the head of the hash chain at the ' +
          'moment of acceptance. With these a voter can later show that the ' +
          'entry has not been removed, reordered or altered — demonstrable ' +
          'rather than merely alleged.',
   });
-  payload('receipt', 'keep this: it is the evidence', receipt, 'receipt.json');
-  complete('receipt');
+  payload(`receipt-${ROUND}`, 'keep this: it is the evidence', receipt,
+          `receipt-${ROUND}.json`);
+  complete(`receipt-${ROUND}`);
+
+  // Re-voting is the design's answer to coercion, so the page must not make
+  // the first ballot final. The marking step reopens, and a further ballot
+  // under the same ad-hoc key supersedes this one among the accepted.
+  const sign = document.querySelector<HTMLButtonElement>('#step-mark button')!;
+  sign.disabled = true;
+  sign.textContent = 'Sign the ballot';
+  document.getElementById('step-mark')!.classList.remove('done');
+  for (const input of document.querySelectorAll<HTMLInputElement>('input[name=choice]')) {
+    input.checked = false;
+  }
+  (document.getElementById('protest') as HTMLInputElement).disabled = true;
+
   status(receipt.accepted
-    ? 'Ballot accepted. You may cast again; the last accepted ballot counts.'
+    ? 'Ballot accepted. You may mark and cast again — the last accepted ballot counts.'
     : `Rejected: ${receipt.reason}`, receipt.accepted ? 'ok' : 'warn');
 }
 
