@@ -211,6 +211,13 @@ MUTATIONS = [
         replace="        if False:  # SABOTAGE: tally always available",
     ),
     Mutation(
+        name="reservation_publishes_the_commitment",
+        what="The office writes the release commitment when it reserves rather than when it releases, so the published count overstates the tokens that exist and a pause becomes visible to third parties.",
+        path="src/ovpoc/vro.py",
+        find="        self._reserved[request.voter_id] = request.blinded_key",
+        replace="        self._reserved[request.voter_id] = request.blinded_key\n        self.release_log.append({\"commitment\": b64(commit(request.voter_id, secrets.token_bytes(32)))})  # SABOTAGE",
+    ),
+    Mutation(
         name="protest_distribution_collapsed",
         what="The tally merges every out-of-range selection into one figure, losing the distinction between distinct protest codes.",
         path="src/ovpoc/ballotbox.py",

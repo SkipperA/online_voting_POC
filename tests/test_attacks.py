@@ -685,4 +685,103 @@ def test_the_inclusion_check_works_from_the_receipt_alone(election):
     announced = box.published_view()["commitments"]["accepted"][receipt.index]
     assert announced["index"] == receipt.index
     assert announced["commitment"] == receipt.ledger_head.hex()
-    
+
+
+# ---------------------------------------------------------------------------
+# The reservation: what makes the eligibility check mean anything
+# ---------------------------------------------------------------------------
+
+def _reservation_voter(election, tag):
+    """A fresh enrolled voter on the shared election fixture."""
+    from ovpoc import keys as K
+    from ovpoc.voter import Voter
+    from ovpoc import rsabssa as R
+
+    vro, _, _ = election
+    wallet = K.SigningKeyPair.generate()
+    voter_id = f"HU-RESERVE-{tag}"
+    vro.population_register.enrol(voter_id, wallet.public_bytes)
+    vro.enrol(voter_id)
+    return vro, Voter(voter_id, wallet, vro.public_key,
+                      R.public_key_fingerprint(vro.public_key))
+
+
+def test_a_reservation_blocks_a_second_request_for_the_same_id(election):
+    """Two requests, one identifier. Only one may reach the signature.
+
+    Without the claim, checking `_released` and writing to it are two steps
+    with nothing atomic between them, so concurrent requests can both pass
+    the check. The failure would be unobservable: two commitments for one
+    citizen look exactly like two citizens, the aggregate audit balances, and
+    the voter's own check answers truthfully.
+    """
+    vro, voter = _reservation_voter(election, "001")
+    first = vro.reserve(voter.build_auth_request())
+    assert first.outcome is Outcome.ISSUED
+    assert first.blind_signature is None, "reserving is not signing"
+
+    second = vro.reserve(voter.build_auth_request())
+    assert second.outcome is Outcome.REQUEST_PENDING
+    assert second.outcome is not Outcome.TOKEN_ALREADY_ISSUED, (
+        "different facts: nothing is published and no token exists")
+
+
+def test_a_reservation_publishes_nothing(election):
+    """The pause must not be visible to anyone outside the office.
+
+    Were the commitment written at validation, a third party could tell an
+    office that is deliberating from one that is not — and the count would
+    overstate the tokens that exist.
+    """
+    vro, voter = _reservation_voter(election, "002")
+    before = vro.release_count()
+    vro.reserve(voter.build_auth_request())
+
+    assert vro.release_count() == before, "the reservation incremented the count"
+    assert len(vro.release_log.entries) == before, "it published a commitment"
+    assert voter.voter_id in vro.pending
+
+
+def test_release_completes_the_reservation_and_publishes_then(election):
+    vro, voter = _reservation_voter(election, "003")
+    request = voter.build_auth_request()
+    vro.reserve(request)
+    before = vro.release_count()
+
+    released = vro.release(request)
+    assert released.outcome is Outcome.ISSUED
+    assert released.blind_signature is not None
+    assert vro.release_count() == before + 1
+    assert voter.voter_id not in vro.pending
+
+
+def test_a_cancelled_reservation_lets_the_voter_ask_again(election):
+    """A claim that never completes must have a route back.
+
+    An operator abandons it, or a process crashes. Either way the citizen is
+    reserved with nothing published and no token, and without a cancel they
+    could never obtain one.
+    """
+    vro, voter = _reservation_voter(election, "004")
+    vro.reserve(voter.build_auth_request())
+    assert vro.cancel_reservation(voter.voter_id) is True
+    assert vro.cancel_reservation(voter.voter_id) is False
+
+    assert vro.reserve(voter.build_auth_request()).outcome is Outcome.ISSUED
+
+
+def test_release_refuses_a_value_the_reservation_did_not_claim(election):
+    """The claim is over the identifier *and* the value it was made for."""
+    vro, voter = _reservation_voter(election, "005")
+    vro.reserve(voter.build_auth_request())
+    other = voter.build_auth_request()
+    assert vro.release(other).outcome is Outcome.NOT_ELIGIBLE
+
+
+def test_issue_token_is_still_one_act(election):
+    """Every caller outside an operator console wants both halves at once."""
+    vro, voter = _reservation_voter(election, "006")
+    response = vro.issue_token(voter.build_auth_request())
+    assert response.outcome is Outcome.ISSUED
+    assert response.blind_signature is not None
+    assert vro.pending == ()

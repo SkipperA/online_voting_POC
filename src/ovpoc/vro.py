@@ -122,6 +122,11 @@ class Outcome(Enum):
     CERTIFICATE_EXPIRED = "certificate_expired"
     NOT_ELIGIBLE = "not_eligible"
     TOKEN_ALREADY_ISSUED = "token_already_issued"
+    #: A request for this id has been validated and is awaiting release.
+    #: Distinct from TOKEN_ALREADY_ISSUED because the facts differ: nothing
+    #: has been published, no token exists, and the reservation can be
+    #: cancelled. The office knows which, so it says which.
+    REQUEST_PENDING = "request_pending"
 
 
 #: Outcomes that may only be reported once identity has been established.
@@ -131,6 +136,7 @@ POST_IDENTITY_OUTCOMES = frozenset(
         Outcome.CERTIFICATE_EXPIRED,
         Outcome.NOT_ELIGIBLE,
         Outcome.TOKEN_ALREADY_ISSUED,
+        Outcome.REQUEST_PENDING,
         Outcome.ISSUED,
     }
 )
@@ -262,6 +268,8 @@ class VRO:
     _released: set[str] = field(default_factory=set)
     _nonces: dict[str, bytes] = field(default_factory=dict)
     _audit: list[AuditEntry] = field(default_factory=list)
+    #: id -> the blinded value it was reserved for. Internal; never published.
+    _reserved: dict[str, bytes] = field(default_factory=dict)
 
     @classmethod
     def create(
@@ -316,7 +324,44 @@ class VRO:
     def issue_token(
         self, request: AuthRequest, now: datetime | None = None
     ) -> TokenResponse:
-        """Steps 5 -> 6/A -> 7.  The state machine is in the module docstring."""
+        """Steps 5 -> 6/A -> 7, as one act.
+
+        A composition of `reserve` and `release`, retained because that is
+        what every caller outside an operator console wants: validate and
+        sign with nothing in between.
+        """
+        reserved = self.reserve(request, now)
+        if reserved.outcome is not Outcome.ISSUED:
+            return reserved
+        return self.release(request)
+
+    def reserve(
+        self, request: AuthRequest, now: datetime | None = None
+    ) -> TokenResponse:
+        """Step 5: validate, and claim the identifier.
+
+        The claim is the point. Checking `_released` and then writing to it
+        are two steps, and nothing between them is atomic: two requests for
+        one identifier arriving together can both pass the check before
+        either records, and both receive a token. Requirement 2 is then
+        broken with nothing in the published artefacts to show it, because
+        two commitments for one citizen are indistinguishable from two
+        citizens — the aggregate audit still balances and the voter's own
+        check still answers truthfully. There is no observer who could see
+        it.
+
+        So the identifier is claimed here, before anything else can claim
+        it, and only the winner reaches `release`.
+
+        **The reservation publishes nothing.** No commitment, no increment to
+        the count, until the release itself. Were the pause visible in the
+        published artefacts, a third party could tell an office that is
+        deliberating from one that is not — a property the design does not
+        offer and should not acquire by accident.
+
+        An ISSUED outcome here carries no signature: it means validated and
+        reserved. `release` produces the token.
+        """
         # ---- before the identity boundary: one opaque outcome, no detail ----
         cert = self.population_register.lookup(request.voter_id)
         if cert is None:
@@ -360,6 +405,56 @@ class VRO:
                 Outcome.TOKEN_ALREADY_ISSUED,
                 "a token has already been released for this id",
             )
+
+        if request.voter_id in self._reserved:
+            return self._record(
+                request.voter_id,
+                Outcome.REQUEST_PENDING,
+                "a validated request for this id is awaiting release",
+            )
+
+        # The claim. Everything above is a check; this is the act that makes
+        # the checks mean something under concurrency.
+        self._reserved[request.voter_id] = request.blinded_key
+        self._audit.append(
+            AuditEntry(request.voter_id, Outcome.ISSUED, "validated and reserved")
+        )
+        return TokenResponse(outcome=Outcome.ISSUED, blind_signature=None)
+
+    def cancel_reservation(self, voter_id: str) -> bool:
+        """Release a claim that will never complete.
+
+        In a console an operator abandons a request; in production the gap is
+        closed by a crash. Either way a citizen is left reserved with nothing
+        published, no token, and no way to ask again. §5.5 already requires a
+        documented re-issuance path with an audit trail for the case where
+        the voter's own verification fails; this is the second caller for it.
+        """
+        if voter_id not in self._reserved:
+            return False
+        del self._reserved[voter_id]
+        self._audit.append(
+            AuditEntry(voter_id, Outcome.NOT_ELIGIBLE, "reservation cancelled")
+        )
+        return True
+
+    @property
+    def pending(self) -> tuple[str, ...]:
+        """Identifiers validated and awaiting release. Never published."""
+        return tuple(sorted(self._reserved))
+
+    def release(self, request: AuthRequest) -> TokenResponse:
+        """Steps 7 and 6/A: record the release, then sign.
+
+        Only reachable for an identifier this office has reserved.
+        """
+        if self._reserved.get(request.voter_id) != request.blinded_key:
+            return self._record(
+                request.voter_id,
+                Outcome.NOT_ELIGIBLE,
+                "no matching reservation for this id and blinded value",
+            )
+        del self._reserved[request.voter_id]
 
         # ---- step 7: record the release, then sign ----
         #
