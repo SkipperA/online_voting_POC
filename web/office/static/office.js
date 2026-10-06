@@ -14,6 +14,34 @@ async function refresh() {
     `<tr><td>its purpose</td><td>${keys['k_p^(O) purpose']}</td></tr>` +
     `</tbody></table>`;
 
+  const held = await (await fetch('/back-office/pending')).json();
+  $('manual').checked = held.manual_release;
+  $('pending').innerHTML = held.pending.length
+    ? held.pending.map((r) =>
+        `<tr><td class="mono">${r.voter_id}</td><td class="mono">${r.blinded_key}</td>` +
+        `<td><button data-release="${r.voter_id}">Sign and release</button> ` +
+        `<button data-cancel="${r.voter_id}">Cancel</button></td></tr>`).join('')
+    : `<tr><td colspan="3" style="color:#888">${held.manual_release
+        ? 'nothing held' : 'signing at once — nothing is held'}</td></tr>`;
+  for (const b of document.querySelectorAll('[data-release]')) {
+    b.onclick = async () => {
+      b.disabled = true;
+      await fetch('/back-office/release', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ voter_id: b.dataset.release }) });
+      refresh();
+    };
+  }
+  for (const b of document.querySelectorAll('[data-cancel]')) {
+    b.onclick = async () => {
+      b.disabled = true;
+      await fetch('/back-office/cancel', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ voter_id: b.dataset.cancel }) });
+      refresh();
+    };
+  }
+
   const audit = await (await fetch('/back-office/audit')).json();
   $('audit').innerHTML = audit.entries.length
     ? audit.entries.map((e) =>
@@ -30,6 +58,13 @@ async function refresh() {
 
   $('asof').textContent = `as of ${new Date().toLocaleTimeString()}`;
 }
+
+$('manual').onchange = async () => {
+  await fetch('/back-office/mode', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ manual: $('manual').checked }) });
+  refresh();
+};
 
 $('refresh').onclick = () => refresh();
 refresh().catch((err) => { $('asof').textContent = `failed: ${err}`; });

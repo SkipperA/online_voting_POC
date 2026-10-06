@@ -252,13 +252,23 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         except ValueError:
             raise HTTPException(400, "malformed base64url field")
 
-        response = vro.issue_token(
-            AuthRequest(
-                voter_id=body.voter_id,
-                blinded_key=blinded,
-                wallet_signature=signature,
-            )
+        request = AuthRequest(
+            voter_id=body.voter_id,
+            blinded_key=blinded,
+            wallet_signature=signature,
         )
+        if deployment.manual_release:
+            # Validate and claim the identifier; the signature waits for an
+            # operator. The voter's application sees no difference except
+            # that its reply is not there yet, which is the state B16 was
+            # built to tolerate.
+            reserved = vro.reserve(request)
+            if reserved.outcome.name == "ISSUED":
+                deployment.held_requests[request.voter_id] = request
+                return {"outcome": "AWAITING_RELEASE"}
+            return {"outcome": reserved.outcome.name}
+
+        response = vro.issue_token(request)
         if response.issued:
             # Held for collection at B16 rather than returned here: the reply
             # belongs to the application, which is not the party that asked.
@@ -323,6 +333,57 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
                 "request, so it would be worthless as evidence."
             ),
         }
+
+    @app.get("/back-office/pending")
+    async def pending() -> dict:
+        return {
+            "manual_release": deployment.manual_release,
+            "pending": [
+                {"voter_id": v, "blinded_key": b64(r.blinded_key)[:48] + "…"}
+                for v, r in deployment.held_requests.items()
+            ],
+        }
+
+    @app.post("/back-office/mode")
+    async def set_mode(body: dict) -> dict:
+        """Whether the office signs at once or waits for an operator.
+
+        A deployment has no such switch: it signs as soon as it has
+        validated, and the reservation exists for concurrency rather than
+        for deliberation. The switch is here so a demonstration can hold a
+        real state open long enough to be looked at.
+        """
+        deployment.manual_release = bool(body.get("manual"))
+        return {"manual_release": deployment.manual_release}
+
+    @app.post("/back-office/release")
+    async def operator_release(body: dict) -> dict:
+        """6/A, performed as a deliberate act.
+
+        The release commitment is written here and not at validation —
+        before the signature, as §5.4 requires, and not one moment earlier.
+        Publishing it at reservation would make the office's deliberation
+        visible to anyone counting, and overstate the tokens that exist.
+        """
+        voter_id = body.get("voter_id", "")
+        request = deployment.held_requests.pop(voter_id, None)
+        if request is None:
+            raise HTTPException(404, "no held request for that id")
+        response = vro.release(request)
+        if response.issued:
+            deployment.token_replies[request.blinded_key] = response.blind_signature
+        return {"outcome": response.outcome.name}
+
+    @app.post("/back-office/cancel")
+    async def operator_cancel(body: dict) -> dict:
+        """A claim that will never complete needs a route back.
+
+        Without this the citizen stays reserved with nothing published, no
+        token, and no way to ask again.
+        """
+        voter_id = body.get("voter_id", "")
+        deployment.held_requests.pop(voter_id, None)
+        return {"cancelled": vro.cancel_reservation(voter_id)}
 
     @app.get("/back-office/audit")
     async def office_audit() -> dict:

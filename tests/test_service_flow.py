@@ -497,3 +497,50 @@ def test_the_wallet_has_exactly_one_persona_control(live):
     # The release query must not re-open the session.
     after = script[script.index("save-query').onclick"):]
     assert "'/session'" not in after[:400]
+
+
+def test_staged_signing_is_off_by_default_and_real_when_on(live, token_key):
+    """Validate and reserve, then sign as a separate act.
+
+    Off by default, so every scripted caller sees `issue_token` as one act.
+    On, the voter's application sees no difference except that its reply is
+    not there yet — which is the state B16 was built to tolerate.
+    """
+    voter_id = "HU-STAGED-001"
+    live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
+    assert live.http.get(f"{live.vro}/back-office/pending").json()["manual_release"] is False
+
+    live.http.post(f"{live.vro}/back-office/mode", json={"manual": True})
+    try:
+        adhoc, token, outcome = obtain_token(live, token_key, voter_id)
+        assert outcome == "AWAITING_RELEASE"
+        assert token is None, "no reply is collectable before the operator acts"
+
+        held = live.http.get(f"{live.vro}/back-office/pending").json()
+        assert [r["voter_id"] for r in held["pending"]] == [voter_id]
+
+        # Nothing published while the request is held: a commitment written
+        # at validation would make the pause visible to anyone counting.
+        assert voter_id not in live.http.get(f"{live.vro}/release-log").text
+
+        before = live.http.get(f"{live.vro}/release-log").json()["count"]
+        released = live.http.post(
+            f"{live.vro}/back-office/release", json={"voter_id": voter_id}).json()
+        assert released["outcome"] == "ISSUED"
+        assert live.http.get(f"{live.vro}/release-log").json()["count"] == before + 1
+    finally:
+        live.http.post(f"{live.vro}/back-office/mode", json={"manual": False})
+
+
+def test_a_held_request_can_be_cancelled_and_the_voter_may_ask_again(live, token_key):
+    voter_id = "HU-STAGED-002"
+    live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
+    live.http.post(f"{live.vro}/back-office/mode", json={"manual": True})
+    try:
+        assert obtain_token(live, token_key, voter_id)[2] == "AWAITING_RELEASE"
+        assert live.http.post(
+            f"{live.vro}/back-office/cancel", json={"voter_id": voter_id}
+        ).json()["cancelled"] is True
+        assert obtain_token(live, token_key, voter_id)[2] == "AWAITING_RELEASE"
+    finally:
+        live.http.post(f"{live.vro}/back-office/mode", json={"manual": False})

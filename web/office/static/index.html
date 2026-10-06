@@ -41,6 +41,30 @@ office in the ordinary course; none of it is disclosed to anyone.</p>
 </section>
 
 <section>
+  <h2>Signing · at once, or on an operator's act</h2>
+  <p style="margin:0 0 .6rem;color:var(--dim);font-size:13.5px">
+    A deployment has no such switch: it signs as soon as it has validated,
+    and the reservation exists for concurrency rather than for deliberation.
+    Checking the eligibility of an identifier and recording its release are
+    two steps, and without an atomic claim between them two concurrent
+    requests for one citizen can both pass — producing two tokens, with
+    nothing in the published artefacts to show it. The switch holds that real
+    state open long enough to be looked at.
+  </p>
+  <label><input type="checkbox" id="manual"> hold validated requests for
+  manual release</label>
+  <table style="margin-top:.7rem"><thead><tr><th>reserved</th>
+  <th>blinded value</th><th></th></tr></thead><tbody id="pending"></tbody></table>
+  <p style="margin:.6rem 0 0;color:var(--dim);font-size:13.5px">
+    Releasing writes the commitment and then signs, in that order and not one
+    moment earlier: a commitment written at validation would make the pause
+    visible to anyone counting and overstate the tokens that exist.
+    Cancelling clears the claim, which a citizen otherwise carries for ever
+    with nothing published and no token.
+  </p>
+</section>
+
+<section>
   <h2>Recorded, and disclosed</h2>
   <p style="margin:0 0 .6rem;color:var(--dim);font-size:13.5px">
     §3.2: the two failures that arise <em>before</em> the office knows who it

@@ -36,6 +36,15 @@ class Deployment:
     document_root: Path = field(default=DOCUMENT_ROOT)
     data_dir: Path | None = None       # where the durable half lives, if anywhere
 
+    # Staged signing. Off by default, so every existing caller -- the demos,
+    # the scripted runs, the tests -- sees `issue_token` behave as one act.
+    # On, the office validates and reserves, and an operator performs the
+    # signature as a deliberate act. The reservation state this relies on is
+    # not a demo affordance: it is what makes the eligibility check atomic
+    # under concurrency (§5.4, register item 1.5).
+    manual_release: bool = False
+    held_requests: dict[str, object] = field(default_factory=dict)
+
     # Wallet personas. A real wallet holds one citizen's key in hardware it
     # never leaves; this holds several in memory so one machine can play a
     # whole electorate. Clause A3 in `docs/Demo_Scope_Limits.md` -- the
