@@ -30,6 +30,7 @@ confident the surrounding comments sound.
 | blind_signature_fault_check_removed | `test_a_faulty_blind_signature_is_not_released` |
 | records_published_while_voting_is_open | `test_no_record_is_published_while_voting_is_open`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_voter_can_still_find_their_own_ballot_while_the_box_is_shut_to_others`<br>`test_the_whole_path_across_origins` |
 | tally_available_before_the_close | `test_a_running_tally_is_published_only_when_configured`<br>`test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`<br>`test_three_voters_cast_and_verify` |
+| reservation_publishes_the_commitment | `test_a_reservation_publishes_nothing`<br>`test_the_release_log_records_exactly_who_took_a_token` |
 | protest_distribution_collapsed | `test_distinct_protest_codes_are_not_merged`<br>`test_the_adversarial_scenarios_all_hold` |
 | submissions_accepted_after_the_close | `test_a_ballot_arriving_after_the_close_is_not_recorded`<br>`test_the_adversarial_scenarios_all_hold` |
 | receipt_omits_the_entry_position | `test_the_adversarial_scenarios_all_hold`<br>`test_the_inclusion_check_works_from_the_receipt_alone` |
@@ -257,6 +258,16 @@ Caught by:
 - `test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`
 - `test_three_voters_cast_and_verify`
 
+### `reservation_publishes_the_commitment`
+
+The office writes the release commitment when it reserves rather than when it releases, so the published count overstates the tokens that exist and a pause becomes visible to third parties.
+
+Patched in `src/ovpoc/vro.py`.
+
+Caught by:
+- `test_a_reservation_publishes_nothing`
+- `test_the_release_log_records_exactly_who_took_a_token`
+
 ### `protest_distribution_collapsed`
 
 The tally merges every out-of-range selection into one figure, losing the distinction between distinct protest codes.
@@ -289,5 +300,5 @@ Caught by:
 
 ## Summary
 
-- 22 of 22 mutations were detected.
+- 23 of 23 mutations were detected.
 - 0 were not.
