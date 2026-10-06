@@ -311,6 +311,49 @@ rather than at signature, and something must notice that the count now
 overstates. An invariant with no mutation behind it is described rather than
 defended.
 
+### 3b.4 The wallet is told more than delivery, and stops being told
+
+**Settled: the wallet needs one fact only — that the office received the
+token request.** Nothing after that is its business.
+
+The reasoning is the wallet's position rather than the content of the
+answer. It is the one component holding `id`; the voting application holds
+`k_p^a` and must never hold `id` (§5.3). A wallet that also learned whether
+a token was afterwards released would be accumulating the fact that this
+citizen completed — a participation record against precisely the identifier
+the rest of the design keeps away from it. That the wallet could already
+infer most of it is not a reason to hand it the remainder.
+
+Two consequences, one applied and one open.
+
+*Applied in the page copy.* After a held request the wallet shows
+`AWAITING_RELEASE` and says that this remains the correct answer even after
+an operator signs, because the voting application collects the reply and
+nothing comes back through the wallet. An earlier attempt added a `/status`
+endpoint letting the wallet ask the office whether the token had been
+released; it was removed for the reason above.
+
+*Open.* `AWAITING_RELEASE` is the transport's word for `Outcome.RESERVED`,
+and it describes the office's internal state rather than the delivery. If
+the wallet should be told only that the request arrived, the honest answer
+is a single acknowledgement — received and accepted for processing — with
+the office's internal state not disclosed at all. That is a narrowing of
+what the office says, so it touches §3.2's disclosure boundary and should be
+decided there rather than in the page.
+
+### 3b.5 A test asserts page copy the server demonstrably serves
+
+While making the above change, one test asserting the new wallet copy fails
+inside the module's shared live fixture, while a direct fetch of the same
+URL returns a page containing that copy. The code is right and the test
+disagrees with reality, which means either the fixture is serving something
+other than what it appears to or the assertion is malformed.
+
+Not diagnosed. The first move is to run that test alone with the deployment
+left running and curl the same URL alongside it. Worth resolving before any
+further test is written against served page content, since the same fixture
+carries several.
+
 ---
 
 ## 4. Surface map (`docs/Stage1_Surface_and_Boundary_Map.md`)
