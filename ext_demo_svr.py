@@ -110,9 +110,9 @@ class App:
     def obtain(self, voter_id: str) -> str:
         http = self.ctx.http
         blinded, state = rsabssa.blind(self.ctx.token_key, self.adhoc.public_bytes)
-        http.post(f"{WALLET}/session", json={"voter_id": voter_id})
         outcome = http.post(
-            f"{WALLET}/requests", json={"blinded_key": b64(blinded)}
+            f"{WALLET}/requests",
+            json={"voter_id": voter_id, "blinded_key": b64(blinded)},
         ).json()["outcome"]
         reply = http.get(f"{VRO}/token-replies/{b64(blinded)}")
         if reply.status_code == 200:
@@ -351,7 +351,8 @@ def s_release_query(ctx: Ctx) -> None:
         an unauthenticated lookup would turn the register into a public record
         of who took part, which is exactly what a boycott enforcer needs.""")
     voter, voter_id = ctx.voter("CHECK")
-    credentials = ctx.http.post(f"{WALLET}/release-query-credentials").json()
+    credentials = ctx.http.post(
+        f"{WALLET}/release-query-credentials", json={"voter_id": voter_id}).json()
     answer = ctx.http.post(f"{VRO}/release-queries", json=credentials).json()
     log = ctx.http.get(f"{VRO}/release-log").json()
 

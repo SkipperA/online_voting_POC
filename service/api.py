@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives import serialization
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
-from ovpoc import rsabssa
+from ovpoc import keys, rsabssa
 from ovpoc.ballotbox import BoxStillOpen
 from ovpoc.messages import AuthRequest, Ballot, b64, unb64
 from ovpoc.vro import release_query_payload
@@ -30,16 +30,17 @@ from .state import Deployment
 # Wallet — 8002
 # --------------------------------------------------------------------------
 
-class SessionBody(BaseModel):
+class PersonaBody(BaseModel):
     voter_id: str
 
 
 class SignBody(BaseModel):
+    voter_id: str
     blinded_key: str
 
 
 def wallet_app(deployment: Deployment, base) -> FastAPI:
-    """The wallet holds `id` and signs; it does not hand `id` back.
+    """The wallet holds `id` and signs; the voting application never gets it.
 
     B4 gives the wallet the blinded value and nothing else.  B7 has the
     wallet transmit `[id, c, s]` to the office *itself* rather than returning
@@ -48,26 +49,28 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
     halves of the association the blind signature exists to sever, together
     with the office's signature over it (§5.3).
 
-    So no response from this origin contains `voter_id` either.  The session
-    endpoint is the exception that proves it -- it *accepts* an id, because a
-    demo machine plays a whole electorate and something has to choose whose
-    wallet is active.  A real wallet has one owner and no such endpoint.
-    Clause A3.
+    What keeps that boundary is the origin rather than the shape of the
+    replies below.  A wallet reachable cross-origin by the voting
+    application would be an API with a consent screen painted on it, so this
+    origin grants nothing to anyone and every handover is a file the voter
+    carries.  Inside that closure the wallet's own page may see whose wallet
+    it is, which is the whole of what a consent screen is for.
+
+    Every endpoint here names its persona in the call.  One process plays a
+    whole electorate, and the alternative is server-side state recording who
+    is active -- which, being shared by every client of this origin, makes
+    the last selection the signer for all of them: a hundred voters choosing
+    a hundred identifiers would produce one token and ninety-nine refusals
+    for a citizen who never asked.  A real wallet has one owner, one key and
+    no parameter.  Clause A3.
     """
     app = base(origins.WALLET)
-    app.state.active: str | None = None
 
-    @app.post("/session")
-    async def open_session(body: SessionBody) -> dict:
-        if body.voter_id not in deployment.wallets:
+    def _persona(voter_id: str) -> keys.SigningKeyPair:
+        try:
+            return deployment.wallets[voter_id]
+        except KeyError:
             raise HTTPException(404, "no such persona on this demo machine")
-        app.state.active = body.voter_id
-        return {"active": True}      # deliberately not echoing the id
-
-    def _active() -> str:
-        if app.state.active is None:
-            raise HTTPException(409, "no wallet session open")
-        return app.state.active
 
     @app.post("/requests")
     async def sign_and_transmit(body: SignBody) -> dict:
@@ -76,8 +79,8 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
         The office is called directly rather than through a reply to the
         application, so the application never sees the request it caused.
         """
-        voter_id = _active()
-        wallet = deployment.wallets[voter_id]
+        voter_id = body.voter_id
+        wallet = _persona(voter_id)
         blinded = unb64(body.blinded_key)
         request = AuthRequest(
             voter_id=voter_id,
@@ -123,8 +126,8 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
             "signed_bytes": request.signed_payload().hex(),
         }
 
-    @app.get("/keys")
-    async def wallet_keys() -> dict:
+    @app.post("/keys")
+    async def wallet_keys(body: PersonaBody) -> dict:
         """The persona's key pair, for the demonstration.
 
         A real wallet exposes no such endpoint. Under eIDAS the signature key
@@ -132,9 +135,14 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
         application itself, let alone returned over HTTP. It is shown here
         because a demonstration in which the keys are invisible teaches
         nothing about what the keys do.
+
+        A POST for what is plainly a read, because the persona travels in the
+        body as it does everywhere else on this origin: `fetch` forbids a body
+        on GET, and the alternative puts an identifier in a URL that the
+        browser keeps in its history and the server writes to a log.
         """
-        voter_id = _active()
-        pair = deployment.wallets[voter_id]
+        voter_id = body.voter_id
+        pair = _persona(voter_id)
         return {
             "_never_exposed_in_a_deployment": (
                 "k_s^(v) is hardware-bound under eIDAS. No interface, file or "
@@ -160,7 +168,7 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
         return {"personas": sorted(deployment.wallets)}
 
     @app.post("/release-query-credentials")
-    async def release_credentials() -> dict:
+    async def release_credentials(body: PersonaBody) -> dict:
         """D1. The wallet signs the query; the checker carries it.
 
         §3.7 permits this: the wallet is not the component under audit, so
@@ -168,8 +176,8 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
         from the *voting application*, which is why these credentials go to
         the checker origin and never to 8001.
         """
-        voter_id = _active()
-        wallet = deployment.wallets[voter_id]
+        voter_id = body.voter_id
+        wallet = _persona(voter_id)
         return {
             "voter_id": voter_id,
             "signature": b64(wallet.sign(release_query_payload(voter_id))),

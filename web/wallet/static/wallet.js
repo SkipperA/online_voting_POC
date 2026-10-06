@@ -23,6 +23,13 @@ const show = (id, text, state) => {
 let request = null;
 let config = null;
 
+// Whose wallet this is, held in the page rather than on the server. The
+// origin used to keep an active persona of its own, which every client of
+// 8002 shared: a hundred voters choosing a hundred identifiers all signed as
+// whoever chose last. A wallet instance belongs to one citizen, so the page
+// is the right place for the answer and each call carries it.
+const persona = () => $('persona').value;
+
 async function loadConfig() {
   config = await (await fetch(`${CONFIG_ORIGIN}/election.json`)).json();
   const line = await (await fetch(`${CONFIG_ORIGIN}/election.json.sha256`)).text();
@@ -79,8 +86,6 @@ $('file').onchange = async (event) => {
   ready();
 };
 
-$('persona').onchange = ready;
-
 function dump(target, caption, value, filename) {
   const el = $(target);
   const pre = document.createElement('pre');
@@ -105,16 +110,15 @@ function dump(target, caption, value, filename) {
 $('persona').onchange = async () => {
   ready();
   $('keys').innerHTML = '';
-  if (!$('persona').value) return;
-  await fetch('/session', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ voter_id: $('persona').value }),
-  });
+  if (!persona()) return;
   document.getElementById('title').textContent =
-    `Digital Identity Wallet — ${$('persona').value}`;
-  $('query-whose').textContent = $('persona').value;
+    `Digital Identity Wallet — ${persona()}`;
+  $('query-whose').textContent = persona();
   $('save-query').disabled = false;
-  const keys = await (await fetch('/keys')).json();
+  const keys = await (await fetch('/keys', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ voter_id: persona() }),
+  })).json();
   const box = document.createElement('div');
   box.className = 'secret';
   box.innerHTML = '<h4>never exists outside hardware in a deployment</h4>' +
@@ -129,7 +133,8 @@ $('sign').onclick = async () => {
   show('status', 'Signing and transmitting…');
   const response = await fetch('/requests', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ blinded_key: request.blinded_key }),
+    body: JSON.stringify(
+      { voter_id: persona(), blinded_key: request.blinded_key }),
   });
   const result = await response.json();
   show('outcome', result.outcome, result.outcome === 'ISSUED' ? 'ok' : 'warn');
@@ -142,13 +147,15 @@ $('sign').onclick = async () => {
     : `The office refused: ${result.outcome}.`);
 };
 
-// No persona selector here. A wallet belongs to one citizen, chosen in step
-// 1, and this query is made on their behalf. A second selector would also
-// re-open the session, so choosing a name here would silently reassign the
-// whole wallet -- and the next token request would carry that identifier.
+// No persona selector here. A wallet instance belongs to exactly one
+// citizen: it is chosen once in step 1, and everything after that is done on
+// their behalf. A second control would not reassign anything now that each
+// call names its own persona -- it would simply contradict what a wallet is.
 $('save-query').onclick = async () => {
   const credentials = await (await fetch('/release-query-credentials', {
-    method: 'POST' })).json();
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ voter_id: persona() }),
+  })).json();
   const blob = new Blob([JSON.stringify(credentials, null, 2)],
                         { type: 'application/json' });
   const a = document.createElement('a');

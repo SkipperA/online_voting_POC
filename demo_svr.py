@@ -201,8 +201,8 @@ def main() -> int:
         print(f"        fields this object holds: {sorted(vars(app))}")
         print("        — no identifier among them, and no endpoint returns one")
 
-        http.post(f"{WALLET}/session", json={"voter_id": ids[name]}).raise_for_status()
-        reply = http.post(f"{WALLET}/requests", json={"blinded_key": b64(blinded)})
+        reply = http.post(f"{WALLET}/requests",
+                          json={"voter_id": ids[name], "blinded_key": b64(blinded)})
         outcome = reply.json()["outcome"]
         print(f"  8002  wallet signs [id, c] and transmits to the office itself")
         print(f"        the application is told only: {outcome}")

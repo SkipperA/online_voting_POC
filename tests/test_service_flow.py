@@ -12,6 +12,9 @@ the name of the one it argues for.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
+import httpx
 import pytest
 from cryptography.hazmat.primitives import serialization
 
@@ -42,9 +45,9 @@ def obtain_token(live, token_key, voter_id):
     adhoc = keys.SigningKeyPair.generate()
     blinded, state = rsabssa.blind(token_key, adhoc.public_bytes)
 
-    live.http.post(f"{live.wallet}/session", json={"voter_id": voter_id})
     outcome = live.http.post(
-        f"{live.wallet}/requests", json={"blinded_key": b64(blinded)}
+        f"{live.wallet}/requests",
+        json={"voter_id": voter_id, "blinded_key": b64(blinded)},
     ).json()["outcome"]
 
     reply = live.http.get(f"{live.vro}/token-replies/{b64(blinded)}")
@@ -176,19 +179,6 @@ def test_the_tally_is_refused_while_open_when_no_running_tally_is_configured(liv
         assert private.http.get(f"{private.ebb}/tally").status_code == 409
     finally:
         private.stop()
-
-
-def test_the_wallet_does_not_echo_the_id_it_holds(live):
-    """8002 knows the id. That is not a reason to return it to a caller."""
-    voter_id = "HU-WALLET-ECHO"
-    live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
-    body = live.http.post(f"{live.wallet}/session", json={"voter_id": voter_id}).text
-    assert voter_id not in body
-
-    # The one exception is deliberate and goes to the checker, not the app:
-    # D1 needs [id, sig(id)], and §3.7 permits the wallet to produce it.
-    credentials = live.http.post(f"{live.wallet}/release-query-credentials").json()
-    assert credentials["voter_id"] == voter_id
 
 
 # -- the browser handover -------------------------------------------------
@@ -374,8 +364,9 @@ def test_the_wallet_can_produce_the_release_query_as_a_file(live):
     """
     voter_id = "HU-D1-001"
     live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
-    live.http.post(f"{live.wallet}/session", json={"voter_id": voter_id})
-    credentials = live.http.post(f"{live.wallet}/release-query-credentials").json()
+    credentials = live.http.post(
+        f"{live.wallet}/release-query-credentials", json={"voter_id": voter_id}
+    ).json()
 
     assert set(credentials) == {"voter_id", "signature"}
     answer = live.http.post(f"{live.vro}/release-queries", json=credentials).json()
@@ -392,15 +383,16 @@ def test_the_wallet_shows_its_key_pair_and_what_it_transmitted(live, token_key):
     """
     voter_id = "HU-SHOW-001"
     live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
-    live.http.post(f"{live.wallet}/session", json={"voter_id": voter_id})
 
-    keys_shown = live.http.get(f"{live.wallet}/keys").json()
+    keys_shown = live.http.post(
+        f"{live.wallet}/keys", json={"voter_id": voter_id}).json()
     assert keys_shown["k_s^(v)"] and keys_shown["k_p^(v)"]
     assert "hardware-bound" in keys_shown["_never_exposed_in_a_deployment"]
 
     blinded, _ = rsabssa.blind(token_key, keys.SigningKeyPair.generate().public_bytes)
     result = live.http.post(
-        f"{live.wallet}/requests", json={"blinded_key": b64(blinded)}).json()
+        f"{live.wallet}/requests",
+        json={"voter_id": voter_id, "blinded_key": b64(blinded)}).json()
 
     assert result["outcome"] == "ISSUED"
     # The wallet's own page may see what the wallet sent; the voting
@@ -481,12 +473,11 @@ def test_the_file_pickers_accept_by_extension_as_well_as_mime_type(live):
 
 
 def test_the_wallet_has_exactly_one_persona_control(live):
-    """A wallet belongs to one citizen; two selectors meant one session.
+    """A wallet instance belongs to exactly one citizen.
 
-    The release-query step used to offer its own dropdown, and choosing a
-    name there re-opened the session — so the next token request was signed
-    under that identifier instead of the one the wallet was opened as. One
-    control, chosen first, and every later step acts for that person.
+    Chosen once, in step 1, and every later step acts for that person. The
+    release-query step used to offer a dropdown of its own, which is not a
+    thing a wallet has: no instance of one serves two owners.
     """
     page = live.http.get(f"{live.wallet}/").text
     assert page.count("<select") == 1, "only the step-1 persona selector may exist"
@@ -494,9 +485,41 @@ def test_the_wallet_has_exactly_one_persona_control(live):
 
     script = live.http.get(f"{live.wallet}/wallet.js").text
     assert "query-persona" not in script
-    # The release query must not re-open the session.
-    after = script[script.index("save-query').onclick"):]
-    assert "'/session'" not in after[:400]
+
+
+def test_two_wallets_in_flight_produce_two_signers(live, token_key):
+    """The origin holds no active persona, so concurrent callers do not merge.
+
+    It held one until this test existed. `app.state.active` was server-side
+    and shared by every client of 8002: a hundred voters each choosing their
+    own identifier, loading their own request file and pressing the button
+    would all have signed as whoever chose last, so the first press issued a
+    token and the other ninety-nine were refused as that one citizen.
+
+    What makes `ISSUED` the load-bearing assertion rather than the echoed
+    identifier is the office: it verifies the wallet signature against the
+    certificate for the `id` carried in the same request (B8–B9). Two
+    acceptances therefore prove that each request was signed by the key
+    belonging to the identifier it named, which an echo alone would not.
+    """
+    first, second = "HU-CONCURRENT-A", "HU-CONCURRENT-B"
+    for voter_id in (first, second):
+        live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
+
+    def request_token(voter_id: str) -> dict:
+        blinded, _ = rsabssa.blind(
+            token_key, keys.SigningKeyPair.generate().public_bytes)
+        with httpx.Client(timeout=30.0) as http:
+            return http.post(
+                f"{live.wallet}/requests",
+                json={"voter_id": voter_id, "blinded_key": b64(blinded)},
+            ).json()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(request_token, (first, second)))
+
+    assert [r["outcome"] for r in results] == ["ISSUED", "ISSUED"]
+    assert [r["transmitted"]["voter_id"] for r in results] == [first, second]
 
 
 def test_staged_signing_is_off_by_default_and_real_when_on(live, token_key):
