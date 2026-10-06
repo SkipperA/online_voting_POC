@@ -12,7 +12,7 @@ async function refresh() {
     : '<span class="warn">closed</span> — every record released in clear';
   $('accepted').textContent = accepted.length;
   $('rejected').textContent = rejected.length;
-  $('head').textContent = view.head || view.chain_head || '—';
+  $('head').textContent = view.heads.accepted;
   $('close').disabled = !open;
   $('close-note').textContent = open ? '' : 'already closed; this cannot be undone';
 

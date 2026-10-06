@@ -156,6 +156,38 @@ to warrant suspicion, and taking it would be the largest single edit to §3 on
 this list. Deliberately not taken. If it is taken, `docs/actions.md` rows A5,
 A9 and E1 change with it, and clauses S4 and A4 are affected.
 
+### 1.7 The count audit is stated over the wrong quantity — §3.5
+
+§3.5 offers one check that speaks about the ballots collectively rather than
+one at a time: "the running count lets any third party confirm that the
+number of accepted entries does not exceed the number of tokens the VRO
+reports having released."
+
+**That bound does not hold.** A token certifies one ad-hoc key, and §3.4
+permits a voter to cast under it as often as they like — re-voting is the
+design's answer to coercion. Two ballots from one voter are two accepted
+entries against one released token, so the stated inequality is violated by
+the design operating exactly as intended. A checker implementing §3.5
+literally reports honest re-voting as fraud, which is what it did here.
+
+**The bound that holds is over distinct ad-hoc keys**, not entries: one
+token, one key, any number of ballots under it.
+
+**And it is not available while voting is open.** Distinct keys cannot be
+counted from the published artefacts before the close, because the records
+are withheld and only commitments are published (Table 1). So §3.5's "throughout
+the voting period" is wrong twice: the quantity is wrong, and the timing is
+wrong for the corrected quantity.
+
+What remains available during the poll is weaker and worth stating as such:
+the number of accepted entries and the number of tokens released are both
+public, and neither bounds the other. An office minting tokens nobody uses
+is invisible either way; §3.7's third qualification already says so.
+
+Corrected in `web/checker/static/checker.js`, which now reports the figures
+without a verdict while the poll is open, and checks distinct keys against
+tokens at the close. The article has not been amended.
+
 ---
 
 ## 2. Scope limits (`docs/Demo_Scope_Limits.md`)

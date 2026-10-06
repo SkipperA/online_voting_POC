@@ -18,13 +18,26 @@ async function refresh() {
   const rejected = open ? view.commitments.rejected : view.records.rejected;
   show('accepted', String(accepted.length));
   show('rejected', String(rejected.length));
-  show('ebb-head', view.head || view.chain_head || '—');
+  show('ebb-head', view.heads.accepted);
 
-  // The count audit is available throughout, and is the only check that
-  // speaks about the ballots collectively rather than one at a time.
-  const within = accepted.length <= log.count;
-  show('count-audit', `${accepted.length} ≤ ${log.count} — ${within ? 'holds' : 'VIOLATED'}`,
-       within ? 'ok' : 'warn');
+  // The count audit, correctly stated.
+  //
+  // §3.5 says the number of accepted *entries* must not exceed the number of
+  // tokens released. That is false whenever anybody re-votes, which the
+  // design explicitly permits: one token certifies one ad-hoc key, and a
+  // voter may cast under it as often as they like. The bound that actually
+  // holds is over *distinct keys*, not entries.
+  //
+  // And distinct keys are not visible while voting is open, because the
+  // records are withheld. So this check is simply unavailable before the
+  // close — stating it as a violation, as it did, reported the design's own
+  // re-voting as fraud.
+  if (open) {
+    show('count-audit',
+         `${log.count} tokens released · ${accepted.length} accepted entries ` +
+         '(entries may exceed tokens: a voter may re-cast under one token)',
+         'muted');
+  }
   show('records', open
     ? 'withheld while voting is open — commitments only'
     : `${accepted.length} released in clear`, open ? 'muted' : 'ok');
@@ -43,6 +56,14 @@ async function refresh() {
   // a stranger's vote by copying their public key and token.
   const latest = new Map();
   for (const r of accepted) latest.set(r.adhoc_public_key, r.selection);
+
+  // Now that the records are open, the bound that holds can be checked:
+  // distinct ad-hoc keys against tokens released. One token, one key, any
+  // number of ballots under it.
+  const within = latest.size <= log.count;
+  show('count-audit',
+       `${latest.size} distinct ad-hoc keys ≤ ${log.count} tokens released — ` +
+       `${within ? 'holds' : 'VIOLATED'}`, within ? 'ok' : 'warn');
   const counts = {}, protest = {};
   for (const sel of latest.values()) {
     const inRange = Number.isInteger(sel) && sel >= 1;
