@@ -122,6 +122,12 @@ class Outcome(Enum):
     CERTIFICATE_EXPIRED = "certificate_expired"
     NOT_ELIGIBLE = "not_eligible"
     TOKEN_ALREADY_ISSUED = "token_already_issued"
+    #: Validated and reserved, but not signed. Distinct from ISSUED because
+    #: it is a different thing to have been told: no token exists, nothing is
+    #: published, and the claim can still be cancelled. Overloading ISSUED
+    #: here would make the office's audit log misreport what it disclosed,
+    #: which is the one column that must not lie.
+    RESERVED = "reserved"
     #: A request for this id has been validated and is awaiting release.
     #: Distinct from TOKEN_ALREADY_ISSUED because the facts differ: nothing
     #: has been published, no token exists, and the reservation can be
@@ -137,6 +143,7 @@ POST_IDENTITY_OUTCOMES = frozenset(
         Outcome.NOT_ELIGIBLE,
         Outcome.TOKEN_ALREADY_ISSUED,
         Outcome.REQUEST_PENDING,
+        Outcome.RESERVED,
         Outcome.ISSUED,
     }
 )
@@ -331,7 +338,7 @@ class VRO:
         sign with nothing in between.
         """
         reserved = self.reserve(request, now)
-        if reserved.outcome is not Outcome.ISSUED:
+        if reserved.outcome is not Outcome.RESERVED:
             return reserved
         return self.release(request)
 
@@ -359,8 +366,9 @@ class VRO:
         deliberating from one that is not — a property the design does not
         offer and should not acquire by accident.
 
-        An ISSUED outcome here carries no signature: it means validated and
-        reserved. `release` produces the token.
+        Returns RESERVED on success, never ISSUED: no token exists yet, and
+        saying otherwise would be false to the requester and false in the
+        audit log.
         """
         # ---- before the identity boundary: one opaque outcome, no detail ----
         cert = self.population_register.lookup(request.voter_id)
@@ -417,9 +425,9 @@ class VRO:
         # the checks mean something under concurrency.
         self._reserved[request.voter_id] = request.blinded_key
         self._audit.append(
-            AuditEntry(request.voter_id, Outcome.ISSUED, "validated and reserved")
+            AuditEntry(request.voter_id, Outcome.RESERVED, "validated and reserved")
         )
-        return TokenResponse(outcome=Outcome.ISSUED, blind_signature=None)
+        return TokenResponse(outcome=Outcome.RESERVED, blind_signature=None)
 
     def cancel_reservation(self, voter_id: str) -> bool:
         """Release a claim that will never complete.
@@ -434,7 +442,7 @@ class VRO:
             return False
         del self._reserved[voter_id]
         self._audit.append(
-            AuditEntry(voter_id, Outcome.NOT_ELIGIBLE, "reservation cancelled")
+            AuditEntry(voter_id, Outcome.RESERVED, "reservation cancelled")
         )
         return True
 

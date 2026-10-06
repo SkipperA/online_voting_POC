@@ -544,3 +544,31 @@ def test_a_held_request_can_be_cancelled_and_the_voter_may_ask_again(live, token
         assert obtain_token(live, token_key, voter_id)[2] == "AWAITING_RELEASE"
     finally:
         live.http.post(f"{live.vro}/back-office/mode", json={"manual": False})
+
+
+def test_the_audit_column_reports_what_was_disclosed_not_what_was_recorded(
+        live, token_key):
+    """The console's second column is about what went back over the wire.
+
+    `reserve` records RESERVED; the requester is told AWAITING_RELEASE. An
+    entry claiming ISSUED would say the voter had been told their token
+    existed when it did not — in the one column whose purpose is to show
+    what was said.
+    """
+    voter_id = "HU-DISCLOSE-001"
+    live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
+    live.http.post(f"{live.vro}/back-office/mode", json={"manual": True})
+    try:
+        assert obtain_token(live, token_key, voter_id)[2] == "AWAITING_RELEASE"
+        audit = live.http.get(f"{live.vro}/back-office/audit").json()["entries"]
+        entry = next(e for e in audit if e["voter_id"] == voter_id)
+        assert entry["recorded"] == "validated and reserved"
+        assert entry["disclosed"] == "AWAITING_RELEASE"
+
+        live.http.post(f"{live.vro}/back-office/cancel", json={"voter_id": voter_id})
+        audit = live.http.get(f"{live.vro}/back-office/audit").json()["entries"]
+        cancelled = [e for e in audit if e["voter_id"] == voter_id][-1]
+        assert "nothing disclosed" in cancelled["disclosed"], (
+            "a cancellation is an operator act; the requester is told nothing")
+    finally:
+        live.http.post(f"{live.vro}/back-office/mode", json={"manual": False})

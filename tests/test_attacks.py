@@ -717,8 +717,9 @@ def test_a_reservation_blocks_a_second_request_for_the_same_id(election):
     """
     vro, voter = _reservation_voter(election, "001")
     first = vro.reserve(voter.build_auth_request())
-    assert first.outcome is Outcome.ISSUED
-    assert first.blind_signature is None, "reserving is not signing"
+    assert first.outcome is Outcome.RESERVED, (
+        "reserving is not issuing: no token exists and nothing is published")
+    assert first.blind_signature is None
 
     second = vro.reserve(voter.build_auth_request())
     assert second.outcome is Outcome.REQUEST_PENDING
@@ -767,7 +768,7 @@ def test_a_cancelled_reservation_lets_the_voter_ask_again(election):
     assert vro.cancel_reservation(voter.voter_id) is True
     assert vro.cancel_reservation(voter.voter_id) is False
 
-    assert vro.reserve(voter.build_auth_request()).outcome is Outcome.ISSUED
+    assert vro.reserve(voter.build_auth_request()).outcome is Outcome.RESERVED
 
 
 def test_release_refuses_a_value_the_reservation_did_not_claim(election):

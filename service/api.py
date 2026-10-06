@@ -263,8 +263,12 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             # that its reply is not there yet, which is the state B16 was
             # built to tolerate.
             reserved = vro.reserve(request)
-            if reserved.outcome.name == "ISSUED":
+            if reserved.outcome.name == "RESERVED":
                 deployment.held_requests[request.voter_id] = request
+                # What the requester is actually told. The office records
+                # RESERVED; the transport names the state in its own
+                # vocabulary, and the audit log must show the disclosure
+                # rather than the internal result.
                 return {"outcome": "AWAITING_RELEASE"}
             return {"outcome": reserved.outcome.name}
 
@@ -411,7 +415,20 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
                 {
                     "voter_id": entry.voter_id,
                     "recorded": entry.reason,
-                    "disclosed": entry.outcome.name,
+                    # RESERVED is what the office recorded; what the
+                    # requester was told is the transport's word for that
+                    # state, and this column is about what was said.
+                    # RESERVED is what the office recorded. What the
+                    # requester was told is the transport's word for that
+                    # state, and this column is about what was said — a
+                    # cancellation says nothing to anybody at all.
+                    "disclosed": (
+                        "— (operator act; nothing disclosed)"
+                        if entry.reason == "reservation cancelled"
+                        else "AWAITING_RELEASE"
+                        if entry.outcome.name == "RESERVED"
+                        else entry.outcome.name
+                    ),
                     "reason_withheld": entry.outcome.name == "NOT_IDENTIFIED",
                 }
                 for entry in vro.audit_log
