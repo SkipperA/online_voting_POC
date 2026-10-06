@@ -21,7 +21,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import origins
-from .api import ebb_app
+from .api import ebb_app as ebb_api
 from .api import vro_app as vro_api
 from .api import setup_app as setup_api
 from .api import wallet_app as wallet_api
@@ -34,6 +34,7 @@ SETUP_STATIC = WEB / "setup" / "static"
 INDEX_STATIC = WEB / "index" / "static"
 CHECKER_STATIC = WEB / "checker" / "static"
 OFFICE_STATIC = WEB / "office" / "static"
+BOX_STATIC = WEB / "box" / "static"
 
 
 def _base(origin: origins.Origin) -> FastAPI:
@@ -215,6 +216,27 @@ def setup_console(deployment: Deployment) -> FastAPI:
     return app
 
 
+def ebb_app(deployment: Deployment) -> FastAPI:
+    """8004 — the box's endpoints, and its operator console.
+
+    Same origin, so closing needs no cross-origin permission and none is
+    granted: `/close` is shut to every other origin precisely because no
+    page the voting application serves should be able to provoke it.
+    """
+    app = ebb_api(deployment, _base)
+
+    @app.get("/", response_class=HTMLResponse)
+    async def page() -> HTMLResponse:
+        return HTMLResponse((BOX_STATIC / "index.html").read_text(encoding="utf-8"))
+
+    @app.get("/box.js")
+    async def script() -> Response:
+        return Response((BOX_STATIC / "box.js").read_text(encoding="utf-8"),
+                        media_type="text/javascript")
+
+    return app
+
+
 def vro_app(deployment: Deployment) -> FastAPI:
     """8003 — the office's endpoints, and its own back-office console.
 
@@ -294,7 +316,7 @@ def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
         origins.VOTER_APP: voter_app(deployment),
         origins.WALLET: wallet_app(deployment),
         origins.VRO: vro_app(deployment),
-        origins.EBB: ebb_app(deployment, _base),
+        origins.EBB: ebb_app(deployment),
         origins.CHECKER: checker_app(deployment),
         origins.SETUP: setup_console(deployment),
     }

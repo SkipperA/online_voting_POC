@@ -572,3 +572,21 @@ def test_the_audit_column_reports_what_was_disclosed_not_what_was_recorded(
             "a cancellation is an operator act; the requester is told nothing")
     finally:
         live.http.post(f"{live.vro}/back-office/mode", json={"manual": False})
+
+
+def test_the_box_serves_an_operator_console_and_close_stays_same_origin(live):
+    """The one act with institutional meaning finally has an interface.
+
+    It is served from the box's own origin, so closing needs no cross-origin
+    permission — and `/close` remains shut to every other origin, because no
+    page the voting application serves should be able to provoke it.
+    """
+    page = live.http.get(f"{live.ebb}/").text
+    assert 'src="box.js"' in page
+    assert "act of the box performed by an operator" in page
+    assert "Clause A7" in page, "the in-memory registry must be stated here"
+    assert live.http.get(f"{live.ebb}/box.js").status_code == 200
+
+    closed = live.http.request(
+        "OPTIONS", f"{live.ebb}/close", headers={"origin": live.url(8001)})
+    assert "access-control-allow-origin" not in {k.lower() for k in closed.headers}

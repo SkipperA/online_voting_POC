@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Electronic Ballot Box — operator</title>
+<style>
+ :root{color-scheme:light dark;--dim:#777}
+ body{font:15px/1.6 ui-sans-serif,system-ui,sans-serif;margin:0 auto;max-width:56rem;padding:2rem 1.25rem 4rem}
+ h1{font-size:1.35rem;margin:0 0 .2rem} .sub{color:var(--dim);margin:0 0 1.3rem}
+ section{border:1px solid #8884;border-radius:6px;padding:.9rem 1.1rem;margin:0 0 1rem}
+ h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 .7rem}
+ table{border-collapse:collapse;width:100%;font-size:13.5px}
+ td,th{text-align:left;padding:.35rem .55rem;border-bottom:1px solid #8883;vertical-align:top}
+ th{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+ .mono{font-family:ui-monospace,monospace;font-size:12.5px;word-break:break-all}
+ .ok{color:#15803d} .warn{color:#b91c1c;font-weight:600}
+ button{font:inherit;padding:.4rem .85rem}
+ .danger{border-color:#b91c1c;color:#b91c1c}
+ .note{background:#f59e0b18;border-left:3px solid #f59e0b;padding:.75rem .95rem;margin:0 0 1.2rem;font-size:13.5px}
+ .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b45309;margin-bottom:.3rem}
+</style></head>
+<body>
+<h1>Electronic Ballot Box — operator</h1>
+<p class="sub">The registry as the box holds it, and the one act that closes
+the poll.</p>
+
+<div class="note">
+  <b>What does not survive a restart</b>
+  The registry, the hash chain and the accepted ballots are in memory. A real
+  ballot box does not forget its contents when its process stops, and the
+  receipts voters hold would then refer to a chain that no longer exists —
+  which is exactly the evidence the design says they are. Clause A7.
+</div>
+
+<section>
+  <h2>The registry</h2>
+  <div class="row"><table><tbody>
+    <tr><td style="width:12rem">state</td><td id="state">…</td></tr>
+    <tr><td>accepted</td><td id="accepted">…</td></tr>
+    <tr><td>rejected</td><td id="rejected">…</td></tr>
+    <tr><td>chain head</td><td class="mono" id="head">…</td></tr>
+  </tbody></table></div>
+  <p style="margin:.6rem 0 0;color:var(--dim);font-size:13.5px">
+    Each entry stores the hash of the one before it, so the head depends on
+    every record and on their order. A voter holding a receipt can show a
+    discrepancy rather than merely allege one.
+  </p>
+</section>
+
+<section>
+  <h2>Closing the poll</h2>
+  <p style="margin:0 0 .7rem;color:var(--dim);font-size:13.5px">
+    An act of the box performed by an operator, not a clock (E1). Until it
+    happens the records are withheld and only commitments are published;
+    afterwards every record is released in clear, accepted and rejected
+    alike, and anyone can recount. The box is also the sole witness to its
+    own stopping — which is what supervision by competing parties would
+    answer, and this demo cannot.
+  </p>
+  <button id="close" class="danger">Close the poll</button>
+  <span id="close-note" style="margin-left:.6rem;color:var(--dim);font-size:13px"></span>
+</section>
+
+<section>
+  <h2>Tally</h2>
+  <p style="margin:0 0 .6rem;color:var(--dim);font-size:13.5px">
+    Not computable before the close: with no running tally configured, there
+    is no result to be had — for anyone, the operator included. Out-of-range
+    selections are reported by the distinct value each voter cast rather than
+    merged into one figure, so an organised protest is not flattened into
+    "invalid".
+  </p>
+  <div class="mono" id="tally">…</div>
+</section>
+
+<p><button id="refresh">Re-read</button> <span id="asof" style="color:#888;font-size:13px">—</span></p>
+<script src="box.js" defer></script>
+</body></html>
