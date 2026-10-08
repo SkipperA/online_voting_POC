@@ -29,7 +29,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from ovpoc import ledger, rsabssa
 from ovpoc.messages import b64
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class ElectionConfig:
     vro_statement_key: bytes           # k_p^(O), raw Ed25519
     num_choices: int
     genesis_hash: bytes
-    tally_interval: int | None
+    tally_interval_seconds: int | None
     opens: str
     closes: str
 
@@ -52,7 +52,7 @@ class ElectionConfig:
         num_choices: int,
         opens: str,
         closes: str,
-        tally_interval: int | None = None,
+        tally_interval_seconds: int | None = None,
     ) -> "ElectionConfig":
         return cls(
             election_id=election_id,
@@ -63,7 +63,7 @@ class ElectionConfig:
             vro_statement_key=statement_key,
             num_choices=num_choices,
             genesis_hash=ledger.GENESIS,
-            tally_interval=tally_interval,
+            tally_interval_seconds=tally_interval_seconds,
             opens=opens,
             closes=closes,
         )
@@ -90,7 +90,7 @@ class ElectionConfig:
             "vro_statement_key": b64(self.vro_statement_key),
             "num_choices": self.num_choices,
             "genesis_hash": self.genesis_hash.hex(),
-            "tally_interval": self.tally_interval,
+            "tally_interval_seconds": self.tally_interval_seconds,
             "opens": self.opens,
             "closes": self.closes,
             "scope_limits": {

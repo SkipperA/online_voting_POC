@@ -35,20 +35,29 @@ in clear, accepted and rejected alike.  `published_view` is that publication;
 reading `accepted.entries` directly is the box's own storage, not something a
 citizen can see before the close.
 
-`tally_interval` is the legislator's dial, not a property of the design.
-Left at None -- the article's default -- no running tally exists and `tally`
-refuses until the box closes, because a continuously visible result would
-broadcast a running total and, with re-voting, that somebody reversed a
-choice.  Set to a count, a snapshot is published after every that-many
-accepted ballots, which is the alternative setting the article describes
-(fifteen minutes, in its example).  This POC counts ballots rather than
-minutes: a fake clock would add a moving part that demonstrates nothing.
+`tally_interval_seconds` is the legislator's dial, not a property of the
+design.  There is no "running tally or not": there is a cadence, and the
+close is always a publication point, so an interval longer than the poll
+simply means the close is the only one.  That is what a small electorate
+wants, because what the dial really sets is how many voters stand behind
+each published number -- a continuously visible result would broadcast a
+running total and, with re-voting, the fact that somebody reversed a
+choice.
+
+The trigger is the clock, not the arrival of a ballot.  A real electorate
+waits for the periodic report, so it is published at each boundary whether
+or not anything has changed; an omitted report would itself say that nobody
+voted in that window, only less legibly.  See `_catch_up` for why that needs
+no scheduler and no timestamp in the ledger.
 """
 
 from __future__ import annotations
 
+import time
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Callable
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -63,11 +72,12 @@ BOX_CLOSED = "voting has closed"
 
 
 class BoxStillOpen(RuntimeError):
-    """A full tally was asked for while voting was still open.
+    """A full tally was asked for before any publication point.
 
-    Raised only when no running tally has been configured.  With one
-    configured the figures are published anyway, so withholding them from a
-    caller would protect nothing.
+    The close is always a publication point, so this can only be raised
+    while voting is open: either no interval is configured, or the first
+    boundary has not yet passed.  Past a boundary the figures are published
+    anyway, so withholding them from a caller would protect nothing.
     """
 
 
@@ -83,11 +93,26 @@ class SubmissionResult:
 class BallotBox:
     vro_public_key: rsa.RSAPublicKey
     num_choices: int
-    tally_interval: int | None = None
+    tally_interval_seconds: int | None = None
     accepted: Ledger = field(default_factory=Ledger)
     rejected: Ledger = field(default_factory=Ledger)
     _closed: bool = False
     _snapshots: list[dict] = field(default_factory=list)
+
+    # The clock, injectable so that tests can drive the cadence, and the
+    # instant the cadence counts from.  Stage 1 anchors at construction,
+    # because creating the deployment is the poll beginning; an explicit
+    # opening act would own this instant instead.
+    now: Callable[[], float] = time.time
+    _anchor: float = 0.0
+    _next_boundary: float = 0.0
+
+    def __post_init__(self) -> None:
+        # Floored to the second: a published boundary is a time the public
+        # is told to expect, not the microsecond this process happened to
+        # start at.
+        self._anchor = float(int(self.now()))
+        self._next_boundary = self._anchor + (self.tally_interval_seconds or 0)
 
     # ------------------------------------------------------------------
     # Phase
@@ -105,12 +130,20 @@ class BallotBox:
         storage, published closing time, several parties holding the head)
         rather than a protocol one.  The POC does not model it, and the
         mutability here is deliberate rather than an oversight.
+
+        The close is always a publication point: any boundary the clock has
+        passed is filled in first, and the final figures are published last,
+        so an interval longer than the poll is not a special case -- it just
+        means the close is the only point in the series.
         """
+        self._catch_up()
+        self._publish(self.now())
         self._closed = True
 
     # ------------------------------------------------------------------
     def submit(self, ballot: Ballot) -> SubmissionResult:
         """Steps 10/1 and 10/2."""
+        self._catch_up()      # before the append: see _catch_up
         if self._closed:
             # Not recorded at all: a submission after the close is not a
             # rejected ballot, it is not a ballot.
@@ -136,12 +169,65 @@ class BallotBox:
         # applied at tally time, so the full history stays auditable.
         entry = self.accepted.append(ballot.to_dict())
 
-        if self.tally_interval and len(self.accepted) % self.tally_interval == 0:
-            self._snapshots.append(
-                {"after_accepted": len(self.accepted), **self._count()}
-            )
-
         return SubmissionResult(True, "accepted", entry.entry_hash, entry.index)
+
+    # ------------------------------------------------------------------
+    # The publication cadence
+    # ------------------------------------------------------------------
+    def set_publication_interval(self, seconds: int | None) -> None:
+        """Choose the cadence.  Build-time only.
+
+        Refused once anything has been submitted: the interval decides what
+        the public is shown and when, so a poll that can be re-timed while
+        it runs is one whose operator chooses how much of the result to
+        reveal and to whom.  An explicit opening act would make this a
+        consequence of the box being open rather than of the ledger being
+        non-empty.
+        """
+        if len(self.accepted) or len(self.rejected):
+            raise RuntimeError(
+                "the publication interval is fixed once a submission has been processed"
+            )
+        self.tally_interval_seconds = seconds
+        self._anchor = float(int(self.now()))
+        self._next_boundary = self._anchor + (seconds or 0)
+
+    def _publish(self, at: float) -> None:
+        """Record one publication point, labelled with the instant it is for."""
+        self._snapshots.append({
+            "at": datetime.fromtimestamp(at, tz=timezone.utc)
+                          .isoformat().replace("+00:00", "Z"),
+            "after_accepted": len(self.accepted),
+            **self._count(),
+        })
+
+    def _catch_up(self) -> None:
+        """Publish every boundary the clock has passed.
+
+        The trigger is the time, not the arrival of a ballot: in a real
+        election the public waits for the periodic report, so it goes out
+        at each boundary whether or not anything has changed.  A boundary
+        that passes with no ballots therefore republishes the previous
+        figures, which is the point rather than a defect.
+
+        No scheduler is needed, and none belongs here.  The ledger changes
+        only in `submit`, and `submit` rolls the boundaries forward *before*
+        it appends, so a boundary noticed late is still filled in with the
+        figures that were correct at the time -- nothing was added in
+        between.  Materialising on read is therefore indistinguishable from
+        a timer, because reading is the only way to see a snapshot.
+
+        The label is the boundary, never the moment the gap was noticed.
+        Labelling it with the triggering ballot's arrival would publish one
+        voter's submission time per interval, which is the traffic exposure
+        of Section 3.8 written into the public record.
+        """
+        if self._closed or not self.tally_interval_seconds:
+            return
+        now = self.now()
+        while now >= self._next_boundary:
+            self._publish(self._next_boundary)
+            self._next_boundary += self.tally_interval_seconds
 
     # ------------------------------------------------------------------
     # Publication
@@ -162,6 +248,7 @@ class BallotBox:
         withdrawn at the close, and what changes does so only by disclosing
         more.
         """
+        self._catch_up()
         view = {
             "phase": "closed" if self._closed else "open",
             "commitments": {
@@ -233,16 +320,26 @@ class BallotBox:
         out-of-range selections are kept apart in `protest_codes` rather than
         merged into one number -- see the module docstring for why.
 
-        Refused while voting is open unless a running tally is configured.
-        The operator gets no privileged early sight of the result: with
-        `tally_interval` unset there is no tally to be had, for anyone.
+        While voting is open this returns the last *published* figures, not
+        the live count, so the endpoint cannot be used to read around the
+        publication cadence.  The operator gets no privileged early sight of
+        the result: before the first boundary there is no tally to be had,
+        for anyone, and after it there is one the public has too.
         """
-        if not self._closed and self.tally_interval is None:
-            raise BoxStillOpen(
-                "no running tally is published for this election: the full count "
-                "is available once the box is closed"
-            )
-        return self._count()
+        if self._closed:
+            return self._count()
+        self._catch_up()
+        if not self._snapshots:
+            raise BoxStillOpen(self._no_publication_yet())
+        return dict(self._snapshots[-1])
+
+    def _no_publication_yet(self) -> str:
+        if not self.tally_interval_seconds:
+            return ("no publication interval is configured for this election: "
+                    "the full count is available once the box is closed")
+        due = datetime.fromtimestamp(self._next_boundary, tz=timezone.utc)
+        return ("no publication point has been reached yet: the first falls at "
+                f"{due.isoformat().replace('+00:00', 'Z')}")
 
     def find_ballot(self, adhoc_public_key: bytes) -> dict | None:
         """The voter's own verification: 'is my recorded choice what I intended?'

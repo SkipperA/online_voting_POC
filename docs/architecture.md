@@ -174,7 +174,7 @@ classDiagram
     class BallotBox {
         +vro_public_key: RSAPublicKey
         +num_choices: int
-        +tally_interval: int
+        +tally_interval_seconds: int
         +accepted: Ledger
         +rejected: Ledger
         -_closed: bool
@@ -343,7 +343,7 @@ sequenceDiagram
             B-->>V: SubmissionResult(False, "vote signature invalid")
         else accepted
             B->>L: accepted.append(ballot) -- 11/A
-            B->>B: snapshot if tally_interval reached
+            B->>B: publish every boundary the clock has passed
             B-->>V: SubmissionResult(True, ledger_head)
         end
     end

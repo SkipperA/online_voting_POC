@@ -43,6 +43,21 @@ no part in the poll itself — the service runs with it stopped.</p>
 </section>
 
 <section>
+  <h2>Publication cadence</h2>
+  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
+    How often the box publishes the figures, in seconds. The close is always
+    a publication point, so an interval longer than the poll means the close
+    is the only one — which is what a small electorate wants, since what
+    matters is how many voters stand behind each published number. Fixed
+    once a submission has been processed.
+  </p>
+  <input type="number" id="interval" min="1" placeholder="seconds, e.g. 900 — blank for close-only">
+  <button id="set-interval">Set</button>
+  <div class="row" style="margin-top:.6rem"><span class="label">interval</span><span class="value" id="interval-now">…</span></div>
+  <div class="row"><span class="label">on the register</span><span class="value" id="register-size">…</span></div>
+</section>
+
+<section>
   <h2>Electoral register</h2>
   <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
     Presence in the register is the whole of the eligibility statement. The

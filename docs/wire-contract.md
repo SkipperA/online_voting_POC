@@ -182,7 +182,7 @@ sees.
 | `commitments.rejected[]` | both | as above | Req. 7 — rejected submissions are published too, so attempts are visible |
 | `heads.accepted` / `.rejected` | both | `Ledger.head()` | §3.5, Table 1 row 3 |
 | `counts.accepted` / `.rejected` | both | `len(Ledger)` | §3.5, Table 1 row 4 |
-| `running_tally[]` | both | `_snapshots` | §3.5 — present only if `tally_interval` is set |
+| `running_tally[]` | both | `_snapshots` | §3.5 — one entry per publication point, each labelled with the boundary `at` it is for. The close is always a point |
 | `records.accepted[]` / `.rejected[]` | **closed only** | `Entry.payload` | Req. 5, §3.5, Table 1 row 5 |
 
 Nothing moves backwards: what is published while voting is open stays
@@ -206,7 +206,7 @@ available while the records are withheld from everybody else.
 | `rejected` | `tally()["rejected"]` | Req. 7 | Submissions that never became anybody's vote |
 | `ledger_head` | `tally()["ledger_head"]` | §3.5 | The state the count was taken from |
 
-Refused while voting is open unless `tally_interval` is set — the operator gets
+Refused while voting is open until the first publication point; thereafter it returns the last published figures rather than the live count — the operator gets
 no privileged early sight of the result either (§3.5).
 
 ---
@@ -220,7 +220,7 @@ Table 1 footnote (a).
 | $`k_p^{(R)}`$ | `BallotBox.vro_public_key`, `Voter.pinned_vro_fingerprint` | §3.3 | Published *and pinned*. A per-voter signing key would defeat blinding, and only the client-side check constrains that |
 | choice list $`1..N`$ | `BallotBox.num_choices` | Req. 7 | Fixes which selections are in range |
 | genesis hash | `ledger.GENESIS` | §3.5 | |
-| publication resolution | `BallotBox.tally_interval` | §3.5 | The administering body's decision, not the design's |
+| publication resolution | `BallotBox.tally_interval_seconds` | §3.5 | The administering body's decision, not the design's |
 | opening and closing times | — | §3.5 | **Not implemented.** `close()` is called, not scheduled |
 
 ---

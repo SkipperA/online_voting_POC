@@ -15,7 +15,7 @@ import pytest
 
 from conftest import query, register
 from ovpoc import keys, rsabssa
-from ovpoc.ballotbox import BOX_CLOSED
+from ovpoc.ballotbox import BOX_CLOSED, BallotBox, BoxStillOpen
 from ovpoc.messages import Ballot
 from ovpoc.vro import (
     FaultDetected,
@@ -629,13 +629,12 @@ def test_a_running_tally_is_published_only_when_configured(election, vro_keypair
     """The publication interval is the legislator's dial (§3.5).
 
     Left unset, no tally exists for anybody -- the operator gets no
-    privileged early sight of the result. Set to a count, snapshots appear as
-    the poll runs, which is the alternative setting the article describes.
+    privileged early sight of the result. Set to an interval, the figures
+    are published on that cadence, which is the alternative setting the
+    article describes.
     """
-    from ovpoc.ballotbox import BallotBox, BoxStillOpen
-
     vro, voters, box = election
-    assert box.tally_interval is None
+    assert box.tally_interval_seconds is None
     register(vro, voters[0])
     box.submit(voters[0].cast(1))
 
@@ -644,16 +643,120 @@ def test_a_running_tally_is_published_only_when_configured(election, vro_keypair
     assert box.published_view()["running_tally"] == []
 
     _, pub = vro_keypair
-    running = BallotBox(vro_public_key=pub, num_choices=3, tally_interval=2)
+    clock = [1000.0]
+    running = BallotBox(vro_public_key=pub, num_choices=3,
+                        tally_interval_seconds=900, now=lambda: clock[0])
     for voter in voters:
         if voter.token is None:
             register(vro, voter)
         running.submit(voter.cast(1))
 
+    assert running.published_view()["running_tally"] == []   # no boundary yet
+    with pytest.raises(BoxStillOpen):
+        running.tally()
+
+    clock[0] += 900
     snapshots = running.published_view()["running_tally"]
-    assert [s["after_accepted"] for s in snapshots] == [2]
-    assert snapshots[0]["counts"] == {1: 2, 2: 0, 3: 0}
-    assert running.tally()["voters"] == 3        # callable while open, as configured
+    assert [s["after_accepted"] for s in snapshots] == [3]
+    assert snapshots[0]["counts"] == {1: 3, 2: 0, 3: 0}
+    assert running.tally()["voters"] == 3        # callable once published
+
+
+def test_the_cadence_publishes_a_boundary_that_nothing_happened_in(vro_keypair):
+    """The trigger is the clock, not a ballot.
+
+    A real electorate waits for the periodic report, so it goes out whether
+    or not anything has changed; and an empty boundary that published
+    nothing would itself say that nobody voted in that window, only less
+    legibly. Three quiet boundaries, three identical reports.
+    """
+    _, pub = vro_keypair
+    clock = [1000.0]
+    box = BallotBox(vro_public_key=pub, num_choices=3,
+                    tally_interval_seconds=900, now=lambda: clock[0])
+
+    clock[0] += 2700
+    snapshots = box.published_view()["running_tally"]
+    assert [s["at"] for s in snapshots] == [
+        "1970-01-01T00:31:40Z", "1970-01-01T00:46:40Z", "1970-01-01T01:01:40Z",
+    ]
+    assert all(s["after_accepted"] == 0 for s in snapshots)
+
+
+def test_a_boundary_is_labelled_with_itself_not_with_the_ballot_that_filled_it(
+    election, vro_keypair
+):
+    """A late-noticed boundary carries the figures that were right at the time.
+
+    The ledger changes only in `submit`, which rolls the cadence forward
+    before it appends. So a ballot arriving after a missed boundary is not
+    counted in it, and the label is the boundary rather than that voter's
+    arrival time -- which would publish one submission time per interval.
+    """
+    vro, voters, _ = election
+    _, pub = vro_keypair
+    clock = [1000.0]
+    box = BallotBox(vro_public_key=pub, num_choices=3,
+                    tally_interval_seconds=900, now=lambda: clock[0])
+
+    register(vro, voters[0])
+    box.submit(voters[0].cast(1))
+
+    clock[0] += 1000                      # the boundary at +900 has passed
+    register(vro, voters[1])
+    box.submit(voters[1].cast(2))         # ... and this ballot trips it
+
+    snapshot, = box.published_view()["running_tally"]
+    assert snapshot["at"] == "1970-01-01T00:31:40Z"     # the boundary, not +1000
+    assert snapshot["after_accepted"] == 1              # not the ballot that tripped it
+
+
+def test_the_close_is_always_a_publication_point(election):
+    """So an interval longer than the poll is not a special case."""
+    vro, voters, box = election
+    assert box.tally_interval_seconds is None
+    register(vro, voters[0])
+    box.submit(voters[0].cast(1))
+    box.close()
+
+    final, = box.published_view()["running_tally"]
+    assert final["after_accepted"] == 1
+    assert box.tally()["voters"] == 1
+
+
+def test_the_tally_endpoint_cannot_read_around_the_cadence(election, vro_keypair):
+    """While open it returns the last published figures, not the live count.
+
+    Otherwise the interval would be a dial on what the public sees and no
+    constraint at all on what the operator sees, which is the asymmetry it
+    exists to remove.
+    """
+    vro, voters, _ = election
+    _, pub = vro_keypair
+    clock = [1000.0]
+    box = BallotBox(vro_public_key=pub, num_choices=3,
+                    tally_interval_seconds=900, now=lambda: clock[0])
+
+    register(vro, voters[0])
+    box.submit(voters[0].cast(1))
+    clock[0] += 900
+    assert box.tally()["after_accepted"] == 1
+
+    register(vro, voters[1])
+    box.submit(voters[1].cast(2))         # arrives after the boundary
+    assert box.tally()["after_accepted"] == 1      # still the published figure
+    assert len(box.accepted) == 2                  # though the box holds two
+
+
+def test_the_cadence_is_fixed_once_a_submission_is_processed(election):
+    """A poll that can be re-timed while it runs has no cadence."""
+    vro, voters, box = election
+    box.set_publication_interval(900)              # before anything arrives
+    register(vro, voters[0])
+    box.submit(voters[0].cast(1))
+
+    with pytest.raises(RuntimeError):
+        box.set_publication_interval(60)
 
 
 def test_a_ballot_arriving_after_the_close_is_not_recorded(election):

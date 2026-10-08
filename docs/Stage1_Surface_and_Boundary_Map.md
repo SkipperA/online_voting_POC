@@ -59,13 +59,13 @@ Authored by the setup console at 8009, served as a static file from 8000.
 
 **Contents** (Table 1, footnote a; `wire-contract.md` §10): election
 identifier, `k_p^{(R)}`, choice list `1..N`, genesis hash, publication
-resolution (`tally_interval`), opening and closing times.
+resolution (`tally_interval_seconds`), opening and closing times.
 
 **Consumers.** All four runtime trust domains agree on this one object:
 
 - voter app — pins `k_p^{(R)}` **at build time**, not at runtime;
 - EBB — initialises the registry at the genesis hash (A7), takes `num_choices`
-  and `tally_interval`;
+  and `tally_interval_seconds`;
 - VRO — takes the election identifier;
 - checker — takes the verification parameters.
 

@@ -570,11 +570,13 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
 
     @app.get("/tally")
     async def tally() -> dict:
-        """Refused while open unless a running tally is configured.
+        """The last published figures, not the live count.
 
-        The operator gets no privileged early sight: with `tally_interval`
-        unset there is no tally to be had, for anyone. The 409 carries that
-        rather than hiding it behind an empty result.
+        Refused while open until the first publication point. The operator
+        gets no privileged early sight: before a boundary there is no tally
+        to be had, for anyone, and after one there is a tally the public
+        has too. The 409 carries that rather than hiding it behind an empty
+        result.
         """
         try:
             return box.tally()
@@ -590,6 +592,10 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
 
 class EnrolBody(BaseModel):
     voter_id: str
+
+
+class TallyIntervalBody(BaseModel):
+    seconds: int | None = None
 
 
 def setup_app(deployment: Deployment, base) -> FastAPI:
@@ -611,12 +617,34 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         """The register, which is a set of identifiers and nothing else."""
         return {"voters": sorted(deployment.vro.register)}
 
+    @app.post("/tally-interval")
+    async def tally_interval(body: TallyIntervalBody) -> dict:
+        """A5. The publication cadence, in seconds.
+
+        There is no "running tally or not": there is an interval, and the
+        close is always a publication point. An interval longer than the
+        poll therefore means the close is the only one, which is what a
+        small electorate wants -- the figure is a function of how many
+        voters stand behind each published number, not of clock
+        convenience.
+        """
+        try:
+            deployment.set_tally_interval(body.seconds)
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc))
+        return {
+            "tally_interval_seconds": body.seconds,
+            "digest": deployment.config.digest_hex(),
+        }
+
     @app.get("/configuration")
     async def configuration() -> dict:
         return {
             "election_id": deployment.config.election_id,
             "digest": deployment.config.digest_hex(),
             "token_key_fingerprint": deployment.config.token_key_fingerprint,
+            "tally_interval_seconds": deployment.config.tally_interval_seconds,
+            "register_size": len(deployment.vro.register),
         }
 
     return app

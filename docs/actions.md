@@ -23,10 +23,10 @@ certificate lookup service is likewise external (§3.2).
 | A3 | Administer the register: hold and read it, never populate it | VRO operator | VRO back-office | register → VRO (read-only) |
 | A4 | Generate the token signing key pair `k_s^(R)`, `k_p^(R)`, reserved to this election and to no other protocol | VRO operator | VRO back-office (§3.3) | internal to VRO |
 | A4b | Generate the office **statement** key pair `k_s^(O)`, `k_p^(O)`, under which denials and refusals are signed — never the token key, which is a blind-signing oracle any voter can drive (§3.3) | VRO operator | VRO back-office | internal to VRO |
-| A5 | Fix the election configuration: identifier, `k_p^(R)`, **`k_p^(O)`**, choice list `1..N`, opening and closing times, registry genesis hash | Voting Administrator | *not assigned in the article* | configuration → public |
+| A5 | Fix the election configuration: identifier, `k_p^(R)`, **`k_p^(O)`**, choice list `1..N`, publication interval `tally_interval_seconds`, opening and closing times, registry genesis hash | Voting Administrator | setup console | configuration → public |
 | A6 | Publish and pin the configuration before opening | administering body / VRO | published artefact, pinned in the voter app (Table 1, row 1) | publisher → voter app, and → anyone |
 | A7 | Initialise the registry at the genesis hash | ballot box operator | EBB | internal to EBB |
-| A8 | If no running tally is to be published: generate the election encryption key, distribute the private half in Shamir shares | several independent public bodies | outside the three components (§3.5) | key generator → share-holders |
+| A8 | If the interval exceeds the poll, so that the close is the only publication point: generate the election encryption key, distribute the private half in Shamir shares | several independent public bodies | outside the three components (§3.5) | key generator → share-holders |
 | A9 | Open the poll | administering body | EBB, VRO | — |
 
 ## Phase B — Obtaining a token

@@ -6,6 +6,10 @@ async function refresh() {
   $('fingerprint').textContent = c.token_key_fingerprint;
   $('election').textContent = c.election_id;
   $('digest').textContent = c.digest;
+  $('interval-now').textContent = c.tally_interval_seconds === null
+    ? 'none — the close is the only publication point'
+    : `${c.tally_interval_seconds} s`;
+  $('register-size').textContent = `${c.register_size} voters`;
   const voters = (await (await fetch('/voters')).json()).voters;
   $('register').innerHTML = voters.length
     ? voters.map((v) => `<li>${v}</li>`).join('')
@@ -25,6 +29,20 @@ $('enrol').onclick = async () => {
   $('enrol').disabled = false;
   if (!response.ok) { $('status').textContent = 'Enrolment failed.'; return; }
   await refresh();
+};
+
+$('set-interval').onclick = async () => {
+  const raw = $('interval').value.trim();
+  const response = await fetch('/tally-interval', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ seconds: raw === '' ? null : Number(raw) }),
+  });
+  if (!response.ok) {
+    $('status').textContent = (await response.json()).detail;
+    return;
+  }
+  await refresh();
+  $('status').textContent = 'Cadence set. The configuration digest has changed.';
 };
 
 $('voter').onkeydown = (e) => { if (e.key === 'Enter') $('enrol').click(); };

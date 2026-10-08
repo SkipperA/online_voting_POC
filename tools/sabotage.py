@@ -207,8 +207,8 @@ MUTATIONS = [
             "is published, giving the operator privileged early sight of the result."
         ),
         path="src/ovpoc/ballotbox.py",
-        find="        if not self._closed and self.tally_interval is None:",
-        replace="        if False:  # SABOTAGE: tally always available",
+        find="        if self._closed:\n            return self._count()\n        self._catch_up()\n        if not self._snapshots:",
+        replace="        if True:  # SABOTAGE: tally always available\n            return self._count()\n        if False:",
     ),
     Mutation(
         name="reservation_publishes_the_commitment",

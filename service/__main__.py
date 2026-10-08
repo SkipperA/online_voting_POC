@@ -53,6 +53,8 @@ def main() -> int:
                         help="VRO token key size")
     parser.add_argument("--choices", type=int, default=None,
                         help="number of options on the ballot")
+    parser.add_argument("--tally-interval", type=int, default=None, metavar="SECONDS",
+                        help="publication cadence; omit for close-only")
     parser.add_argument("--data", default=None, metavar="DIR",
                         help="the election's durable half (default: election-data)")
     parser.add_argument("--init", action="store_true",
@@ -72,7 +74,7 @@ def main() -> int:
     from .store import NoElection
 
     data = Path(args.data) if args.data else DATA_DIR
-    kwargs = {"bits": args.bits}
+    kwargs = {"bits": args.bits, "tally_interval_seconds": args.tally_interval}
     if args.choices is not None:
         kwargs["num_choices"] = args.choices
 

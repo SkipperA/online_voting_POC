@@ -11,7 +11,7 @@ service layer is allowed to do.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from driver.population_register import PopulationRegister
@@ -82,6 +82,7 @@ class Deployment:
         election_id: str = "demo-2026",
         num_choices: int = DEFAULT_CHOICES,
         bits: int = 3072,
+        tally_interval_seconds: int | None = None,
         document_root: Path = DOCUMENT_ROOT,
     ) -> "Deployment":
         population = PopulationRegister()
@@ -91,10 +92,12 @@ class Deployment:
             token_key=vro.public_key,
             statement_key=vro.office_public_key,
             num_choices=num_choices,
+            tally_interval_seconds=tally_interval_seconds,
             opens="2026-09-25T08:00:00Z",
             closes="2026-09-25T20:00:00Z",
         )
-        ebb = BallotBox(vro_public_key=vro.public_key, num_choices=num_choices)
+        ebb = BallotBox(vro_public_key=vro.public_key, num_choices=num_choices,
+                        tally_interval_seconds=tally_interval_seconds)
         config.write(document_root)
         return cls(
             vro=vro,
@@ -103,6 +106,19 @@ class Deployment:
             population=population,
             document_root=document_root,
         )
+
+    def set_tally_interval(self, seconds: int | None) -> None:
+        """A5. Fix the publication cadence, and republish the configuration.
+
+        Three things have to move together or the pinned digest stops
+        describing the election: the published configuration, the box that
+        obeys the cadence, and the durable store.
+        """
+        self.ebb.set_publication_interval(seconds)
+        self.config = replace(self.config, tally_interval_seconds=seconds)
+        self.config.write(self.document_root)
+        if self.data_dir is not None:
+            self.save(self.data_dir)
 
     # -- persistence -------------------------------------------------------
 
@@ -116,6 +132,7 @@ class Deployment:
             personas=self.wallets,
             election_id=self.config.election_id,
             num_choices=self.ebb.num_choices,
+            tally_interval_seconds=self.ebb.tally_interval_seconds,
         )
         return path
 
@@ -147,6 +164,7 @@ class Deployment:
             token_key=vro.public_key,
             statement_key=vro.office_public_key,
             num_choices=body["num_choices"],
+            tally_interval_seconds=body["tally_interval_seconds"],
             opens="2026-09-25T08:00:00Z",
             closes="2026-09-25T20:00:00Z",
         )
@@ -155,7 +173,8 @@ class Deployment:
             data_dir=path,
             vro=vro,
             ebb=BallotBox(vro_public_key=vro.public_key,
-                          num_choices=body["num_choices"]),
+                          num_choices=body["num_choices"],
+                          tally_interval_seconds=body["tally_interval_seconds"]),
             config=config,
             population=population,
             document_root=document_root,

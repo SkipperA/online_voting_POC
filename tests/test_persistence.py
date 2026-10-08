@@ -102,3 +102,27 @@ def test_the_store_says_what_it_is(tmp_path):
     # And it still loads, warning and all.
     restored = Deployment.load(tmp_path / "data", document_root=tmp_path / "docs-b")
     assert "Kovács Ágnes" in restored.vro.register
+
+
+def test_the_publication_cadence_survives_and_is_pinned_by_the_digest(tmp_path):
+    """A5 is a configuration act, so it has to reach all three places.
+
+    The published configuration, which the voter app pins; the box, which
+    obeys the cadence; and the durable store, so a restart runs the same
+    election rather than a differently-timed one.
+    """
+    deployment = Deployment.create(
+        bits=2048, num_choices=3, document_root=tmp_path / "docs-a"
+    )
+    deployment.data_dir = tmp_path / "data"
+    before = deployment.config.digest_hex()
+
+    deployment.set_tally_interval(900)
+
+    assert deployment.config.digest_hex() != before, "the cadence is pinned"
+    assert deployment.ebb.tally_interval_seconds == 900
+
+    restored = Deployment.load(tmp_path / "data", document_root=tmp_path / "docs-b")
+    assert restored.config.tally_interval_seconds == 900
+    assert restored.ebb.tally_interval_seconds == 900
+    assert restored.config.digest_hex() == deployment.config.digest_hex()
