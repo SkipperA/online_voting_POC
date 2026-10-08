@@ -66,7 +66,7 @@ since it asks people who did not vote to audit the election.
 
 Worse, the authenticated query gives the VRO the ability to *deny*. A dishonest
 office can answer "no token released for you" to a voter whose token it minted,
-and the voter cannot disprove it, since they cannot open a commitment whose nonce
+and the voter cannot disprove it, since they cannot open a commitment whose opening
 they were never given. The signed denial makes the lie attributable after the
 fact if it is ever contradicted, which is accountability rather than prevention.
 

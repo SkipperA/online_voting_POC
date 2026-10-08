@@ -138,8 +138,8 @@ register is `VRO.register` — a set of ids, and nothing else.
   the ledger exposed all along.
 - **Supersession is applied at tally time**, not by overwriting. The full
   submission history stays auditable.
-- **The release log publishes commitments, not voter ids.** `H(id || nonce)`,
-  with the nonce disclosed only on a step-12 query carrying `sig(id)`. A
+- **The release log publishes commitments, not voter ids.** `H(id || opening)`,
+  with the opening disclosed only on a step-12 query carrying `sig(id)`. A
   plaintext log would be a public participation register, and while absence of an
   entry does not show how anyone voted, it is conclusive proof of *non*-voting --
   which is what a coercer demanding turnout needs. The published count still

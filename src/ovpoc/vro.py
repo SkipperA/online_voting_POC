@@ -194,14 +194,14 @@ class FaultDetected(Exception):
 # Commitments and query payloads
 # --------------------------------------------------------------------------
 
-def commit(voter_id: str, nonce: bytes) -> bytes:
-    """Commitment published in place of the voter id: H(id || nonce).
+def commit(voter_id: str, opening: bytes) -> bytes:
+    """Commitment published in place of the voter id: H(id || opening).
 
-    Hiding: without the nonce, a third party cannot test a guessed id, even
+    Hiding: without the opening value, a third party cannot test a guessed id, even
     though wallet identifiers are low-entropy and enumerable.
     Binding: the VRO cannot later open the same commitment to a different id.
     """
-    return hashlib.sha256(voter_id.encode("utf-8") + nonce).digest()
+    return hashlib.sha256(voter_id.encode("utf-8") + opening).digest()
 
 
 def release_query_payload(voter_id: str) -> bytes:
@@ -235,7 +235,7 @@ class ReleaseAnswer:
     """The office's answer to a step-12 query."""
 
     outcome: ReleaseOutcome
-    nonce: bytes | None = None
+    opening: bytes | None = None
     index: int | None = None
     signed_denial: bytes | None = None
 
@@ -249,15 +249,15 @@ def verify_release_answer(
 ) -> bool:
     """Run by the voter, on any device, against the published log.
 
-    Confirms that the disclosed nonce really does open the commitment at the
+    Confirms that the disclosed value really does open the commitment at the
     stated position -- so the answer rests on the public log, not on trust in
     the VRO's reply.
     """
-    if not answer.released or answer.nonce is None or answer.index is None:
+    if not answer.released or answer.opening is None or answer.index is None:
         return False
     if not 0 <= answer.index < len(published_log):
         return False
-    return published_log[answer.index]["commitment"] == b64(commit(voter_id, answer.nonce))
+    return published_log[answer.index]["commitment"] == b64(commit(voter_id, answer.opening))
 
 
 # --------------------------------------------------------------------------
@@ -273,7 +273,7 @@ class VRO:
     register: set[str] = field(default_factory=set)         # electoral register: ids
     release_log: Ledger = field(default_factory=Ledger)     # commitments only
     _released: set[str] = field(default_factory=set)
-    _nonces: dict[str, bytes] = field(default_factory=dict)
+    _openings: dict[str, bytes] = field(default_factory=dict)
     _audit: list[AuditEntry] = field(default_factory=list)
     #: id -> the blinded value it was reserved for. Internal; never published.
     _reserved: dict[str, bytes] = field(default_factory=dict)
@@ -482,14 +482,14 @@ class VRO:
         #   * anyone can count entries, which is what makes the aggregate audit
         #     "published ballots <= tokens released" possible for a third party;
         #   * nobody but the voter can learn whether a particular id appears,
-        #     because the nonce is disclosed only on an authenticated query.
+        #     because the opening value is disclosed only on an authenticated query.
         #
         # The second matters because absence of a release is proof of
         # non-voting, which is exactly what a coercer demanding turnout wants.
-        nonce = secrets.token_bytes(32)
-        self._nonces[request.voter_id] = nonce
+        opening = secrets.token_bytes(32)
+        self._openings[request.voter_id] = opening
         self._released.add(request.voter_id)
-        self.release_log.append({"commitment": b64(commit(request.voter_id, nonce))})
+        self.release_log.append({"commitment": b64(commit(request.voter_id, opening))})
 
         # ---- step 6/A: the blind signature ----
         blind_sig = rsabssa.blind_sign(self.private_key, request.blinded_key)
@@ -522,7 +522,7 @@ class VRO:
         `NOT_IDENTIFIED`, so this endpoint cannot be used to probe either
         register either.
 
-        An affirmative answer discloses the nonce, so the voter can verify the
+        An affirmative answer discloses the opening value, so the voter can verify the
         commitment against the published log themselves rather than taking the
         office's word for it.  A negative answer is *signed* -- under the
         office statement key, never the token key -- which does not prevent a
@@ -540,19 +540,19 @@ class VRO:
             return ReleaseAnswer(ReleaseOutcome.NOT_IDENTIFIED)
 
         # ==== identity established ====
-        nonce = self._nonces.get(voter_id)
-        if nonce is None:
+        opening = self._openings.get(voter_id)
+        if opening is None:
             return ReleaseAnswer(
                 ReleaseOutcome.NOT_RELEASED,
                 signed_denial=self.office_key.sign(denial_payload(voter_id)),
             )
 
-        target = b64(commit(voter_id, nonce))
+        target = b64(commit(voter_id, opening))
         index = next(
             i for i, e in enumerate(self.release_log.entries)
             if e.payload["commitment"] == target
         )
-        return ReleaseAnswer(ReleaseOutcome.RELEASED, nonce=nonce, index=index)
+        return ReleaseAnswer(ReleaseOutcome.RELEASED, opening=opening, index=index)
 
     def release_count(self) -> int:
         """Public: how many tokens were released in total.

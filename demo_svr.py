@@ -238,7 +238,7 @@ def main() -> int:
         credentials["voter_id"],
         type("A", (), {
             "released": answer["released"],
-            "nonce": unb64(answer["nonce"]) if "nonce" in answer else None,
+            "opening": unb64(answer["opening"]) if "opening" in answer else None,
             "index": answer.get("index"),
         })(),
     )

@@ -359,7 +359,7 @@ def s_release_query(ctx: Ctx) -> None:
     check("a token was released in this voter's name", answer["released"])
     verified = verify_release_answer(
         log["entries"], voter_id,
-        type("A", (), {"released": True, "nonce": unb64(answer["nonce"]),
+        type("A", (), {"released": True, "opening": unb64(answer["opening"]),
                        "index": answer["index"]})(),
     )
     check("the answer opens this voter's own published commitment", verified)

@@ -227,7 +227,7 @@ serving two independent surfaces rather than a component of either.
 | `voter_id` (request) | `id` |
 | `signature` (request) | Over `release_query_payload(id)`, domain-separated so a token-request signature cannot be replayed here |
 | `outcome` | `RELEASED` / `NOT_RELEASED` / `NOT_IDENTIFIED` |
-| `nonce` | Opens the querier's own commitment, and only theirs |
+| `opening` | Opens the querier's own commitment, and only theirs |
 | `index` | Position in the published register |
 | `signed_denial` | Under the office's **statement** key, never the token key |
 

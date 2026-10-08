@@ -308,8 +308,8 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         """D1, answered by the office over its own register."""
         answer = vro.query_token_release(body.voter_id, unb64(body.signature))
         out = {"outcome": answer.outcome.name, "released": answer.released}
-        if answer.nonce is not None:
-            out["nonce"] = b64(answer.nonce)
+        if answer.opening is not None:
+            out["opening"] = b64(answer.opening)
             out["index"] = answer.index
         if answer.signed_denial is not None:
             out["signed_denial"] = b64(answer.signed_denial)

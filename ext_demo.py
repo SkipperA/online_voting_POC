@@ -358,11 +358,11 @@ def walkthrough(ctx: Context) -> None:
     blind_sig = response.blind_signature
     field_("outcome", response.outcome.name)
     entry = election.vro.release_log.entries[-1]
-    nonce = election.vro._nonces[anna.voter_id]
+    opening = election.vro._openings[anna.voter_id]
 
     head("Step 7 — the release is logged before the signature is returned")
-    blob("nonce (disclosed only on a signed step-12 query)", nonce)
-    blob("commitment  H(id ‖ nonce)", commit(anna.voter_id, nonce))
+    blob("opening (disclosed only on a signed step-12 query)", opening)
+    blob("commitment  H(id ‖ opening)", commit(anna.voter_id, opening))
     field_("published log entry", entry.payload)
     blob("previous entry hash", entry.prev_hash)
     blob("this entry hash", entry.entry_hash)
@@ -453,10 +453,10 @@ def walkthrough(ctx: Context) -> None:
     published_log = [ent.payload for ent in election.vro.release_log.entries]
     field_("released", answer.released)
     field_("index in the published log", answer.index)
-    blob("nonce disclosed to Anna alone", answer.nonce)
-    check("the nonce opens the commitment at that index",
+    blob("opening disclosed to Anna alone", answer.opening)
+    check("the disclosed value opens the commitment at that index",
           verify_release_answer(published_log, anna.voter_id, answer))
-    check("the same nonce does not open it for a different id",
+    check("the same value does not open it for a different id",
           not verify_release_answer(published_log, election.voters["Béla"].voter_id, answer))
     say("""The query carries sig(id) because an unauthenticated lookup would turn
         the log into a public register of participation — and absence of an entry
@@ -941,7 +941,7 @@ def scenario_release_query(ctx: Context) -> None:
     blob("sig(id) offered", forged_query)
     refused = election.vro.query_token_release(victim.voter_id, forged_query)
     field_("outcome", refused.outcome.name)
-    field_("nonce disclosed", refused.nonce)
+    field_("opening disclosed", refused.opening)
     check("an unauthenticated query is refused",
           refused.outcome is ReleaseOutcome.NOT_IDENTIFIED)
 

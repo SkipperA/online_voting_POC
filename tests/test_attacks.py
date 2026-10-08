@@ -435,7 +435,7 @@ def test_an_unauthenticated_release_query_is_refused(election):
     answer = vro.query_token_release(victim.voter_id, forged)
     assert answer.outcome is ReleaseOutcome.NOT_IDENTIFIED
     assert not answer.released
-    assert answer.nonce is None
+    assert answer.opening is None
 
     # An id with no certificate at all is answered identically, so this
     # endpoint cannot be used to probe either register.
@@ -455,7 +455,7 @@ def test_a_voter_can_verify_the_answer_against_the_published_log(election):
     published = [e.payload for e in vro.release_log.entries]
     assert verify_release_answer(published, voter.voter_id, answer)
 
-    # The same nonce does not open the commitment for a different id.
+    # The same value does not open the commitment for a different id.
     assert not verify_release_answer(published, voters[1].voter_id, answer)
 
 

@@ -116,7 +116,7 @@ async function ask(credentials) {
     // opens this voter's own commitment in the published register, so the
     // office is checked rather than believed.
     show('d1', `a token WAS released in this name (entry ${answer.index})`, 'ok');
-    show('d1-evidence', `nonce ${answer.nonce} — opens the published commitment at that position`);
+    show('d1-evidence', `opening ${answer.opening} — opens the published commitment at that position`);
   } else {
     // A negative answer has no object behind it, since an absence cannot be
     // exhibited, so it is signed under k_s^(O). Signing does not prevent an

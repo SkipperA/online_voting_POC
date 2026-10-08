@@ -115,7 +115,7 @@ MUTATIONS = [
         name="release_log_publishes_ids",
         what="The release log publishes plaintext voter ids instead of commitments.",
         path="src/ovpoc/vro.py",
-        find='        self.release_log.append({"commitment": b64(commit(request.voter_id, nonce))})',
+        find='        self.release_log.append({"commitment": b64(commit(request.voter_id, opening))})',
         replace='        self.release_log.append({"voter_id": request.voter_id})  # SABOTAGE',
     ),
     Mutation(

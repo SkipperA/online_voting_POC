@@ -47,7 +47,7 @@ certificate lookup service is likewise external (§3.2).
 | B12 | Check that no token has yet been released for this `id` | VRO | VRO | internal |
 | B13 | Apply the raw private-key operation: `s_c = S(c) = c^{d_R} mod n_R` | VRO | VRO | internal |
 | B14 | Fault-check the result: confirm `s_c^{e_R} ≡ c (mod n_R)` | VRO | VRO (§5.4) | internal |
-| B15 | Record the release **before** returning anything: append the commitment `hash([id, nonce])`, increment the published count | VRO | VRO release register | commitment → public register |
+| B15 | Record the release **before** returning anything: append the commitment `hash([id, opening])`, increment the published count | VRO | VRO release register | commitment → public register |
 | B16 | Collect the reply by presenting `c` | voter app | app ↔ VRO, direct (§5.3) | `c` : app → VRO; `s_c` : VRO → app |
 | B17 | Unblind: `s_{k_p^a} = s_c · r^{-1}` | voter app | voter app (§5.5) | internal |
 | B18 | Verify the unblinded token under the pinned `k_p^(R)` before `r` is discarded | voter app | voter app (§3.3, §5.5) | internal |
@@ -135,10 +135,10 @@ Open questions and pending amendments across all documents are tracked in
    close is useless, since no ballot can be submitted with it, but the design
    should say so rather than leave it silent.
 
-4. **The office is both committer and sole opener.** The nonce in B15 is generated
+4. **The office is both committer and sole opener.** The opening in B15 is generated
    by the VRO and returned to the voter in D1. The article notes the residue that
    the office learns who checked; it does not note that the office alone knows the
-   nonces.
+   openings.
 
 5. **No retrieval discipline for `s_c`.** Step B16 has the app collecting the reply
    by presenting `c`, but nothing on polling, held connections, or retries. Minor

@@ -114,10 +114,10 @@ Step 7. Written **before** $`s_c`$ is returned (§5.4).
 
 | Field | Code | Discharges | Note |
 |---|---|---|---|
-| `commitment` | `vro.commit(id, nonce)` | §3.7, Table 1 | $`hash(id \Vert nonce)`$. Hiding, so a third party cannot test a guessed `id`; binding, so the office cannot later open it to a different one |
+| `commitment` | `vro.commit(id, opening)` | §3.7, Table 1 | $`hash(id \Vert opening)`$. Hiding, so a third party cannot test a guessed `id`; binding, so the office cannot later open it to a different one |
 | entry index, `prev_hash`, `entry_hash` | `Ledger.Entry` | §3.5 | The register is itself hash-chained, so entries cannot be back-dated into it |
 | count | `VRO.release_count()` | §3.5, Table 1 | The aggregate audit: accepted ballots must not outnumber released tokens. Names nobody |
-| `nonce` | `VRO._nonces` | §3.7 | Private. Disclosed only through §5 below |
+| `opening` | `VRO._openings` | §3.7 | Private. Disclosed only through §5 below |
 
 The register never opens publicly, in either phase (Table 1). Its harm is not a
 running result but a public list of who did and did not participate.
@@ -133,7 +133,7 @@ Step 12, the token-request check (§3.7).
 | `voter_id` (request) | `query_token_release(voter_id, …)` | §3.7 | |
 | `signature` (request) | `release_query_payload(id)` | §3.7 | $`sig_{k_s^{(v)}}(\cdot)`$ over domain-separated bytes, so a signature captured from a token request cannot be replayed here |
 | `outcome` | `ReleaseAnswer.outcome` | §3.7 | `RELEASED` / `NOT_RELEASED` / `NOT_IDENTIFIED`, the last for an unknown `id` or a bad signature alike |
-| `nonce` | `ReleaseAnswer.nonce` | §3.7, Table 1 | Opens the querier's own commitment, and only theirs |
+| `opening` | `ReleaseAnswer.opening` | §3.7, Table 1 | Opens the querier's own commitment, and only theirs |
 | `index` | `ReleaseAnswer.index` | §3.7 | Position in the published register, so the voter checks the answer against the register rather than trusting the reply |
 | `signed_denial` | `ReleaseAnswer.signed_denial` | §3.7 | Signed under the office's **statement** key, never the token key (§3.3): the token key is a blind-signing oracle any voter can drive. Makes a false denial attributable, not impossible |
 

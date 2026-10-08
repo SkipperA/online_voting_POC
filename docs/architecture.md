@@ -98,7 +98,7 @@ classDiagram
         +register: set~str~
         +release_log: Ledger
         -_released: set~str~
-        -_nonces: Dict[str, bytes]
+        -_openings: Dict[str, bytes]
         -_audit: list~AuditEntry~
         +create(population_register, bits) VRO
         +enrol(voter_id)
@@ -154,7 +154,7 @@ classDiagram
 
     class ReleaseAnswer {
         +outcome: ReleaseOutcome
-        +nonce: bytes
+        +opening: bytes
         +index: int
         +signed_denial: bytes
         +released() bool
@@ -312,7 +312,7 @@ sequenceDiagram
         else already released a token
             O-->>V: TokenResponse(TOKEN_ALREADY_ISSUED)
         else
-            O->>O: nonce = token_bytes(32)
+            O->>O: opening = token_bytes(32)
             O->>L: release_log.append({commitment}) -- step 7
             O->>O: rsabssa.blind_sign(private_key, c) -- 6/A
             O->>O: check_blind_signature: s_c^e == c ?
@@ -363,10 +363,10 @@ sequenceDiagram
     else no token released
         O-->>V: ReleaseAnswer(NOT_RELEASED, signed under office_key)
     else
-        O-->>V: ReleaseAnswer(RELEASED, nonce, index)
+        O-->>V: ReleaseAnswer(RELEASED, opening, index)
     end
     deactivate O
-    V->>V: verify_release_answer(published_log, id, answer)<br/>checks nonce against O's own public log
+    V->>V: verify_release_answer(published_log, id, answer)<br/>checks opening against O's own public log
 
     V->>B: handle.confirms(box, expected_selection)<br/>= find_ballot(adhoc_public_key)
     activate B
