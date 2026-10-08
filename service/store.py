@@ -41,6 +41,14 @@ from ovpoc.messages import b64, unb64
 
 STORE_VERSION = 2
 
+# Version 1 is still readable, and deliberately so. The only difference is
+# one optional key, `tally_interval_seconds`, whose absence means exactly
+# what the version-1 behaviour was: no publication interval, so the close is
+# the only publication point. Refusing an election because its file predates
+# a field that defaults to the old behaviour would lose the token key, the
+# register and every persona for nothing. The next save writes version 2.
+READABLE_STORE_VERSIONS = {1, 2}
+
 
 class NoElection(RuntimeError):
     """Raised when the runtime is asked to serve an election nobody created.
@@ -134,10 +142,11 @@ def read(path: Path) -> dict:
         )
     body = json.loads(store.read_text(encoding="utf-8"))
     body.pop("warning", None)   # prose for the reader, not a field
-    if body.get("store_version") != STORE_VERSION:
+    if body.get("store_version") not in READABLE_STORE_VERSIONS:
         raise NoElection(
             f"{store.name} declares store_version {body.get('store_version')!r}, "
-            f"which this service does not understand (expected {STORE_VERSION})."
+            f"which this service does not understand (expected one of "
+            f"{sorted(READABLE_STORE_VERSIONS)})."
         )
     private = serialization.load_pem_private_key(pem.read_bytes(), password=None)
     return {

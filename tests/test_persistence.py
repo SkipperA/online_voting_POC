@@ -126,3 +126,50 @@ def test_the_publication_cadence_survives_and_is_pinned_by_the_digest(tmp_path):
     assert restored.config.tally_interval_seconds == 900
     assert restored.ebb.tally_interval_seconds == 900
     assert restored.config.digest_hex() == deployment.config.digest_hex()
+
+
+def test_an_election_saved_before_the_cadence_existed_still_loads(tmp_path):
+    """A store written at version 1 is not a reason to lose an election.
+
+    The field added at version 2 is optional and its absence means the
+    version-1 behaviour, so the older file is read rather than refused --
+    and the next save rewrites it at the current version.
+    """
+    import json
+
+    deployment = Deployment.create(
+        bits=2048, num_choices=3, document_root=tmp_path / "docs-a"
+    )
+    deployment.enrol("Kovács Ágnes")
+    deployment.save(tmp_path / "data")
+
+    store_file = tmp_path / "data" / "election.store.json"
+    body = json.loads(store_file.read_text(encoding="utf-8"))
+    body["store_version"] = 1
+    del body["tally_interval_seconds"]
+    store_file.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
+
+    restored = Deployment.load(tmp_path / "data", document_root=tmp_path / "docs-b")
+    assert restored.ebb.tally_interval_seconds is None
+    assert "Kovács Ágnes" in restored.vro.register
+
+    restored.save(tmp_path / "data")
+    rewritten = json.loads(store_file.read_text(encoding="utf-8"))
+    assert rewritten["store_version"] == 2
+
+
+def test_a_store_version_from_the_future_is_still_refused(tmp_path):
+    """Reading an older shape is not the same as guessing at a newer one."""
+    import json
+
+    deployment = Deployment.create(
+        bits=2048, num_choices=3, document_root=tmp_path / "docs-a"
+    )
+    deployment.save(tmp_path / "data")
+    store_file = tmp_path / "data" / "election.store.json"
+    body = json.loads(store_file.read_text(encoding="utf-8"))
+    body["store_version"] = 99
+    store_file.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")
+
+    with pytest.raises(NoElection, match="store_version 99"):
+        Deployment.load(tmp_path / "data", document_root=tmp_path / "docs-b")
