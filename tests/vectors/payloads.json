@@ -30,10 +30,11 @@
       "input": {
         "kind": "ballot",
         "selection": 2,
-        "adhoc_public_key_b64url": "P4KG-E-O3truhhTKeqpMR0UuixytHJpNxBdCinJuX0c"
+        "adhoc_public_key_b64url": "P4KG-E-O3truhhTKeqpMR0UuixytHJpNxBdCinJuX0c",
+        "nonce_b64url": "Zx5Or7LcIrpbYWIP9T36Hg"
       },
       "expected": {
-        "signed_payload_sha256": "956929d568c49947931f23f59b48cecad1db1385879102eca48215765f8c0319"
+        "signed_payload_sha256": "986b6a472bf02192c25f1c889274fcc4489cca44ffbfbb1520f162c04206dc5a"
       }
     },
     {
@@ -41,10 +42,11 @@
       "input": {
         "kind": "ballot",
         "selection": -1,
-        "adhoc_public_key_b64url": "P4KG-E-O3truhhTKeqpMR0UuixytHJpNxBdCinJuX0c"
+        "adhoc_public_key_b64url": "P4KG-E-O3truhhTKeqpMR0UuixytHJpNxBdCinJuX0c",
+        "nonce_b64url": "Zx5Or7LcIrpbYWIP9T36Hg"
       },
       "expected": {
-        "signed_payload_sha256": "8fea094f96ac1242376d24dc6c46bfc09c3c32eb0f4518e050534f6318d89409"
+        "signed_payload_sha256": "08d35678e5296fda47fa17f5cb3262df944a2867b9e8136117eb01ac2050966b"
       }
     },
     {
