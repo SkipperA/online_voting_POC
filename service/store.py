@@ -70,7 +70,8 @@ def pair_from(seed: bytes) -> keys.SigningKeyPair:
     return keys.SigningKeyPair(ed25519.Ed25519PrivateKey.from_private_bytes(seed))
 
 
-def write(path: Path, *, token_private, statement_key, register, personas,
+def write(path: Path, *, token_private, statement_key, box_statement_key,
+          register, personas,
           election_id: str, num_choices: int,
           tally_interval_seconds: int | None = None) -> None:
     """Write the durable half. Called by the setup console, never at runtime."""
@@ -115,6 +116,7 @@ def write(path: Path, *, token_private, statement_key, register, personas,
                 "num_choices": num_choices,
                 "tally_interval_seconds": tally_interval_seconds,
                 "vro_statement_seed": b64(seed_of(statement_key)),
+                "ebb_statement_seed": b64(seed_of(box_statement_key)),
                 "electoral_register": sorted(register),
                 # Wallet personas. A real wallet's key is in hardware and is
                 # never written anywhere, least of all beside the election.
@@ -156,6 +158,8 @@ def read(path: Path) -> dict:
         "token_private": private,
         "token_public": private.public_key(),
         "statement_key": pair_from(unb64(body["vro_statement_seed"])),
+        "box_statement_key": pair_from(unb64(body["ebb_statement_seed"]))
+        if "ebb_statement_seed" in body else None,
         "electoral_register": set(body["electoral_register"]),
         "wallet_personas": {
             v: pair_from(unb64(s)) for v, s in body["wallet_seeds"].items()

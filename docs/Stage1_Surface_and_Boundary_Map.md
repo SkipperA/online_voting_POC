@@ -210,7 +210,8 @@ must expose no endpoint keyed by it.
 | `accepted` | Passed both cryptographic checks — not the same as *valid* |
 | `reason` | Acceptance or the specific failure |
 | `index` | Entry position in the registry |
-| `ledger_head` | The head at the moment of acceptance |
+| `entry_hash` | The hash of this entry; for an accepted ballot also the head at that moment |
+| `signature` | The box's statement over the receipt, under the published `k_p^(B)` |
 
 The last two are what let the inclusion check run offline against published
 artefacts, with no query to the component under audit.

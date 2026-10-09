@@ -219,7 +219,7 @@ def main() -> int:
         receipt = app.cast(choices[name])
         print(f"  8004  casts {options[choices[name]]!r} → accepted={receipt['accepted']}, "
               f"index {receipt['index']}")
-        print(f"        head now {short(receipt['ledger_head'], 12)}")
+        print(f"        entry hash {short(receipt['entry_hash'], 12)}")
 
     rule("Béla changes his mind  ·  re-voting")
     receipt = apps["Béla"].cast(2)

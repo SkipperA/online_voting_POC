@@ -166,7 +166,7 @@ Req. 8).
 |---|---|---|---|
 | `accepted` | `SubmissionResult.accepted` | Req. 1, Req. 7 | Passed both cryptographic checks. Not the same as *valid* |
 | `reason` | `SubmissionResult.reason` | Req. 7 | `"accepted"`, `"token not signed by VRO"`, `"vote signature invalid"`, `"already accepted"`, or `"voting has closed"` |
-| `ledger_head` | `SubmissionResult.ledger_head` | §3.5 | The head at the moment of acceptance. With it the voter can later show that the entry was not removed, reordered, or altered — demonstrable rather than merely alleged |
+| `entry_hash` | `SubmissionResult.entry_hash` | §3.5 | The hash of this entry, covering the record, its position and every entry before it. For an accepted ballot this is also the accepted head at that moment; for a rejected one it is the rejected chain's. Formerly `ledger_head`, which was right in one case out of two. With it the voter can later show that the entry was not removed, reordered, or altered — demonstrable rather than merely alleged |
 | entry position | `SubmissionResult.index` | §3.4, §3.5, §3.7 | The position of the entry in the registry. With the head, it is what lets the inclusion check run offline, with no query to the component under audit. None for a submission refused after the close, where no entry exists |
 
 ---
@@ -182,6 +182,8 @@ sees.
 | `commitments.accepted[].index` / `.commitment` | both | `Entry.index`, `Entry.entry_hash` | §3.5, Table 1 row 2 |
 | `commitments.rejected[]` | both | as above | Req. 7 — rejected submissions are published too, so attempts are visible |
 | `heads.accepted` / `.rejected` | both | `Ledger.head()` | §3.5, Table 1 row 3 |
+| `head_signatures.accepted` / `.rejected` | both | `head_payload` under `k_s^(B)` | §3.5 — so a mirror carries the box's own statement, not a string it could have invented |
+| `statement_key` | both | `BallotBox.statement_key` | Convenience only. Verify against the key pinned in the published configuration, never against this one |
 | `counts.accepted` / `.rejected` | both | `len(Ledger)` | §3.5, Table 1 row 4 |
 | `running_tally[]` | both | `_snapshots` | §3.5 — one entry per publication point, each labelled with the boundary `at` it is for. The close is always a point |
 | `records.accepted[]` / `.rejected[]` | **closed only** | `Entry.payload` | Req. 5, §3.5, Table 1 row 5 |

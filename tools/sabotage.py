@@ -201,6 +201,16 @@ MUTATIONS = [
         replace="        if True:  # SABOTAGE: records published while open\n            view[\"records\"] = {",
     ),
     Mutation(
+        name="receipt_signed_with_a_throwaway_key",
+        what=(
+            "Receipts are signed under a key nobody published, so a voter's evidence "
+            "verifies against nothing and the box can disown anything it issued."
+        ),
+        path="src/ovpoc/ballotbox.py",
+        find="            signature=self.statement_key.sign(receipt_payload(",
+        replace="            signature=keys.SigningKeyPair.generate().sign(receipt_payload(",
+    ),
+    Mutation(
         name="replayed_ballot_accepted_again",
         what=(
             "A ballot identical to one already accepted is accepted a second time, so "

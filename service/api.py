@@ -540,7 +540,8 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
             "accepted": result.accepted,
             "reason": result.reason,
             "index": result.index,
-            "ledger_head": b64(result.ledger_head),
+            "entry_hash": b64(result.entry_hash),
+            "signature": b64(result.signature),
         }
 
     @app.get("/published")

@@ -447,7 +447,7 @@ def walkthrough(ctx: Context) -> None:
 
     head("Steps 10/1, 10/2 and 11/A — the ballot box decides")
     result = election.box.submit(ballot)
-    anna.record_head(result.ledger_head)
+    anna.record_receipt(result.entry_hash)
     ledger_entry = election.box.accepted.entries[-1]
     field_("10/1  token signed by the VRO?", rsabssa.verify(pub, ballot.adhoc_public_key, ballot.token))
     field_("10/2  selection authenticated by k_p^a?",
@@ -455,10 +455,10 @@ def walkthrough(ctx: Context) -> None:
                                  ballot.signed_payload()))
     field_("result", f"accepted={result.accepted}  reason={result.reason!r}")
     blob("previous ledger head", ledger_entry.prev_hash)
-    blob("new ledger head", result.ledger_head)
+    blob("entry hash from the receipt", result.entry_hash)
     check("ledger entry hash recomputed independently",
           compute_entry_hash(ledger_entry.index, ledger_entry.payload,
-                             ledger_entry.prev_hash) == result.ledger_head)
+                             ledger_entry.prev_hash) == result.entry_hash)
     say("""The head returned in the receipt is Anna's evidence of the state of the
         registry at the moment her ballot was accepted. If the published ledger
         later fails to reproduce it, the discrepancy is demonstrable.""")
@@ -495,7 +495,7 @@ def walkthrough(ctx: Context) -> None:
         register(election, voter)
         out = election.box.submit(voter.cast(selection))
         print(f"  {name:<8} selection {selection}  accepted={out.accepted}  "
-              f"head {out.ledger_head.hex()[:32]}…")
+              f"entry {out.entry_hash.hex()[:32]}…")
 
     ctx.anna_trace = {"r": r, "c": c_int, "s_c": s_c, "encoded": encoded, "token": anna.token}
 
@@ -1028,7 +1028,7 @@ def scenario_revote(ctx: Context) -> None:
     for selection in (1, 3, 2):
         result = election.box.submit(voter.cast(selection))
         print(f"  cast {selection} → accepted={result.accepted}  "
-              f"head {result.ledger_head.hex()[:32]}…")
+              f"entry {result.entry_hash.hex()[:32]}…")
 
     head("The public ledger keeps all three")
     for ent in election.box.accepted.entries:

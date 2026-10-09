@@ -395,7 +395,7 @@ def s_publication(ctx: Ctx) -> None:
     check("no records are published while open", "records" not in view)
     check("commitments are", len(view["commitments"]["accepted"]) > 0)
     check("the receipt carries the position and the head",
-          receipt["index"] is not None and receipt["ledger_head"])
+          receipt["index"] is not None and receipt["entry_hash"])
     check("the voter can still fetch their own record",
           ctx.http.get(
               f"{EBB}/ballots/{b64(voter.adhoc.public_bytes)}"

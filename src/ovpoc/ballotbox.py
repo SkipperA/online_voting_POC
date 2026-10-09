@@ -63,7 +63,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from . import keys, rsabssa
 from .ledger import Ledger
-from .messages import Ballot, b64, digest
+from .messages import Ballot, b64, digest, unb64
 
 BLANK = 0  # the plain, unaffiliated abstention default -- see tally() for
            # why other out-of-range values are not folded in with this one
@@ -82,12 +82,78 @@ class BoxStillOpen(RuntimeError):
     """
 
 
+def receipt_payload(election_id: str, accepted: bool, reason: str,
+                    index: int | None, entry_hash: bytes) -> bytes:
+    """The bytes the box signs when it issues a receipt.
+
+    Domain-separated from the head statement, and bound to the election, so
+    that a receipt is evidence about one poll rather than about any poll the
+    same box ever ran.
+    """
+    return digest({
+        "statement": "ballot-receipt",
+        "election_id": election_id,
+        "accepted": accepted,
+        "reason": reason,
+        "index": index,
+        "entry_hash": b64(entry_hash),
+    })
+
+
+def head_payload(election_id: str, ledger: str, head: bytes) -> bytes:
+    """The bytes the box signs over a published head.
+
+    §3.5 asks for the head to be mirrored through channels the operator does
+    not control. An unsigned head carried by a mirror is a string the
+    operator can disown; a signed one is the box's own statement, and two
+    mirrors holding different signed heads for the same election is
+    equivocation nobody has to take on trust.
+    """
+    return digest({
+        "statement": "registry-head",
+        "election_id": election_id,
+        "ledger": ledger,
+        "head": b64(head),
+    })
+
+
+def verify_receipt(statement_public_key: bytes, election_id: str, receipt: dict,
+                   signature: bytes) -> bool:
+    """Check a receipt against the box's *published statement key*.
+
+    `receipt` is the wire form: accepted, reason, index, entry_hash (b64).
+    """
+    return keys.verify_signature(
+        statement_public_key, signature,
+        receipt_payload(election_id, receipt["accepted"], receipt["reason"],
+                        receipt["index"], unb64(receipt["entry_hash"])),
+    )
+
+
+def verify_head(statement_public_key: bytes, election_id: str, ledger: str,
+                head: bytes, signature: bytes) -> bool:
+    return keys.verify_signature(
+        statement_public_key, signature, head_payload(election_id, ledger, head))
+
+
 @dataclass
 class SubmissionResult:
+    """The receipt. §3.4 calls it the voter's evidence, so it is signed.
+
+    `entry_hash`, not a head: it is the hash of this entry, which covers the
+    record, its position and every entry before it. For an accepted ballot
+    that is also the head of the accepted chain at that moment, because the
+    entry had just been appended -- but for a rejected one it is the head of
+    the *rejected* chain, and a voter comparing it against the published
+    accepted head would find a discrepancy that is not one. The old name
+    was accidentally right in one case out of two.
+    """
+
     accepted: bool
     reason: str = ""
-    ledger_head: bytes = b""
+    entry_hash: bytes = b""
     index: int | None = None      # position of the entry in the registry
+    signature: bytes = b""        # under the box's statement key
 
 
 @dataclass
@@ -99,6 +165,24 @@ class BallotBox:
     rejected: Ledger = field(default_factory=Ledger)
     _closed: bool = False
     _snapshots: list[dict] = field(default_factory=list)
+
+    # The box's statement key, on the VRO's pattern (§3.3): it signs what the
+    # box asserts -- receipts and published heads -- and nothing else. Unlike
+    # the office's token key it is no oracle, since the box never applies it
+    # to a value it cannot read; the one-key-one-purpose rule still holds.
+    #
+    # Signing prevents nothing. A box can equivocate under its own key as
+    # easily as without one. What it changes is that the voter's receipt
+    # stops being a string they could have typed themselves: a published
+    # registry that fails to reproduce a signed receipt is a discrepancy
+    # the box cannot disown, which is what §3.5 claims and what an unsigned
+    # receipt does not support.
+    statement_key: keys.SigningKeyPair = field(
+        default_factory=keys.SigningKeyPair.generate)
+
+    # Bound into every statement, so a receipt is evidence about this poll
+    # and not about any poll this box ever ran.
+    election_id: str = ""
 
     # Content hashes of the accepted records, for the replay test in
     # `submit`.  Not the entry hashes: those cover the index and the
@@ -157,14 +241,18 @@ class BallotBox:
         if self._closed:
             # Not recorded at all: a submission after the close is not a
             # rejected ballot, it is not a ballot.
-            return SubmissionResult(False, BOX_CLOSED, self.accepted.head())
+            return SubmissionResult(
+                False, BOX_CLOSED, b"", None,
+                self.statement_key.sign(receipt_payload(
+                    self.election_id, False, BOX_CLOSED, None, b"")),
+            )
 
         # 10/1 -- is the ad-hoc key certified by the VRO?
         if not rsabssa.verify(self.vro_public_key, ballot.adhoc_public_key, ballot.token):
             entry = self.rejected.append(
                 {**ballot.to_dict(), "reason": "token not signed by VRO"}
             )
-            return SubmissionResult(False, "token not signed by VRO", entry.entry_hash, entry.index)
+            return self._receipt(False, "token not signed by VRO", entry)
 
         # 10/2 -- is the selection authenticated by that key?
         if not keys.verify_signature(
@@ -173,7 +261,7 @@ class BallotBox:
             entry = self.rejected.append(
                 {**ballot.to_dict(), "reason": "vote signature invalid"}
             )
-            return SubmissionResult(False, "vote signature invalid", entry.entry_hash, entry.index)
+            return self._receipt(False, "vote signature invalid", entry)
 
         # 10/2 -- is this record already among the accepted entries?
         #
@@ -194,14 +282,14 @@ class BallotBox:
             entry = self.rejected.append(
                 {**ballot.to_dict(), "reason": ALREADY_ACCEPTED}
             )
-            return SubmissionResult(False, ALREADY_ACCEPTED, entry.entry_hash, entry.index)
+            return self._receipt(False, ALREADY_ACCEPTED, entry)
 
         # 11/A -- accepted.  Appending, not replacing: the supersession rule is
         # applied at tally time, so the full history stays auditable.
         entry = self.accepted.append(ballot.to_dict())
         self._accepted_records.add(record)
 
-        return SubmissionResult(True, "accepted", entry.entry_hash, entry.index)
+        return self._receipt(True, "accepted", entry)
 
     # ------------------------------------------------------------------
     # The publication cadence
@@ -223,6 +311,17 @@ class BallotBox:
         self.tally_interval_seconds = seconds
         self._anchor = float(int(self.now()))
         self._next_boundary = self._anchor + (seconds or 0)
+
+    def _receipt(self, accepted: bool, reason: str, entry) -> SubmissionResult:
+        """One place where a receipt is made, so none can be made unsigned."""
+        return SubmissionResult(
+            accepted=accepted,
+            reason=reason,
+            entry_hash=entry.entry_hash,
+            index=entry.index,
+            signature=self.statement_key.sign(receipt_payload(
+                self.election_id, accepted, reason, entry.index, entry.entry_hash)),
+        )
 
     def _publish(self, at: float) -> None:
         """Record one publication point, labelled with the instant it is for."""
@@ -281,6 +380,7 @@ class BallotBox:
         more.
         """
         self._catch_up()
+        heads = {"accepted": self.accepted.head(), "rejected": self.rejected.head()}
         view = {
             "phase": "closed" if self._closed else "open",
             "commitments": {
@@ -294,9 +394,18 @@ class BallotBox:
                 ],
             },
             "heads": {
-                "accepted": self.accepted.head().hex(),
-                "rejected": self.rejected.head().hex(),
+                "accepted": heads["accepted"].hex(),
+                "rejected": heads["rejected"].hex(),
             },
+            # Signed so that a mirror carries the box's own statement rather
+            # than a string it could have invented, and so that two mirrors
+            # disagreeing is equivocation nobody has to take on trust (§3.5).
+            "head_signatures": {
+                name: b64(self.statement_key.sign(
+                    head_payload(self.election_id, name, head)))
+                for name, head in heads.items()
+            },
+            "statement_key": b64(self.statement_key.public_bytes),
             "counts": {
                 "accepted": len(self.accepted),
                 "rejected": len(self.rejected),

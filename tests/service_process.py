@@ -41,6 +41,9 @@ class Deployment:
     def vro(self) -> str: return self.url(8003)
     @property
     def ebb(self) -> str: return self.url(8004)
+
+    @property
+    def checker(self) -> str: return self.url(8005)
     @property
     def setup(self) -> str: return self.url(8009)
 

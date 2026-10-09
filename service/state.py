@@ -87,17 +87,19 @@ class Deployment:
     ) -> "Deployment":
         population = PopulationRegister()
         vro = VRO.create(population, bits=bits)
+        ebb = BallotBox(vro_public_key=vro.public_key, num_choices=num_choices,
+                        tally_interval_seconds=tally_interval_seconds,
+                        election_id=election_id)
         config = ElectionConfig.build(
             election_id=election_id,
             token_key=vro.public_key,
             statement_key=vro.office_public_key,
+            box_statement_key=ebb.statement_key.public_bytes,
             num_choices=num_choices,
             tally_interval_seconds=tally_interval_seconds,
             opens="2026-09-25T08:00:00Z",
             closes="2026-09-25T20:00:00Z",
         )
-        ebb = BallotBox(vro_public_key=vro.public_key, num_choices=num_choices,
-                        tally_interval_seconds=tally_interval_seconds)
         config.write(document_root)
         return cls(
             vro=vro,
@@ -128,6 +130,7 @@ class Deployment:
             path,
             token_private=self.vro.private_key,
             statement_key=self.vro.office_key,
+            box_statement_key=self.ebb.statement_key,
             register=self.vro.register,
             personas=self.wallets,
             election_id=self.config.election_id,
@@ -159,10 +162,23 @@ class Deployment:
         for voter_id, pair in wallets.items():
             population.enrol(voter_id, pair.public_bytes)
 
+        # A store written before the box had a statement key carries none, so
+        # a fresh one is generated. The election is the same election; what
+        # changes is the key under which the box signs from now on, and since
+        # neither the registry nor the receipts survived the restart either
+        # (see above), there is nothing outstanding for the old key to have
+        # signed.
+        box_statement_key = body["box_statement_key"] or keys.SigningKeyPair.generate()
+        ebb = BallotBox(vro_public_key=vro.public_key,
+                        num_choices=body["num_choices"],
+                        tally_interval_seconds=body["tally_interval_seconds"],
+                        statement_key=box_statement_key,
+                        election_id=body["election_id"])
         config = ElectionConfig.build(
             election_id=body["election_id"],
             token_key=vro.public_key,
             statement_key=vro.office_public_key,
+            box_statement_key=box_statement_key.public_bytes,
             num_choices=body["num_choices"],
             tally_interval_seconds=body["tally_interval_seconds"],
             opens="2026-09-25T08:00:00Z",
@@ -172,9 +188,7 @@ class Deployment:
         return cls(
             data_dir=path,
             vro=vro,
-            ebb=BallotBox(vro_public_key=vro.public_key,
-                          num_choices=body["num_choices"],
-                          tally_interval_seconds=body["tally_interval_seconds"]),
+            ebb=ebb,
             config=config,
             population=population,
             document_root=document_root,

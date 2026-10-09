@@ -656,3 +656,42 @@ def test_the_console_says_so_when_no_report_has_been_published(live):
     poll.
     """
     assert "no report published yet" in live.http.get(f"{live.ebb}/box.js").text
+
+
+def test_the_box_statement_key_is_published_and_the_receipt_verifies_under_it(live):
+    """The key is useless unless a voter can get it from somewhere else.
+
+    Pinned in the published configuration, beside the office's. A receipt
+    carrying its own verification key would verify everything and establish
+    nothing.
+    """
+    from ovpoc.ballotbox import verify_receipt
+
+    config = live.http.get(f"{live.config}/election.json").json()
+    assert config["ebb_statement_key"]
+
+    receipt = live.http.post(f"{live.ebb}/ballots", json={
+        "selection": 1, "adhoc_public_key": b64(b"k"),
+        "token": b64(b"t"), "nonce": b64(b"n"), "vote_signature": b64(b"s"),
+    }).json()
+
+    assert verify_receipt(unb64(config["ebb_statement_key"]),
+                          config["election_id"], receipt,
+                          unb64(receipt["signature"]))
+
+
+def test_the_checker_verifies_statements_rather_than_displaying_them(live):
+    """It had been showing the office's signed denial without checking it.
+
+    A signature displayed and not verified reads exactly like one that does
+    not verify, which is the failure this whole key exists to prevent.
+    """
+    script = live.http.get(f"{live.checker}/checker.js").text
+    assert "crypto.subtle.verify" in script
+    assert "ebb_statement_key" in script, "the receipt is checked"
+    assert "vro_statement_key" in script, "and so is the denial"
+    assert "election.json" in script, "both against the pinned configuration"
+
+    page = live.http.get(f"{live.checker}/").text
+    assert 'id="receipt"' in page
+    assert 'id="d2-signature"' in page

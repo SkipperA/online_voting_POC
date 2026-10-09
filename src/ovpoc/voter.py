@@ -83,6 +83,10 @@ class Voter:
         """The cast-as-intended check, performed from an independent device."""
         return self.handle.confirms(box, expected)
 
-    def record_head(self, head: bytes) -> None:
-        """Keep the ledger head seen at submission time, to detect later deletion."""
-        self.recorded_heads.append(head)
+    def record_receipt(self, entry_hash: bytes) -> None:
+        """Keep the entry hash from the receipt, to detect later deletion.
+
+        Not a head: it is the hash of this voter's own entry, which covers
+        the record, its position and everything before it (§3.5).
+        """
+        self.recorded_heads.append(entry_hash)

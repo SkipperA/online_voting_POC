@@ -79,6 +79,26 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
   <button id="d1-again" disabled style="margin-top:.5rem">Ask again</button>
 </section>
 
+<section>
+  <h2>One voter · is my ballot still where the box said it was?</h2>
+  <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">D2. The box returns
+  a receipt for every submission, signed under its statement key
+  <code>k_s^(B)</code>. Load it here and two separate things are checked: that
+  the box really said it, against the key pinned in the published
+  configuration, and that the registry still says it, against the commitment
+  published at that position. The first catches a box denying its own
+  receipt; the second catches one dropping an entry it acknowledged. Neither
+  takes the box's word for anything.</p>
+  <input type="file" id="receipt" accept=".json,application/json,text/json,text/plain">
+  <div class="row" style="margin-top:.7rem"><span class="label">signature</span><span class="value" id="d2-signature">—</span></div>
+  <div class="row"><span class="label">still in the registry</span><span class="value" id="d2-inclusion">—</span></div>
+  <div class="row"><span class="label">checked at</span><span class="value" id="d2-asof">—</span></div>
+  <p style="color:#666;font-size:13.5px;margin:.6rem 0 0">A signature proves
+  the box committed to this, not that it behaved. It makes a discrepancy
+  demonstrable rather than merely alleged — which is the whole of what
+  §3.5 claims for the receipt.</p>
+</section>
+
 <p id="status">Loading…</p>
 <script src="checker.js" defer></script>
 </body></html>

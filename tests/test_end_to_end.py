@@ -16,7 +16,7 @@ def test_three_voters_cast_and_verify(election):
         register(vro, voter)                                  # steps 1-8
         result = box.submit(voter.cast(intended[index]))       # steps 9-11
         assert result.accepted
-        voter.record_head(result.ledger_head)
+        voter.record_receipt(result.entry_hash)
 
     # Each voter checks their own recorded ballot, from an independent device.
     for index, voter in enumerate(voters):

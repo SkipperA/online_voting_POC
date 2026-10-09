@@ -90,10 +90,10 @@ def main():
 
         ballot = voter.cast(choices[name])
         result = box.submit(ballot)
-        voter.record_head(result.ledger_head)
+        voter.record_receipt(result.entry_hash)
         print(f"  9    casts {OPTIONS[choices[name]]!r}, signed with k_s^a")
         print(f" 10-11 ballot box: token genuine ✓  selection authenticated ✓")
-        print(f"       published, ledger head now {short(result.ledger_head, 12)}")
+        print(f"       published, entry hash {short(result.entry_hash, 12)}")
 
     rule("Béla changes his mind  ·  re-voting")
     bela = dict(voters)["Béla"]

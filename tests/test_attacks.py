@@ -15,8 +15,9 @@ import pytest
 
 from conftest import query, register
 from ovpoc import keys, rsabssa
-from ovpoc.ballotbox import ALREADY_ACCEPTED, BOX_CLOSED, BallotBox, BoxStillOpen
-from ovpoc.messages import Ballot, b64
+from ovpoc.ballotbox import (ALREADY_ACCEPTED, BOX_CLOSED, BallotBox, BoxStillOpen,
+                             head_payload, verify_head, verify_receipt)
+from ovpoc.messages import Ballot, b64, unb64
 from ovpoc.vro import (
     FaultDetected,
     Outcome,
@@ -787,7 +788,7 @@ def test_the_inclusion_check_works_from_the_receipt_alone(election):
     # falsely, since it is the component under audit.
     announced = box.published_view()["commitments"]["accepted"][receipt.index]
     assert announced["index"] == receipt.index
-    assert announced["commitment"] == receipt.ledger_head.hex()
+    assert announced["commitment"] == receipt.entry_hash.hex()
 
 
 # ---------------------------------------------------------------------------
@@ -945,3 +946,90 @@ def test_the_nonce_is_covered_by_the_ballot_signature(election):
     result = box.submit(tampered)
     assert not result.accepted
     assert result.reason == "vote signature invalid"
+
+
+def _wire(result) -> dict:
+    return {"accepted": result.accepted, "reason": result.reason,
+            "index": result.index, "entry_hash": b64(result.entry_hash)}
+
+
+def test_a_receipt_verifies_under_the_published_statement_key(election):
+    """Otherwise it is a string the voter could have typed themselves.
+
+    §3.5 says a voter whose receipt the published registry fails to
+    reproduce can show a discrepancy rather than merely allege one. That is
+    true of a signed receipt and of no other kind.
+    """
+    vro, voters, box = election
+    register(vro, voters[0])
+    receipt = box.submit(voters[0].cast(1))
+
+    assert receipt.signature
+    assert verify_receipt(box.statement_key.public_bytes, box.election_id,
+                          _wire(receipt), receipt.signature)
+
+
+def test_a_receipt_is_evidence_about_one_election_only(vro_keypair):
+    """So a receipt cannot be carried from the poll it describes to another."""
+    _, pub = vro_keypair
+    key = keys.SigningKeyPair.generate()
+    first = BallotBox(vro_public_key=pub, num_choices=3,
+                      statement_key=key, election_id="council-2026")
+    receipt = first.submit(Ballot(selection=1, adhoc_public_key=b"k",
+                                  token=b"t", vote_signature=b"s"))
+
+    assert verify_receipt(key.public_bytes, "council-2026",
+                          _wire(receipt), receipt.signature)
+    assert not verify_receipt(key.public_bytes, "referendum-2027",
+                              _wire(receipt), receipt.signature)
+
+
+def test_a_tampered_receipt_does_not_verify(election):
+    """The position is part of the statement, not decoration beside it."""
+    vro, voters, box = election
+    register(vro, voters[0])
+    receipt = box.submit(voters[0].cast(1))
+
+    moved = {**_wire(receipt), "index": receipt.index + 1}
+    assert not verify_receipt(box.statement_key.public_bytes, box.election_id,
+                              moved, receipt.signature)
+
+
+def test_the_box_signs_the_heads_it_publishes(election):
+    """§3.5 wants the head mirrored where the operator cannot reach.
+
+    A mirror carrying an unsigned head carries a string the box can
+    disown. Signed, two mirrors holding different heads for one election is
+    equivocation that needs nobody's word for it.
+    """
+    vro, voters, box = election
+    register(vro, voters[0])
+    box.submit(voters[0].cast(1))
+
+    view = box.published_view()
+    head = bytes.fromhex(view["heads"]["accepted"])
+    assert verify_head(box.statement_key.public_bytes, box.election_id,
+                       "accepted", head, unb64(view["head_signatures"]["accepted"]))
+
+    # And the statement is about *that* ledger: the rejected head's signature
+    # does not stand in for the accepted one.
+    assert not verify_head(
+        box.statement_key.public_bytes, box.election_id, "accepted", head,
+        unb64(view["head_signatures"]["rejected"]))
+
+
+def test_the_statement_key_signs_statements_and_nothing_else(election):
+    """One key, one purpose -- the rule the VRO's two keys exist to keep.
+
+    The box is no oracle: it never applies this key to a value it cannot
+    read, so the hazard that constrains the office's token key does not
+    arise here. The discipline still does.
+    """
+    vro, voters, box = election
+    register(vro, voters[0])
+    receipt = box.submit(voters[0].cast(1))
+
+    # A receipt signature is not a head statement, and cannot be presented
+    # as one: the payloads are domain-separated.
+    assert not verify_head(box.statement_key.public_bytes, box.election_id,
+                           "accepted", receipt.entry_hash, receipt.signature)

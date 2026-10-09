@@ -65,7 +65,7 @@ give a reason (§3.2).
 | C3 | Submit over an anonymising channel | voter app | app → EBB (§3.8) | `[i, k_p^a, s_{k_p^a}, n, s_{vote}]` : app → EBB |
 | C4 | Verify the token under `k_p^(R)`; verify `s_{vote}` under `k_p^a`; refuse a record already among the accepted entries; accept or reject | EBB | EBB (§5.7) | internal |
 | C5 | Append the entry to the hash chain; apply supersession among **accepted** ballots only | EBB | EBB | internal |
-| C6 | Return the receipt | EBB | EBB → app | acceptance status, entry position, current chain head : EBB → voter app |
+| C6 | Return the receipt, signed under `k_s^(B)` | EBB | EBB → app | acceptance status, entry position, entry hash, signature : EBB → voter app |
 | C7 | Publish the entry commitment and position, the new chain head, the running counts | EBB | EBB → public | commitments, head, counts : EBB → anyone |
 | C8 | Mirror the chain head through channels the operator does not control | independent mirrors | outside the EBB (§3.5) | head : EBB → mirrors → anyone |
 
@@ -74,7 +74,7 @@ give a reason (§3.2).
 | # | Action | Actor | System | Data: sender → receiver |
 |---|---|---|---|---|
 | D1 | Token-request check: was a token released in my name? | voter | independent checker, separate from the voting app | `[id, sig_{k_s^(v)}(id)]` : wallet-signed query → VRO; release status and the opening value of the voter's own commitment : VRO → voter |
-| D2 | Inclusion check: recompute the record hash, match against the published commitment at the stated position under the stated head | voter | any device that can hash (§3.7) | none — offline against published artefacts |
+| D2 | Inclusion check: verify the receipt signature under the pinned `k_p^(B)`, then match the entry hash against the published commitment at the stated position | voter | checker, independent of the box (§3.7) | receipt : voter → checker; published commitments : EBB → checker |
 | D3 | Selection check: retrieve the record filed under the ad-hoc key, confirm the recorded choice | voter | independent device → EBB | `k_p^a` : voter → EBB; ballot record : EBB → voter |
 | D4 | Count audit: confirm accepted entries do not exceed tokens released | any third party | published counters (§3.5) | public → anyone |
 | D5 | Re-vote; the last accepted ballot supersedes the earlier one | voter | voter app, repeating C1–C6 | as C3–C6 |

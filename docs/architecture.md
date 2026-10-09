@@ -196,7 +196,8 @@ classDiagram
     class SubmissionResult {
         +accepted: bool
         +reason: str
-        +ledger_head: bytes
+        +entry_hash: bytes
+        +signature: bytes
         +index: int
     }
 
@@ -345,11 +346,11 @@ sequenceDiagram
         else accepted
             B->>L: accepted.append(ballot) -- 11/A
             B->>B: publish every boundary the clock has passed
-            B-->>V: SubmissionResult(True, ledger_head)
+            B-->>V: SubmissionResult(True, entry_hash, signature)
         end
     end
     deactivate B
-    V->>V: record_head(ledger_head)
+    V->>V: record_receipt(entry_hash)
     end
 
     rect rgb(255, 245, 230)

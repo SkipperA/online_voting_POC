@@ -37,6 +37,7 @@ class ElectionConfig:
     election_id: str
     vro_token_key_spki: bytes          # k_p^(R), DER SubjectPublicKeyInfo
     vro_statement_key: bytes           # k_p^(O), raw Ed25519
+    ebb_statement_key: bytes           # k_p^(B), raw Ed25519
     num_choices: int
     genesis_hash: bytes
     tally_interval_seconds: int | None
@@ -49,6 +50,7 @@ class ElectionConfig:
         election_id: str,
         token_key: rsa.RSAPublicKey,
         statement_key: bytes,
+        box_statement_key: bytes,
         num_choices: int,
         opens: str,
         closes: str,
@@ -61,6 +63,7 @@ class ElectionConfig:
                 serialization.PublicFormat.SubjectPublicKeyInfo,
             ),
             vro_statement_key=statement_key,
+            ebb_statement_key=box_statement_key,
             num_choices=num_choices,
             genesis_hash=ledger.GENESIS,
             tally_interval_seconds=tally_interval_seconds,
@@ -88,6 +91,7 @@ class ElectionConfig:
             "vro_token_key_spki": b64(self.vro_token_key_spki),
             "vro_token_key_fingerprint": self.token_key_fingerprint,
             "vro_statement_key": b64(self.vro_statement_key),
+            "ebb_statement_key": b64(self.ebb_statement_key),
             "num_choices": self.num_choices,
             "genesis_hash": self.genesis_hash.hex(),
             "tally_interval_seconds": self.tally_interval_seconds,
