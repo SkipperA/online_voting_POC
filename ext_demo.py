@@ -162,6 +162,20 @@ class Election:
     box: BallotBox
     voters: dict[str, Voter]
     population: PopulationRegister
+    clock: list[float]          # the box's clock, so a scenario can move it
+
+
+def published_tally(election: "Election") -> dict:
+    """The last published figures, moving the clock to the next boundary first.
+
+    Scenarios assert on what would be counted. The box no longer answers
+    that on demand: it publishes on a cadence, and between boundaries the
+    operator sees no more than the public does. So a scenario that wants a
+    figure has to wait for one to be published, which here means moving the
+    clock.
+    """
+    election.clock[0] += 900
+    return election.box.tally()
 
 
 def new_election(keypair, names=NAMES) -> Election:
@@ -188,10 +202,16 @@ def new_election(keypair, names=NAMES) -> Election:
         population.enrol(voter_id, wallet.public_bytes)
         vro.enrol(voter_id)
         voters[name] = Voter(voter_id, wallet, pub, fingerprint)
+    # A fifteen-minute publication cadence, on a clock the scenarios drive.
+    # The trigger is the time, so a demo that runs in a second would publish
+    # nothing at all unless something moves the clock -- which is itself the
+    # honest picture of a small poll finishing inside one interval.
+    clock = [0.0]
     box = BallotBox(
-        vro_public_key=pub, num_choices=len(OPTIONS), tally_interval=10
+        vro_public_key=pub, num_choices=len(OPTIONS),
+        tally_interval_seconds=900, now=lambda: clock[0],
     )
-    return Election(vro, fingerprint, box, voters, population)
+    return Election(vro, fingerprint, box, voters, population, clock)
 
 
 def register(election: Election, voter: Voter) -> None:
@@ -627,7 +647,7 @@ def scenario_stolen_token(ctx: Context) -> None:
     check("the same token does not verify under the thief's key",
           not rsabssa.verify(pub, ballot.adhoc_public_key, stolen))
     check("rejected", not result.accepted)
-    check("the victim's ballot is untouched", election.box.tally()["counts"] == {1: 1, 2: 0, 3: 0})
+    check("the victim's ballot is untouched", published_tally(election)["counts"] == {1: 1, 2: 0, 3: 0})
 
 
 @section("tampered-selection", "The selection altered in flight")
@@ -1015,8 +1035,8 @@ def scenario_revote(ctx: Context) -> None:
         field_(f"entry {ent.index}", f"selection {ent.payload['selection']}  "
                                      f"key {ent.payload['adhoc_public_key'][:24]}…")
     check("three submissions retained", len(election.box.accepted) == 3)
-    check("one effective ballot", election.box.tally()["voters"] == 1)
-    check("the last one counts", election.box.tally()["counts"] == {1: 0, 2: 1, 3: 0})
+    check("one effective ballot", published_tally(election)["voters"] == 1)
+    check("the last one counts", published_tally(election)["counts"] == {1: 0, 2: 1, 3: 0})
     say("""Supersession is applied when counting, not by overwriting, so the whole
         submission history stays auditable.""")
 
@@ -1037,7 +1057,7 @@ def scenario_protest(ctx: Context) -> None:
         result = election.box.submit(voter.cast(selection))
         print(f"  {name:<8} selection {selection:<4} accepted={result.accepted}")
 
-    tally = election.box.tally()
+    tally = published_tally(election)
     head("Tally")
     field_("counts", tally["counts"])
     field_("invalid", tally["invalid"])
@@ -1076,7 +1096,7 @@ def scenario_supersession(ctx: Context) -> None:
     field_("accepted", result.accepted)
     field_("reason", result.reason)
     check("the annulment attempt is rejected", not result.accepted)
-    check("the genuine vote survives", election.box.tally()["counts"] == {1: 0, 2: 1, 3: 0})
+    check("the genuine vote survives", published_tally(election)["counts"] == {1: 0, 2: 1, 3: 0})
     check("the attempt is nonetheless published", len(election.box.rejected) == 1)
 
 
@@ -1162,16 +1182,24 @@ def scenario_publication(ctx: Context) -> None:
     check("no selection appears anywhere in the open view",
           "selection" not in repr(view) and "adhoc_public_key" not in repr(view))
 
-    head("The running tally, one snapshot every 10 accepted ballots")
+    head("The publication cadence")
+    check("nothing published yet: the first boundary has not passed",
+          view["running_tally"] == [])
+    election.clock[0] += 900
+    view = election.box.published_view()
     for snap in view["running_tally"]:
-        field_(f"after {snap['after_accepted']} accepted", snap["counts"])
-    check("one snapshot at ten ballots, none at twelve",
-          [s["after_accepted"] for s in view["running_tally"]] == [10])
+        field_(f"at {snap['at']}", snap["counts"])
+    check("one report at the boundary, covering whatever arrived in the window",
+          [s["after_accepted"] for s in view["running_tally"]]
+          == [len(election.box.accepted)])
     say("""Whether to publish a running tally at all, and at what resolution, is
         the administering body's decision rather than the design's — the article
-        gives fifteen minutes as its example. Left unset, no tally exists for
-        anybody, the operator included, until the box closes. This POC counts
-        ballots rather than minutes: a fake clock would demonstrate nothing.""")
+        gives fifteen minutes as its example. There is no "running tally or
+        not": there is a cadence, and the close is always a publication point,
+        so an interval longer than the poll means the close is the only one.
+        The trigger is the clock rather than the arrival of a ballot, because
+        an electorate waits for the periodic report and it has to go out
+        whether or not anything has changed.""")
 
     head("A voter's own check, available throughout")
     someone = election.voters[names[0]]
@@ -1296,7 +1324,7 @@ def scenario_recount(ctx: Context) -> None:
 
     head("The result, computed twice")
     outsider = {i: sum(1 for s in latest.values() if s == i) for i in OPTIONS}
-    official = election.box.tally()
+    official = published_tally(election)
     for i, label in OPTIONS.items():
         print(f"  {label:<12} outsider {outsider[i]}    box {official['counts'][i]}")
     check("the outsider's count matches the announced tally", outsider == official["counts"])

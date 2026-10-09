@@ -39,12 +39,16 @@ def main():
     print("Every voter app checks this before submitting. A VRO using a different")
     print("key per voter could de-anonymise ballots, so a mismatch aborts.")
 
-    # A running tally every ten accepted ballots. The article's own default is
-    # no running tally at all (tally_interval=None), in which case nothing --
-    # not even the operator -- can read a result before the close. Which of
-    # the two applies is the administering body's decision, not the design's.
+    # A fifteen-minute publication cadence, on a clock this demo drives so
+    # that the output is the same every run. There is no "running tally or
+    # not": there is an interval, and the close is always a publication
+    # point, so an interval longer than the poll means the close is the only
+    # one. Which interval applies is the administering body's decision, not
+    # the design's, and it follows from the size of the electorate.
+    clock = [0.0]
     box = BallotBox(
-        vro_public_key=vro.public_key, num_choices=len(OPTIONS), tally_interval=10
+        vro_public_key=vro.public_key, num_choices=len(OPTIONS),
+        tally_interval_seconds=900, now=lambda: clock[0],
     )
 
     names = ["Anna", "Béla", "Csilla"]
@@ -126,8 +130,12 @@ def main():
     open_view = box.published_view()
     print(f"    while open:  {len(open_view['commitments']['accepted'])} commitments, "
           f"records withheld ({'records' in open_view})")
-    print(f"    running tally snapshots so far: {len(open_view['running_tally'])} "
-          f"(one every 10 accepted ballots; this demo casts 4)")
+    print(f"    published reports so far: {len(open_view['running_tally'])} "
+          f"(the cadence is time; this poll has not run that long)")
+    clock[0] += 900                      # the first boundary passes
+    open_view = box.published_view()
+    print(f"    after fifteen minutes:    {len(open_view['running_tally'])} "
+          f"(published whether or not anything changed in the window)")
     box.close()
     view = box.published_view()
     print(f"    at close:    {len(view['records']['accepted'])} records in clear")

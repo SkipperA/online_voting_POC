@@ -53,7 +53,7 @@ jobs:
 
   sabotage:
     name: Every defence is still detected
-    # Twenty-two mutations, each a full suite run.  Not on every push to every
+    # Twenty-four mutations, each a full suite run.  Not on every push to every
     # branch; on pull requests and on anything reaching main, which is early
     # enough to catch a defence going quiet before it becomes permanent.
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
