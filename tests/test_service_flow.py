@@ -69,6 +69,7 @@ def cast(live, adhoc, token, selection):
         "selection": selection,
         "adhoc_public_key": b64(adhoc.public_bytes),
         "token": b64(token),
+        "nonce": b64(unsigned.nonce),
         "vote_signature": b64(adhoc.sign(unsigned.signed_payload())),
     }).json()
 
@@ -306,9 +307,11 @@ def test_the_ballot_paths_open_the_tally_to_the_checker_and_close_to_nobody(live
 def test_the_browser_canonical_form_is_the_one_the_box_verifies(live, token_key):
     """What the page signs must be byte-identical to what `ovpoc` hashes.
 
-    The page builds `{"adhoc_public_key":…,"selection":…}` with sorted keys
-    and no whitespace. If it serialised it any other way every ballot would
-    be rejected, so this pins the agreement rather than trusting it.
+    The page builds `{"adhoc_public_key":…,"nonce":…,"selection":…}` with
+    sorted keys and no whitespace. If it serialised it any other way every
+    ballot would be rejected, so this pins the agreement rather than
+    trusting it -- and the nonce is the key most recently added, which is
+    exactly the kind of addition that breaks an ordering by hand.
     """
     import hashlib
     import json
@@ -318,13 +321,15 @@ def test_the_browser_canonical_form_is_the_one_the_box_verifies(live, token_key)
     adhoc = keys.SigningKeyPair.generate()
     ballot = Ballot(selection=2, adhoc_public_key=adhoc.public_bytes,
                     token=b"", vote_signature=b"")
+    fields = {
+        "adhoc_public_key": b64(adhoc.public_bytes),
+        "nonce": b64(ballot.nonce),
+        "selection": 2,
+    }
     browser_form = json.dumps(
-        {"adhoc_public_key": b64(adhoc.public_bytes), "selection": 2},
-        separators=(",", ":"), ensure_ascii=False,
-    ).encode()
+        fields, separators=(",", ":"), ensure_ascii=False).encode()
 
-    assert browser_form == canonical_bytes(
-        {"adhoc_public_key": b64(adhoc.public_bytes), "selection": 2})
+    assert browser_form == canonical_bytes(fields)
     assert hashlib.sha256(browser_form).digest() == ballot.signed_payload()
 
 

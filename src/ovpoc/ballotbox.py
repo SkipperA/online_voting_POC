@@ -63,12 +63,13 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from . import keys, rsabssa
 from .ledger import Ledger
-from .messages import Ballot, b64
+from .messages import Ballot, b64, digest
 
 BLANK = 0  # the plain, unaffiliated abstention default -- see tally() for
            # why other out-of-range values are not folded in with this one
 
 BOX_CLOSED = "voting has closed"
+ALREADY_ACCEPTED = "already accepted"
 
 
 class BoxStillOpen(RuntimeError):
@@ -98,6 +99,12 @@ class BallotBox:
     rejected: Ledger = field(default_factory=Ledger)
     _closed: bool = False
     _snapshots: list[dict] = field(default_factory=list)
+
+    # Content hashes of the accepted records, for the replay test in
+    # `submit`.  Not the entry hashes: those cover the index and the
+    # previous hash, so two identical ballots at different positions hash
+    # differently, which is the opposite of what is needed here.
+    _accepted_records: set[bytes] = field(default_factory=set)
 
     # The clock, injectable so that tests can drive the cadence, and the
     # instant the cadence counts from.  Stage 1 anchors at construction,
@@ -165,9 +172,31 @@ class BallotBox:
             )
             return SubmissionResult(False, "vote signature invalid", entry.entry_hash, entry.index)
 
+        # 10/2 -- is this record already among the accepted entries?
+        #
+        # A replay is not a forgery and no signature can catch it: a ballot
+        # delivered a second time carries a valid signature because it is
+        # genuine.  Without this test an operator could re-enter a ballot the
+        # voter had already superseded, and it would count as the last one
+        # under that key -- and the voter could not disown it, since the
+        # record carries their own signature and "I did not submit this
+        # twice" is not something a signature can express.  The nonce is what
+        # makes two honest ballots for the same selection differ, so that a
+        # replay can be told from a re-vote.
+        #
+        # Against the accepted entries alone: a duplicate of a *rejected*
+        # submission supersedes nothing and is harmless.
+        record = digest(ballot.to_dict())
+        if record in self._accepted_records:
+            entry = self.rejected.append(
+                {**ballot.to_dict(), "reason": ALREADY_ACCEPTED}
+            )
+            return SubmissionResult(False, ALREADY_ACCEPTED, entry.entry_hash, entry.index)
+
         # 11/A -- accepted.  Appending, not replacing: the supersession rule is
         # applied at tally time, so the full history stays auditable.
         entry = self.accepted.append(ballot.to_dict())
+        self._accepted_records.add(record)
 
         return SubmissionResult(True, "accepted", entry.entry_hash, entry.index)
 

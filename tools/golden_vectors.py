@@ -55,6 +55,10 @@ from ovpoc.vro import denial_payload, release_query_payload  # noqa: E402
 VECTOR_DIR = ROOT / "tests" / "vectors"
 SCHEMA_VERSION = 1
 
+# The ballot nonce used by the payload vectors.  Derived rather than random
+# so that regeneration is reproducible.
+BALLOT_VECTOR_NONCE = hashlib.sha256(b"ovpoc-golden-nonce").digest()[:16]
+
 # A test key, in a public repository, on purpose.  It signs nothing outside
 # this suite and must never be used for an election; the file says so too.
 KEY_BITS = 3072
@@ -214,10 +218,14 @@ def group_payloads(wallet, adhoc) -> tuple[str, str, list[dict]]:
                 wallet_signature=b"",
             ).signed_payload()
         elif i["kind"] == "ballot":
+            # Fixed, published, and obviously test material: a vector whose
+            # input were drawn at random would not be a vector.
+            i.setdefault("nonce_b64url", b64(BALLOT_VECTOR_NONCE))
             payload = Ballot(
                 selection=i["selection"],
                 adhoc_public_key=unb64(i["adhoc_public_key_b64url"]),
                 token=b"",
+                nonce=unb64(i["nonce_b64url"]),
                 vote_signature=b"",
             ).signed_payload()
         elif i["kind"] == "release_query":

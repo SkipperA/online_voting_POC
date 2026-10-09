@@ -118,6 +118,7 @@ def test_signed_payload_vectors():
                 selection=i["selection"],
                 adhoc_public_key=unb64(i["adhoc_public_key_b64url"]),
                 token=b"",
+                nonce=unb64(i["nonce_b64url"]),
                 vote_signature=b"",
             ).signed_payload()
         elif i["kind"] == "release_query":

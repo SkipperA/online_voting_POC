@@ -12,7 +12,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-from dataclasses import dataclass
+import secrets
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -73,7 +74,7 @@ class AuthRequest:
 
 @dataclass
 class Ballot:
-    """Step 9: the ballot package [i, k_p^a, s_{k_p^a}, s_vote].
+    """Step 9: the ballot package [i, k_p^a, s_{k_p^a}, n, s_vote].
 
     Note what is *absent*: nothing here identifies the voter.  The link to
     eligibility runs only through `token`, the VRO's blind signature over
@@ -84,18 +85,35 @@ class Ballot:
     adhoc_public_key: bytes     # k_p^a
     token: bytes                # s_{k_p^a} -- VRO blind signature over k_p^a
     vote_signature: bytes       # s_vote
+    nonce: bytes = field(default_factory=lambda: secrets.token_bytes(16))
+
+    # Why the nonce has a default rather than a parameter.  Ed25519
+    # signatures are deterministic and the rest of the signed payload names
+    # only the selection and the key, so without it a voter's two
+    # submissions of the same selection are byte-identical -- and an
+    # operator could re-enter a ballot the voter had already superseded,
+    # which would then count as the last one under that key.  Freshness is
+    # therefore a property of *constructing* a ballot, not a discipline the
+    # caller has to remember.  A replay is built by resubmitting the same
+    # object or by `from_dict`, and both carry the original value: that is
+    # exactly what makes the copy recognisable.  The nonce is not a secret
+    # and discloses nothing; it is uniform, and every record under a given
+    # ad-hoc key is public at the close in any case.
 
     def signed_payload(self) -> bytes:
-        """Exactly the bytes the ad-hoc key signs -- hash([i, k_p^a])."""
-        return digest(
-            {"selection": self.selection, "adhoc_public_key": b64(self.adhoc_public_key)}
-        )
+        """Exactly the bytes the ad-hoc key signs -- hash([i, k_p^a, n])."""
+        return digest({
+            "selection": self.selection,
+            "adhoc_public_key": b64(self.adhoc_public_key),
+            "nonce": b64(self.nonce),
+        })
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "selection": self.selection,
             "adhoc_public_key": b64(self.adhoc_public_key),
             "token": b64(self.token),
+            "nonce": b64(self.nonce),
             "vote_signature": b64(self.vote_signature),
         }
 
@@ -105,5 +123,6 @@ class Ballot:
             selection=d["selection"],
             adhoc_public_key=unb64(d["adhoc_public_key"]),
             token=unb64(d["token"]),
+            nonce=unb64(d["nonce"]),
             vote_signature=unb64(d["vote_signature"]),
         )

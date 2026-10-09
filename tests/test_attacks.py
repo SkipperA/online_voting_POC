@@ -15,8 +15,8 @@ import pytest
 
 from conftest import query, register
 from ovpoc import keys, rsabssa
-from ovpoc.ballotbox import BOX_CLOSED, BallotBox, BoxStillOpen
-from ovpoc.messages import Ballot
+from ovpoc.ballotbox import ALREADY_ACCEPTED, BOX_CLOSED, BallotBox, BoxStillOpen
+from ovpoc.messages import Ballot, b64
 from ovpoc.vro import (
     FaultDetected,
     Outcome,
@@ -889,3 +889,59 @@ def test_issue_token_is_still_one_act(election):
     assert response.outcome is Outcome.ISSUED
     assert response.blind_signature is not None
     assert vro.pending == ()
+
+
+def test_a_replayed_ballot_cannot_annul_a_later_one(election):
+    """An operator re-entering an earlier ballot must not make it count.
+
+    This is the attack the nonce exists for, and it is not a forgery: the
+    replayed record carries the voter's own valid signature because it is
+    genuine. No signature check can catch it, so the box has to refuse a
+    record it has already accepted -- and the nonce is what stops an honest
+    re-vote from looking like one.
+    """
+    vro, voters, box = election
+    voter = voters[0]
+    register(vro, voter)
+
+    first = voter.cast(1)
+    box.submit(first)
+    box.submit(voter.cast(2))          # the voter changes their mind
+
+    replay = box.submit(Ballot.from_dict(first.to_dict()))
+    assert not replay.accepted
+    assert replay.reason == ALREADY_ACCEPTED
+
+    box.close()
+    assert box.tally()["counts"] == {1: 0, 2: 1, 3: 0}, "the later ballot stands"
+
+
+def test_an_honest_re_vote_for_the_same_selection_is_not_a_replay(election):
+    """Otherwise the defence would cost the voter their own right to re-vote.
+
+    Two submissions of the same choice are a legitimate re-vote -- a voter
+    confirming under duress, or simply pressing the button twice. They
+    differ only by the nonce, and that is the whole of why they are
+    distinguishable from a copy.
+    """
+    vro, voters, box = election
+    voter = voters[0]
+    register(vro, voter)
+
+    assert box.submit(voter.cast(1)).accepted
+    assert box.submit(voter.cast(1)).accepted
+    assert len(box.accepted) == 2
+
+
+def test_the_nonce_is_covered_by_the_ballot_signature(election):
+    """Or it could be changed in transit to turn a replay into a fresh ballot."""
+    vro, voters, box = election
+    voter = voters[0]
+    register(vro, voter)
+
+    ballot = voter.cast(1)
+    tampered = Ballot.from_dict({**ballot.to_dict(), "nonce": b64(b"x" * 16)})
+
+    result = box.submit(tampered)
+    assert not result.accepted
+    assert result.reason == "vote signature invalid"

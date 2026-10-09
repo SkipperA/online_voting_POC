@@ -148,7 +148,8 @@ Step 9. The article's package $`[\,i,\, k_p^a,\, s_{k_p^a},\, s_{vote}\,]`$ (§5
 | `selection` | `Ballot.selection` | Req. 2, Req. 7 | $`i`$. In $`1..N`$ makes the vote *valid*; outside it, *invalid* — still accepted, still superseding |
 | `adhoc_public_key` | `Ballot.adhoc_public_key` | Req. 3, Req. 4 | $`k_p^a`$. The voter's anonymous handle. Before the close it is also a lookup secret (§3.7) |
 | `token` | `Ballot.token` | Req. 1 | $`s_{k_p^a}`$, an ordinary RSA-PSS signature over $`k_p^a`$ under $`k_p^{(R)}`$, so any third party verifies it with a standard library (§5.5) |
-| `vote_signature` | `Ballot.vote_signature` | Req. 1, Req. 4 | $`s_{vote} = sig_{k_s^a}(hash([i, k_p^a]))`$. Covers the selection *and* the key, so neither can be lifted from a published ballot and reused |
+| `nonce` | `Ballot.nonce` | Req. 2 | $`n`$, 16 random bytes drawn afresh for every submission. Not a secret. It makes two honest ballots for the same selection differ, so a replay can be told from a re-vote (§5.7) |
+| `vote_signature` | `Ballot.vote_signature` | Req. 1, Req. 4 | $`s_{vote} = sig_{k_s^a}(hash([i, k_p^a, n]))`$. Covers the selection, the key *and* the nonce, so none can be lifted from a published ballot and reused |
 | — (signed bytes) | `Ballot.signed_payload()` | §5.6 | Canonical JSON (§0), as in §2 above |
 
 Nothing here identifies the voter. The link to eligibility runs only through
@@ -164,7 +165,7 @@ Req. 8).
 | Field | Code | Discharges | Note |
 |---|---|---|---|
 | `accepted` | `SubmissionResult.accepted` | Req. 1, Req. 7 | Passed both cryptographic checks. Not the same as *valid* |
-| `reason` | `SubmissionResult.reason` | Req. 7 | `"accepted"`, `"token not signed by VRO"`, `"vote signature invalid"`, or `"voting has closed"` |
+| `reason` | `SubmissionResult.reason` | Req. 7 | `"accepted"`, `"token not signed by VRO"`, `"vote signature invalid"`, `"already accepted"`, or `"voting has closed"` |
 | `ledger_head` | `SubmissionResult.ledger_head` | §3.5 | The head at the moment of acceptance. With it the voter can later show that the entry was not removed, reordered, or altered — demonstrable rather than merely alleged |
 | entry position | `SubmissionResult.index` | §3.4, §3.5, §3.7 | The position of the entry in the registry. With the head, it is what lets the inclusion check run offline, with no query to the component under audit. None for a submission refused after the close, where no entry exists |
 

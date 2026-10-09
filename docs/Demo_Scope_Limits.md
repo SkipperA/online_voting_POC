@@ -96,7 +96,7 @@ across independent bodies; the demo does not.*
 
 On localhost there is none, and the demo therefore cannot demonstrate the
 property it most needs to: a token release and a ballot submission seconds
-apart from the same address are trivially linkable by timing (§3.9).
+apart from the same address are trivially linkable by timing (§3.8).
 
 The distinction to draw for an audience is that the demo shows the
 *cryptography* does not leak the link, not that the *deployment* does not.

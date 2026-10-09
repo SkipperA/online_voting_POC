@@ -141,8 +141,12 @@ check is remote, automatic, and free of the friction a records request imposes.
 Ordered roughly by how much a reviewer would want to see them:
 
 1. Ballot box equivocation — two verifiers shown different ledgers.
-2. Replaying a ballot verbatim (currently accepted and idempotent — confirm that
-   is the intended semantics, and document it either way).
+2. ~~Replaying a ballot verbatim~~ — settled, and the register had it wrong.
+   It was called idempotent; it is idempotent in *content* and not in
+   *position*, and supersession reads position, so an operator could re-enter
+   a ballot the voter had superseded and make it the last one under that key.
+   The ballot now carries a nonce covered by the ad-hoc signature, and the box
+   refuses any record already among the accepted entries (§5.7).
 3. A voter holding two qualified certificates, and whether the office should
    accept a request signed under either (the article's §3.2 says it must; this
    POC returns exactly one certificate per `id`, which is enough to run the

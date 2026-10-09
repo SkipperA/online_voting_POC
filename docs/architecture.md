@@ -70,6 +70,7 @@ classDiagram
         +selection: int
         +adhoc_public_key: bytes
         +token: bytes
+        +nonce: bytes
         +vote_signature: bytes
         +signed_payload() bytes
         +to_dict() dict

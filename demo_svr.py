@@ -137,6 +137,7 @@ class VoterApp:
                 "selection": ballot.selection,
                 "adhoc_public_key": b64(ballot.adhoc_public_key),
                 "token": b64(ballot.token),
+                "nonce": b64(ballot.nonce),
                 "vote_signature": b64(ballot.vote_signature),
             },
         )

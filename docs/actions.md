@@ -61,9 +61,9 @@ give a reason (§3.2).
 | # | Action | Actor | System | Data: sender → receiver |
 |---|---|---|---|---|
 | C1 | Choose an option `i`, or a value outside `1..N` as a protest ballot | voter | voter app | — |
-| C2 | Sign the selection: `s_vote = sig_{k_s^a}(hash([i, k_p^a]))` | voter app | voter app (§5.6) | internal |
-| C3 | Submit over an anonymising channel | voter app | app → EBB (§3.9) | `[i, k_p^a, s_{k_p^a}, s_vote]` : app → EBB |
-| C4 | Verify the token under `k_p^(R)`; verify `s_vote` under `k_p^a`; accept or reject | EBB | EBB (§5.7) | internal |
+| C2 | Draw a fresh nonce `n`; sign the selection: `s_{vote} = sig_{k_s^a}(hash([i, k_p^a, n]))` | voter app | voter app (§5.6) | internal |
+| C3 | Submit over an anonymising channel | voter app | app → EBB (§3.8) | `[i, k_p^a, s_{k_p^a}, n, s_{vote}]` : app → EBB |
+| C4 | Verify the token under `k_p^(R)`; verify `s_{vote}` under `k_p^a`; refuse a record already among the accepted entries; accept or reject | EBB | EBB (§5.7) | internal |
 | C5 | Append the entry to the hash chain; apply supersession among **accepted** ballots only | EBB | EBB | internal |
 | C6 | Return the receipt | EBB | EBB → app | acceptance status, entry position, current chain head : EBB → voter app |
 | C7 | Publish the entry commitment and position, the new chain head, the running counts | EBB | EBB → public | commitments, head, counts : EBB → anyone |
@@ -88,7 +88,7 @@ give a reason (§3.2).
 | E3 | Release every record in clear — selection, `k_p^a`, token, ballot signature — for accepted and rejected submissions alike | EBB | EBB → public | full ledger : EBB → anyone |
 | E4 | Publish the final chain head and final counts | EBB | EBB → public | head, counts : EBB → anyone |
 | E5 | Publish the final token-release count; the release commitments are never opened publicly | VRO | VRO → public (Table 1) | count : VRO → anyone |
-| E6 | Recount independently: every token under `k_p^(R)`, every `s_vote` under its `k_p^a`, supersession among accepted only, each record against its earlier commitment, and the chain head | any citizen | published ledger, standard crypto libraries (§3.5, §6) | public → anyone |
+| E6 | Recount independently: every token under `k_p^(R)`, every `s_{vote}` under its `k_p^a`, supersession among accepted only, each record against its earlier commitment, and the chain head | any citizen | published ledger, standard crypto libraries (§3.5, §6) | public → anyone |
 | E7 | Compute the tally, preserving the distribution over distinct out-of-range values rather than one aggregate | any citizen | published ledger (§5.7) | public → anyone |
 | E8 | Compute and publish the tally: a deterministic function of the released records, preserving the distribution over distinct out-of-range values | EBB | EBB → public (Table 1, tally row) | tally : EBB → anyone |
 | E9 | Post-close verification of one's own ballot; under the provable variant, prove authorship by demonstrating control of `k_s^a` | voter | any device | voter → any third party |

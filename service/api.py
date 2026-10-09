@@ -468,6 +468,7 @@ class BallotBody(BaseModel):
     selection: int
     adhoc_public_key: str
     token: str
+    nonce: str
     vote_signature: str
 
 
@@ -528,6 +529,7 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
             selection=body.selection,
             adhoc_public_key=unb64(body.adhoc_public_key),
             token=unb64(body.token),
+            nonce=unb64(body.nonce),
             vote_signature=unb64(body.vote_signature),
         )
         try:

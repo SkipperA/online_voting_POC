@@ -201,6 +201,16 @@ MUTATIONS = [
         replace="        if True:  # SABOTAGE: records published while open\n            view[\"records\"] = {",
     ),
     Mutation(
+        name="replayed_ballot_accepted_again",
+        what=(
+            "A ballot identical to one already accepted is accepted a second time, so "
+            "an operator can re-enter a ballot the voter had superseded and make it count."
+        ),
+        path="src/ovpoc/ballotbox.py",
+        find="        record = digest(ballot.to_dict())\n        if record in self._accepted_records:",
+        replace="        record = digest(ballot.to_dict())\n        if False:  # SABOTAGE: a replay is accepted again",
+    ),
+    Mutation(
         name="tally_available_before_the_close",
         what=(
             "The full count can be read while voting is open even when no running tally "

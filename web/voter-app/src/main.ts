@@ -316,8 +316,13 @@ async function doUnblind(sc: Uint8Array) {
 
 async function doSign(selection: number) {
   ROUND += 1;
+  // Fresh for every submission. Ed25519 is deterministic and the rest of
+  // the payload names only the selection and the key, so two submissions
+  // of the same choice would otherwise be byte-identical -- and the box
+  // could not tell a re-vote from a replay of the earlier ballot.
+  const nonce = crypto.getRandomValues(new Uint8Array(16));
   const canonical = JSON.stringify({
-    adhoc_public_key: b64url(ADHOC_PUBLIC), selection });
+    adhoc_public_key: b64url(ADHOC_PUBLIC), nonce: b64url(nonce), selection });
   const digest = new Uint8Array(
     await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical)));
   const voteSignature = new Uint8Array(
@@ -326,6 +331,7 @@ async function doSign(selection: number) {
     selection,
     adhoc_public_key: b64url(ADHOC_PUBLIC),
     token: b64url(TOKEN),
+    nonce: b64url(nonce),
     vote_signature: b64url(voteSignature),
   };
 
@@ -333,10 +339,11 @@ async function doSign(selection: number) {
     id: `cast-${ROUND}`, fig: '9 → 10/1',
     title: ROUND === 1 ? 'Cast the ballot' : `Cast the ballot (attempt ${ROUND})`,
     where: 'this device → the ballot box',
-    why: 'The signature covers the canonical form of the selection and the ' +
-         'ad-hoc key, so altering either in transit invalidates it. The box ' +
-         'checks the token under the published key, and the selection under ' +
-         'the key that token certifies.',
+    why: 'The signature covers the canonical form of the selection, the ' +
+         'ad-hoc key and a nonce drawn afresh for this submission, so ' +
+         'altering any of them in transit invalidates it. The nonce is what ' +
+         'lets the box tell a re-vote from a replay of an earlier ballot: ' +
+         'without it, two ballots for the same choice would be identical.',
     action: { label: 'Send to the ballot box', run: () => doCast(ballot) },
   });
   payload(`cast-${ROUND}`, 'the ballot, exactly as it will be sent', ballot,

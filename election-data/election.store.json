@@ -1,8 +1,9 @@
 {
-  "store_version": 1,
+  "store_version": 2,
   "warning": "DEMONSTRATION KEY MATERIAL, PUBLISHED DELIBERATELY. Every wallet seed below is in the clear so that a reader can see what this demo holds on each voter's behalf. The voters are fictional and this election is not one. A deployment keeps k_s^(v) in hardware it never leaves, and keeps k_s^(R) nowhere a file can reach.",
   "election_id": "demo-2026",
   "num_choices": 4,
+  "tally_interval_seconds": 10,
   "vro_statement_seed": "GqJ7wd9EHYCcGkn5WRxhP40BAOB3FJ42h8kzq6KFziE",
   "electoral_register": [
     "András Zsolt",

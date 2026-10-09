@@ -130,6 +130,7 @@ class App:
             "selection": selection,
             "adhoc_public_key": b64(self.adhoc.public_bytes),
             "token": b64(token or self.token or b""),
+            "nonce": b64(unsigned.nonce),
             "vote_signature": b64(key.sign(unsigned.signed_payload())),
         }
 
@@ -170,7 +171,8 @@ def s_no_auth(ctx: Ctx) -> None:
     adhoc = keys.SigningKeyPair.generate()
     result = ctx.submit({
         "selection": 1, "adhoc_public_key": b64(adhoc.public_bytes),
-        "token": b64(b"\x00" * 384), "vote_signature": b64(b"\x00" * 64),
+        "token": b64(b"\x00" * 384), "nonce": b64(os.urandom(16)),
+        "vote_signature": b64(b"\x00" * 64),
     })
     check("rejected", not result["accepted"])
     field_("reason given", result["reason"])
@@ -187,7 +189,7 @@ def s_forged_token(ctx: Ctx) -> None:
                       token=os.urandom(384), vote_signature=b"")
     result = ctx.submit({
         "selection": 1, "adhoc_public_key": b64(adhoc.public_bytes),
-        "token": b64(os.urandom(384)),
+        "token": b64(os.urandom(384)), "nonce": b64(unsigned.nonce),
         "vote_signature": b64(adhoc.sign(unsigned.signed_payload())),
     })
     check("rejected despite a well-formed ballot signature", not result["accepted"])

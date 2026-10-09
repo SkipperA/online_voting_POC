@@ -144,7 +144,8 @@ async function payloadsGroup(): Promise<void> {
         obj = { voter_id: i.voter_id, blinded_key: i.blinded_key_b64url };
         break;
       case 'ballot':
-        obj = { selection: i.selection, adhoc_public_key: i.adhoc_public_key_b64url };
+        obj = { adhoc_public_key: i.adhoc_public_key_b64url,
+                nonce: i.nonce_b64url, selection: i.selection };
         break;
       case 'release_query':
         obj = { query: 'token-release', voter_id: i.voter_id };
