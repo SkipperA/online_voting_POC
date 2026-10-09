@@ -618,3 +618,41 @@ def test_the_box_serves_an_operator_console_and_close_stays_same_origin(live):
     closed = live.http.request(
         "OPTIONS", f"{live.ebb}/close", headers={"origin": live.url(8001)})
     assert "access-control-allow-origin" not in {k.lower() for k in closed.headers}
+
+
+def test_the_console_separates_submissions_from_ballots_that_will_count(live):
+    """The gap between the two is where an audience goes wrong.
+
+    Every submission that passes both signature checks is accepted and
+    kept; only the last under each ad-hoc key is counted. A console showing
+    one number invites a reader to treat it as the result.
+    """
+    page = live.http.get(f"{live.ebb}/").text
+    assert "submissions accepted" in page
+    assert "ballots that will count" in page
+    assert 'id="voters"' in page
+
+
+def test_the_console_reads_the_published_reports_rather_than_a_live_tally(live):
+    """It is not a privileged surface, and must not look like one.
+
+    The console fetches `/published`, the same artefact anybody reads, so
+    the figure it shows while the poll is open is one the public already
+    has. Reaching for `/tally` between boundaries would show a count nobody
+    else can see -- the operator asymmetry the cadence exists to remove.
+    """
+    script = live.http.get(f"{live.ebb}/box.js").text
+    assert "running_tally" in script
+    assert script.index("running_tally") < script.index("fetch('/tally')")
+    after_close_branch = script[script.index("if (!open)"):]
+    assert "fetch('/tally')" in after_close_branch, "read only once closed"
+
+
+def test_the_console_says_so_when_no_report_has_been_published(live):
+    """A blank would read as nothing happening rather than nothing published.
+
+    The demo deployment configures no interval, so until the close there is
+    nothing to show, and that is the state the console is in for the whole
+    poll.
+    """
+    assert "no report published yet" in live.http.get(f"{live.ebb}/box.js").text

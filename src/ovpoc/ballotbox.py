@@ -144,7 +144,10 @@ class BallotBox:
         means the close is the only point in the series.
         """
         self._catch_up()
-        self._publish(self.now())
+        # Floored like every other boundary: the close is a publication point
+        # and its label should look like one, not carry the microsecond the
+        # operator's click happened to land on.
+        self._publish(float(int(self.now())))
         self._closed = True
 
     # ------------------------------------------------------------------

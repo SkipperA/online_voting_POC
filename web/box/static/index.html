@@ -33,10 +33,21 @@ the poll.</p>
   <h2>The registry</h2>
   <div class="row"><table><tbody>
     <tr><td style="width:12rem">state</td><td id="state">…</td></tr>
-    <tr><td>accepted</td><td id="accepted">…</td></tr>
+    <tr><td>submissions accepted</td><td id="accepted">…</td></tr>
+    <tr><td>ballots that will count</td><td id="voters">…</td>
+        <td class="aside" id="voters-note" style="color:var(--dim)"></td></tr>
     <tr><td>rejected</td><td id="rejected">…</td></tr>
-    <tr><td>chain head</td><td class="mono" id="head">…</td></tr>
+    <tr><td>chain head</td><td class="mono" id="head" colspan="2">…</td></tr>
   </tbody></table></div>
+  <p style="margin:.6rem 0 0;color:var(--dim);font-size:13.5px">
+    The two figures differ because a voter may supersede their own ballot:
+    every submission that passes both signature checks is accepted and kept,
+    but only the last one under each ad-hoc key is counted. While the poll is
+    open they are also figures from different moments — submissions are
+    counted live from the commitments, whereas the ballots that will count
+    are only known from the last published report. Subtracting one from the
+    other therefore means nothing until the close.
+  </p>
   <p style="margin:.6rem 0 0;color:var(--dim);font-size:13.5px">
     Each entry stores the hash of the one before it, so the head depends on
     every record and on their order. A voter holding a receipt can show a
@@ -59,13 +70,29 @@ the poll.</p>
 </section>
 
 <section>
-  <h2>Tally</h2>
+  <h2>Published reports</h2>
   <p style="margin:0 0 .6rem;color:var(--dim);font-size:13.5px">
-    Not computable before the close: with no running tally configured, there
-    is no result to be had — for anyone, the operator included. Out-of-range
-    selections are reported by the distinct value each voter cast rather than
-    merged into one figure, so an organised protest is not flattened into
-    "invalid".
+    The cadence is set on the setup console before the poll opens, and the
+    trigger is the clock rather than the arrival of a ballot: a report goes
+    out at every boundary whether or not anything changed in the window,
+    because an electorate waiting for one learns something from its absence
+    too. The close is always a publication point, so an interval longer than
+    the poll means the close is the only one. Nothing here is privileged —
+    every figure below is published, and between boundaries the operator
+    sees no more of the result than anybody else.
+  </p>
+  <table><thead><tr><th>published at</th><th>accepted</th>
+    <th>will count</th><th>counts</th></tr></thead>
+    <tbody id="reports"><tr><td colspan="4">…</td></tr></tbody></table>
+</section>
+
+<section>
+  <h2>Final tally</h2>
+  <p style="margin:0 0 .6rem;color:var(--dim);font-size:13.5px">
+    Released at the close, when every record is published in clear and any
+    citizen can recompute this independently. Out-of-range selections are
+    reported by the distinct value each voter cast rather than merged into
+    one figure, so an organised protest is not flattened into "invalid".
   </p>
   <div class="mono" id="tally">…</div>
 </section>
