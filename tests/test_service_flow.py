@@ -74,6 +74,18 @@ def cast(live, adhoc, token, selection):
     }).json()
 
 
+def test_the_ledger_download_is_refused_while_voting_is_open(live):
+    """Defined before the run that closes the box, because order decides this.
+
+    The dump is the records, and the records are withheld until the close
+    for the reasons Section 3.5 gives. An endpoint that served them early
+    would be a way round the publication schedule rather than a way to
+    check it.
+    """
+    refused = live.http.get(f"{live.ebb}/ledger")
+    assert refused.status_code == 409
+
+
 def test_the_whole_path_across_origins(live, token_key):
     for voter_id in VOTERS.values():
         live.http.post(f"{live.setup}/voters", json={"voter_id": voter_id})
@@ -695,3 +707,97 @@ def test_the_checker_verifies_statements_rather_than_displaying_them(live):
     page = live.http.get(f"{live.checker}/").text
     assert 'id="receipt"' in page
     assert 'id="d2-signature"' in page
+
+
+def ledger_of(live):
+    """The dump, closing the box first if an earlier test has not.
+
+    The deployment is shared across this module, so whether the box is
+    already closed depends on which tests ran. The dump is only defined
+    after the close, so ask for that state rather than assume it.
+    """
+    if "records" not in live.http.get(f"{live.ebb}/published").json():
+        live.http.post(f"{live.ebb}/close")
+    return live.http.get(f"{live.ebb}/ledger")
+
+
+def test_the_ledger_downloads_as_one_canonical_file(live):
+    """What a third party takes away and never asks the box about again.
+
+    Canonically serialised, so two people downloading the same election get
+    the same bytes and can compare the file's own hash rather than their
+    readings of it.
+    """
+    from ovpoc.messages import canonical_bytes
+
+    response = ledger_of(live)
+    assert response.status_code == 200
+    assert "attachment" in response.headers["content-disposition"]
+    dump = response.json()
+    assert response.content == canonical_bytes(dump)
+
+    # The digest is of the file, not a field in it, which is the point: a
+    # verifier computes it over what they downloaded.
+    from ovpoc.messages import canonical_bytes as cb  # noqa: F401
+    import hashlib
+    served = live.http.get(f"{live.config}/election.json")
+    assert dump["configuration_digest"] == hashlib.sha256(served.content).hexdigest()
+    assert dump["genesis_hash"] == served.json()["genesis_hash"]
+
+
+def test_the_dump_needs_no_signature_of_its_own(live):
+    """One signature authenticates every record and their order.
+
+    Recompute the chain from the records against the genesis hash; if the
+    head you arrive at is the head the box signed, every record is
+    accounted for. Nothing else in the file has to be trusted, and the file
+    needs no signature wrapped around it -- which is what the chain is for.
+    """
+    from ovpoc.ballotbox import verify_head
+    from ovpoc.ledger import compute_entry_hash
+
+    dump = ledger_of(live).json()
+    config = live.http.get(f"{live.config}/election.json").json()
+
+    head = bytes.fromhex(dump["genesis_hash"])
+    for i, e in enumerate(dump["accepted"]):
+        head = compute_entry_hash(i, e["record"], head)
+        assert head.hex() == e["commitment"], f"entry {i} does not chain"
+
+    assert head.hex() == dump["heads"]["accepted"]
+    assert verify_head(unb64(config["ebb_statement_key"]), config["election_id"],
+                       "accepted", head, unb64(dump["head_signatures"]["accepted"]))
+
+
+def test_the_office_signs_the_count_the_audit_depends_on(live):
+    """Two figures, two components, and now both attributable.
+
+    The count audit is the strongest check available without the records.
+    One figure came from a box that signs what it publishes; the other came
+    from the office unsigned, which is where an office with something to
+    hide would understate.
+    """
+    from ovpoc.vro import verify_release_count
+
+    config = live.http.get(f"{live.config}/election.json").json()
+    log = live.http.get(f"{live.vro}/release-log").json()
+
+    assert verify_release_count(unb64(config["vro_statement_key"]),
+                                config["election_id"], log["count"],
+                                unb64(log["count_signature"]))
+    assert not verify_release_count(unb64(config["vro_statement_key"]),
+                                    config["election_id"], log["count"] + 1,
+                                    unb64(log["count_signature"]))
+
+
+def test_the_ledger_does_not_carry_the_keys_it_is_checked_against(live):
+    """A dump that verifies against itself establishes nothing.
+
+    The verification keys are pinned from the published configuration, and
+    the dump names the configuration it belongs to rather than restating
+    its contents.
+    """
+    dump = ledger_of(live).json()
+    assert "statement_key" not in dump
+    assert "vro_token_key_spki" not in dump
+    assert dump["configuration_digest"]

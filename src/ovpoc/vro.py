@@ -222,6 +222,31 @@ def denial_payload(voter_id: str) -> bytes:
     return digest({"statement": "no-token-released", "voter_id": voter_id})
 
 
+def release_count_payload(election_id: str, count: int) -> bytes:
+    """The bytes the office signs over its published count.
+
+    The count audit is the strongest check a third party can run without
+    the records: the number of distinct tokens used by the ballots in the
+    box cannot exceed the number of tokens issued.  One of those two figures
+    comes from the box, which signs what it publishes; the other came from
+    the office unsigned, so the audit rested on an unattributable claim at
+    exactly the point where an office with something to hide would want to
+    understate.  Bound to the election, like every other statement here.
+    """
+    return digest({
+        "statement": "tokens-released",
+        "election_id": election_id,
+        "count": count,
+    })
+
+
+def verify_release_count(office_public_key: bytes, election_id: str, count: int,
+                         signature: bytes) -> bool:
+    """Check a published count against the office's *published statement key*."""
+    return keys.verify_signature(
+        office_public_key, signature, release_count_payload(election_id, count))
+
+
 def verify_denial(office_public_key: bytes, voter_id: str, signature: bytes) -> bool:
     """Check a signed denial against the office's *published statement key*.
 
@@ -270,6 +295,8 @@ class VRO:
     public_key: rsa.RSAPublicKey                            # k_p^(R), published
     population_register: CertificateLookup                  # external (driver/)
     office_key: keys.SigningKeyPair                         # office statements
+    #: Bound into the office's statements, so a figure is about one poll.
+    election_id: str = ""
     register: set[str] = field(default_factory=set)         # electoral register: ids
     release_log: Ledger = field(default_factory=Ledger)     # commitments only
     _released: set[str] = field(default_factory=set)
@@ -283,6 +310,7 @@ class VRO:
         cls,
         population_register: CertificateLookup,
         bits: int = rsabssa.DEFAULT_MODULUS_BITS,
+        election_id: str = "",
     ) -> "VRO":
         priv, pub = rsabssa.generate_vro_keypair(bits)
         return cls(
@@ -290,6 +318,7 @@ class VRO:
             public_key=pub,
             population_register=population_register,
             office_key=keys.SigningKeyPair.generate(),
+            election_id=election_id,
         )
 
     # -- the electoral register ----------------------------------------
@@ -560,3 +589,9 @@ class VRO:
         Enough for the aggregate audit, and it names nobody.
         """
         return len(self.release_log)
+
+    def signed_release_count(self) -> tuple[int, bytes]:
+        """The count, and the office's statement that it is the count."""
+        count = self.release_count()
+        return count, self.office_key.sign(
+            release_count_payload(self.election_id, count))

@@ -86,7 +86,7 @@ class Deployment:
         document_root: Path = DOCUMENT_ROOT,
     ) -> "Deployment":
         population = PopulationRegister()
-        vro = VRO.create(population, bits=bits)
+        vro = VRO.create(population, bits=bits, election_id=election_id)
         ebb = BallotBox(vro_public_key=vro.public_key, num_choices=num_choices,
                         tally_interval_seconds=tally_interval_seconds,
                         election_id=election_id)
@@ -156,6 +156,7 @@ class Deployment:
             public_key=body["token_public"],
             population_register=population,
             office_key=body["statement_key"],
+            election_id=body["election_id"],
             register=set(body["electoral_register"]),
         )
         wallets = body["wallet_personas"]

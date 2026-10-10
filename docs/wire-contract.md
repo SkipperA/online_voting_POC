@@ -155,6 +155,30 @@ Step 9. The article's package $`[\,i,\, k_p^a,\, s_{k_p^a},\, s_{vote}\,]`$ (§5
 Nothing here identifies the voter. The link to eligibility runs only through
 `token`.
 
+### The ledger dump (`GET /ledger`, EBB, from the close)
+
+One canonically serialised file, so two downloaders of the same election get
+identical bytes and can compare the file's own hash across mirrors rather
+than comparing their readings of it.
+
+| Field | Note |
+|---|---|
+| `format` | `ovpoc-ledger/1`. A verifier written against one shape refuses another rather than reading it hopefully |
+| `election_id`, `configuration_digest`, `genesis_hash` | Which election, and which published configuration it is checked against. The verification keys are deliberately *not* here: a dump that verifies against itself establishes nothing |
+| `accepted[]`, `rejected[]` | `{index, commitment, record}` in registry order |
+| `heads`, `head_signatures` | The final heads and the box's statements over them, under `k_p^(B)` |
+
+The dump carries no signature of its own and needs none. Recompute the chain
+from the records against the genesis hash; if the head you reach is the head
+the box signed, every record and their order are authenticated by that one
+signature. That is what the chain is for.
+
+The office's released-token count is deliberately absent. The audit it feeds
+is worth something precisely because the two figures come from two
+components, so the box must not vouch for the office's: fetch it from
+`GET /release-log` on the VRO, where `count` is accompanied by
+`count_signature` under `k_p^(O)`.
+
 ---
 
 ## 7. Receipt — ballot box → voter

@@ -19,11 +19,16 @@ from pydantic import BaseModel
 
 from ovpoc import keys, rsabssa
 from ovpoc.ballotbox import BoxStillOpen
-from ovpoc.messages import AuthRequest, Ballot, b64, unb64
+from ovpoc.messages import AuthRequest, Ballot, b64, canonical_bytes, unb64
 from ovpoc.vro import release_query_payload
 
 from . import origins
 from .state import Deployment
+
+#: The dump's own version, independent of the wire contract and the
+#: store: a verifier written against one shape should refuse another
+#: rather than read it hopefully.
+LEDGER_FORMAT = "ovpoc-ledger/1"
 
 
 # --------------------------------------------------------------------------
@@ -450,11 +455,19 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         Published as tokens are released (Table 1). The commitments are never
         opened here -- one at a time, to the voter who can authenticate a
         query about their own, and to nobody else.
+
+        The count is signed under the office's statement key. It is one of
+        the two figures in the count audit, and the other comes from a box
+        that signs what it publishes; unsigned, the strongest aggregate
+        check in the design rested on an unattributable claim made by the
+        party with the motive to understate it.
         """
+        count, count_signature = vro.signed_release_count()
         return {
             "entries": [e.payload for e in vro.release_log.entries],
             "head": vro.release_log.head().hex(),
-            "count": vro.release_count(),
+            "count": count,
+            "count_signature": b64(count_signature),
         }
 
     return app
@@ -543,6 +556,59 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
             "entry_hash": b64(result.entry_hash),
             "signature": b64(result.signature),
         }
+
+    @app.get("/ledger")
+    async def ledger() -> Response:
+        """E3. The whole registry as one file, for checking elsewhere.
+
+        The point is not the endpoint. A third party who checks through a
+        service the box operates has checked nothing the operator could not
+        have arranged; what carries the claim of Section 6 -- that any
+        citizen can recompute the result with standard libraries -- is that
+        the records leave here as bytes and are never consulted again.
+
+        It needs no signature of its own. A verifier who recomputes the chain
+        from these records against the genesis hash and arrives at the head
+        the box signed has authenticated every record and their order with
+        that one signature; that is what the chain is for.
+
+        Serialised canonically, so that two people downloading the same
+        election get the same bytes and can compare the file's own hash
+        across mirrors (Section 3.5) rather than comparing their readings of
+        it. Refused while voting is open, for the reason the records are
+        withheld at all.
+
+        The office's released-token count is deliberately absent. The audit
+        it feeds is worth something precisely because the two figures come
+        from two components, so the box does not vouch for the office's: a
+        verifier fetches it from the office, signed under k_p^(O).
+        """
+        view = deployment.ebb.published_view()
+        if "records" not in view:
+            raise HTTPException(409, "the registry is published in clear at the close")
+
+        dump = {
+            "format": LEDGER_FORMAT,
+            "election_id": deployment.config.election_id,
+            "configuration_digest": deployment.config.digest_hex(),
+            "genesis_hash": deployment.config.genesis_hash.hex(),
+            "accepted": [
+                {"index": c["index"], "commitment": c["commitment"], "record": r}
+                for c, r in zip(view["commitments"]["accepted"], view["records"]["accepted"])
+            ],
+            "rejected": [
+                {"index": c["index"], "commitment": c["commitment"], "record": r}
+                for c, r in zip(view["commitments"]["rejected"], view["records"]["rejected"])
+            ],
+            "heads": view["heads"],
+            "head_signatures": view["head_signatures"],
+        }
+        name = f"ledger-{deployment.config.election_id}.json"
+        return Response(
+            content=canonical_bytes(dump),
+            media_type="application/json",
+            headers={"content-disposition": f'attachment; filename="{name}"'},
+        )
 
     @app.get("/published")
     async def published() -> dict:

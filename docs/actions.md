@@ -85,9 +85,9 @@ give a reason (§3.2).
 |---|---|---|---|---|
 | E1 | Close the poll; stop accepting submissions | administering body | EBB | — |
 | E2 | If the selection was encrypted: publish the election private key reconstructed from the shares | independent share-holders | outside the three components (§3.5) | share-holders → anyone |
-| E3 | Release every record in clear — selection, `k_p^a`, token, ballot signature — for accepted and rejected submissions alike | EBB | EBB → public | full ledger : EBB → anyone |
+| E3 | Release every record in clear — selection, `k_p^a`, token, nonce, ballot signature — for accepted and rejected submissions alike, and offer the whole registry as one canonically serialised file (`GET /ledger`) so that it can be checked away from the box | EBB | EBB → public | full ledger : EBB → anyone |
 | E4 | Publish the final chain head and final counts | EBB | EBB → public | head, counts : EBB → anyone |
-| E5 | Publish the final token-release count; the release commitments are never opened publicly | VRO | VRO → public (Table 1) | count : VRO → anyone |
+| E5 | Publish the final token-release count, signed under `k_s^(O)`; the release commitments are never opened publicly | VRO | VRO → public (Table 1) | count, count signature : VRO → anyone |
 | E6 | Recount independently: every token under `k_p^(R)`, every `s_{vote}` under its `k_p^a`, supersession among accepted only, each record against its earlier commitment, and the chain head | any citizen | published ledger, standard crypto libraries (§3.5, §6) | public → anyone |
 | E7 | Compute the tally, preserving the distribution over distinct out-of-range values rather than one aggregate | any citizen | published ledger (§5.7) | public → anyone |
 | E8 | Compute and publish the tally: a deterministic function of the released records, preserving the distribution over distinct out-of-range values | EBB | EBB → public (Table 1, tally row) | tally : EBB → anyone |
