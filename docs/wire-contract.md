@@ -203,33 +203,29 @@ authenticate a query about their own. A file that disclosed participation
 would be the plaintext register of §3.7, handed over in a more convenient
 form.
 
-### The supervision dump (`POST /supervision`, VRO, from the close)
+### The supervision register (8006, from the close)
 
-The register with the identifiers in it. Not public: claimed by one of the
-supervisors named in the published configuration, with a wallet signature
-over `supervision_payload(election_id, supervisor_id, nonce)` verified
-against that supervisor's qualified certificate.
+Its own origin, reachable only from inside the operator's network. No
+supervisor list, no signature, no nonce: whoever can reach the origin is a
+supervisor, and the control is the perimeter it is served behind. `GET /`
+is the console, `GET /data` the same content for that page, `GET
+/supervision` the canonical file.
 
 | Field | Note |
 |---|---|
 | `releases[]` | `{index, voter_id, opening, commitment}`. The openings are here because a supervisor cannot verify the commitments without them |
 | `audit[]` | `{voter_id, outcome, reason}` in order, including the true reason behind refusals the requester saw as one indistinguishable answer (§3.2). No timestamps |
 | `head`, `head_signature`, `count`, `count_signature` | As in the public dump, so the two can be compared |
+| `supervisor_downloads` | Also published on `/releases` and `/release-log`, so the office cannot hand the register out quietly |
 
-**Enabled only from the close.** While the poll is open this file is a live
-list of who has and has not taken part, which is the lever §3.7 describes.
+Open only from the close: while the poll runs this is a live list of who
+has and has not taken part, which is the lever §3.7 describes.
 
-**Fresh each time.** The nonce is the supervisor's own and the office
-refuses one it has seen — the ballot box's defence against a replayed
-ballot, used here for the same reason, since the file is static once the
-poll has closed.
-
-**Counted.** `supervisor_downloads` is published on `/releases` and
-`/release-log`, so the office cannot hand the register out quietly.
-
-**One outcome for every failure.** Not a supervisor, no certificate, bad
-signature and a reused nonce are all 403: an endpoint that distinguished
-them would say who the supervisors are to anyone who asked.
+Nothing is taken on trust. The console recomputes each commitment as
+`H(id ‖ opening)`, chains them as `H(indexₖ ‖ prev ‖ canonical(payload))`
+from the genesis hash, and verifies the head and count signatures against
+`k_p^(O)` from the published configuration — not against anything in the
+data.
 
 What it catches that nothing else does: a release naming somebody not on
 the roll, and two releases for one identifier — the atomicity failure of
@@ -243,114 +239,3 @@ The electoral register is not in the file. A supervisor comparing these
 identifiers against a roll this office supplied would be comparing the
 office against its own copy; the roll comes from the citizen registry, with
 current eligibility.
-
----
-
-## 7. Receipt — ballot box → voter
-
-Steps 10–11. §3.4, and the evidence the provability claim rests on (§5.8,
-Req. 8).
-
-| Field | Code | Discharges | Note |
-|---|---|---|---|
-| `accepted` | `SubmissionResult.accepted` | Req. 1, Req. 7 | Passed both cryptographic checks. Not the same as *valid* |
-| `reason` | `SubmissionResult.reason` | Req. 7 | `"accepted"`, `"token not signed by VRO"`, `"vote signature invalid"`, `"already accepted"`, or `"voting has closed"` |
-| `entry_hash` | `SubmissionResult.entry_hash` | §3.5 | The hash of this entry, covering the record, its position and every entry before it. For an accepted ballot this is also the accepted head at that moment; for a rejected one it is the rejected chain's. Formerly `ledger_head`, which was right in one case out of two. With it the voter can later show that the entry was not removed, reordered, or altered — demonstrable rather than merely alleged |
-| entry position | `SubmissionResult.index` | §3.4, §3.5, §3.7 | The position of the entry in the registry. With the head, it is what lets the inclusion check run offline, with no query to the component under audit. None for a submission refused after the close, where no entry exists |
-
----
-
-## 8. Published view — ballot box → anyone
-
-§3.5 and Table 1. `BallotBox.published_view()` is the whole of what a citizen
-sees.
-
-| Field | Phase | Code | Discharges |
-|---|---|---|---|
-| `phase` | both | `published_view()["phase"]` | §3.5 |
-| `commitments.accepted[].index` / `.commitment` | both | `Entry.index`, `Entry.entry_hash` | §3.5, Table 1 row 2 |
-| `commitments.rejected[]` | both | as above | Req. 7 — rejected submissions are published too, so attempts are visible |
-| `heads.accepted` / `.rejected` | both | `Ledger.head()` | §3.5, Table 1 row 3 |
-| `head_signatures.accepted` / `.rejected` | both | `head_payload` under `k_s^(B)` | §3.5 — so a mirror carries the box's own statement, not a string it could have invented |
-| `statement_key` | both | `BallotBox.statement_key` | Convenience only. Verify against the key pinned in the published configuration, never against this one |
-| `counts.accepted` / `.rejected` | both | `len(Ledger)` | §3.5, Table 1 row 4 |
-| `running_tally[]` | both | `_snapshots` | §3.5 — one entry per publication point, each labelled with the boundary `at` it is for. The close is always a point |
-| `records.accepted[]` / `.rejected[]` | **closed only** | `Entry.payload` | Req. 5, §3.5, Table 1 row 5 |
-
-Nothing moves backwards: what is published while voting is open stays
-published, and the phase change only discloses more.
-
-**The voter's own lookup**, `find_ballot(k_p^a)`, works in both phases and is
-authenticated by $`k_p^a`$ alone (§3.7). It is what keeps the voter's checks
-available while the records are withheld from everybody else.
-
----
-
-## 9. Tally — computed, not received
-
-| Field | Code | Discharges | Note |
-|---|---|---|---|
-| `counts` | `tally()["counts"]` | Req. 5 | Per option $`1..N`$ |
-| `valid` | `tally()["valid"]` | Req. 7 | Accepted ballots with an in-range selection |
-| `invalid` | `tally()["invalid"]` | Req. 7 | Accepted, out of range |
-| `protest_codes` | `tally()["protest_codes"]` | Req. 7, §5.7 | The distribution over distinct out-of-range values, never one scalar. The system does not interpret any of them |
-| `voters` | `tally()["voters"]` | Req. 2 | Distinct ad-hoc keys with an effective ballot |
-| `rejected` | `tally()["rejected"]` | Req. 7 | Submissions that never became anybody's vote |
-| `ledger_head` | `tally()["ledger_head"]` | §3.5 | The state the count was taken from |
-
-Refused while voting is open until the first publication point; thereafter it returns the last published figures rather than the live count — the operator gets
-no privileged early sight of the result either (§3.5).
-
----
-
-## 10. Election configuration — published before voting opens
-
-Table 1 footnote (a).
-
-| Field | Code | Discharges | Note |
-|---|---|---|---|
-| $`k_p^{(R)}`$ | `BallotBox.vro_public_key`, `Voter.pinned_vro_fingerprint` | §3.3 | Published *and pinned*. A per-voter signing key would defeat blinding, and only the client-side check constrains that |
-| choice list $`1..N`$ | `BallotBox.num_choices` | Req. 7 | Fixes which selections are in range |
-| genesis hash | `ledger.GENESIS` | §3.5 | |
-| publication resolution | `BallotBox.tally_interval_seconds` | §3.5 | The administering body's decision, not the design's |
-| opening and closing times | — | §3.5 | **Not implemented.** `close()` is called, not scheduled |
-
----
-
-## Fields with no clause behind them
-
-Each of these is in the code and discharges nothing the article currently
-asks for. That is a prompt to write the clause or drop the field, not evidence
-of either.
-
-1. **`NOT_IDENTIFIED`, and the identity boundary generally.** The article
-   enumerates the office's checks (§5.4) but says nothing about which failures
-   may be reported to whom. The privacy property — that the token endpoint
-   cannot be used as an electoral-roll lookup — is real, is tested, and is
-   unstated. It also *reverses* the enumeration order of §3.2 and §5.4 for
-   revocation, deliberately. This is the largest gap between code and paper.
-2. **The audit log.** Nothing in the article requires the office to record the
-   true reason, or forbids returning it.
-3. **The separate office statement key.** §3.3 requires the token key serve no
-   other purpose, which implies this key must exist, but no clause names it or
-   says what signs a denial. The design decision is taken: it is `k_p^(O)`,
-   published and pinned in the election configuration beside `k_p^(R)` (action
-   table A5). The article has not yet been amended — Table 1 footnote (a) still
-   omits it.
-4. **`phase` as an explicit artefact.** Table 1 describes the two phases; the
-   article does not require the box to publish which one it is in.
-
-## Requirements with no field behind them
-
-1. **Several certificates per voter** (§3.2). `lookup` returns one.
-2. **Opening and closing times** as published configuration (§3.5).
-3. **Encrypted selections** under a Shamir-shared election key, for the case
-   where no running tally is published (§3.5). Deliberately outside the formal
-   model of §5, and deliberately absent here.
-4. **Mirrored publication of the chain head** through channels the operator
-   does not control (§3.5). Without it the chain constrains nobody: a
-   dishonest box can maintain two consistent chains and show each to a
-   different audience.
-5. **The wallet transmitting rather than the application relaying** (§5.3). One
-   `Voter` object holds both `id` and $`k_p^a`$, so the POC does not
-   demonstrate the property that section argues for.

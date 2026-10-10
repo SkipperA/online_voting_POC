@@ -240,24 +240,6 @@ def release_count_payload(election_id: str, count: int) -> bytes:
     })
 
 
-def supervision_payload(election_id: str, supervisor_id: str, nonce: bytes) -> bytes:
-    """The bytes a supervisor signs to claim the register.
-
-    Fresh for each request, and the office refuses a nonce it has seen --
-    the ballot box's defence against a replayed ballot, used here for the
-    same reason. The file is static once the poll has closed, so a captured
-    request would otherwise fetch it at any later time, and the published
-    download count would attribute that to the supervisor whose signature
-    it carried.
-    """
-    return digest({
-        "query": "supervision",
-        "election_id": election_id,
-        "supervisor_id": supervisor_id,
-        "nonce": b64(nonce),
-    })
-
-
 def release_head_payload(election_id: str, head: bytes) -> bytes:
     """The bytes the office signs over the head of its release register.
 
@@ -343,7 +325,6 @@ class VRO:
     _released: set[str] = field(default_factory=set)
     _openings: dict[str, bytes] = field(default_factory=dict)
     _audit: list[AuditEntry] = field(default_factory=list)
-    _supervision_nonces: set[bytes] = field(default_factory=set)
     _supervisor_downloads: int = 0
     #: id -> the blinded value it was reserved for. Internal; never published.
     _reserved: dict[str, bytes] = field(default_factory=dict)
@@ -633,12 +614,19 @@ class VRO:
         """
         return len(self.release_log)
 
-    def supervise(self, supervisor_id: str, nonce: bytes, signature: bytes,
-                  supervisors: set[str]) -> dict | None:
-        """The register with the identifiers in it, for a named supervisor.
+    def supervision_dump(self) -> dict:
+        """The register with the identifiers in it.
 
-        What this catches, and it is worth being exact because the limits
-        decide which remedy answers which failure:
+        No supervisor list, no signature, no nonce. The protection is the
+        perimeter: this is served on an origin reachable only from inside
+        the operator's network, and whoever can reach it is a supervisor by
+        construction. That is both how it would be deployed and the only
+        honest thing to build for a demonstration -- a registry and a
+        signature scheme here would have been protecting a proof of concept
+        from nobody.
+
+        What it catches, and the limits decide which remedy answers which
+        failure:
 
           * a release naming somebody not entitled to vote -- invisible in
             the published artefacts, which carry opaque commitments alone;
@@ -650,39 +638,16 @@ class VRO:
         an eligible citizen who abstained and never checked. Only the
         voter's signed request would separate that from a genuine one, and
         the office does not keep it: retaining what authenticates a request
-        turns a transient credential into a durable, non-repudiable record
-        of who asked. That residual is distributed issuance's to carry.
+        turns a transient credential into a durable record of who asked.
+        That residual is distributed issuance's to carry.
 
         The electoral register is not in here. A supervisor comparing these
         identifiers against a roll this office supplied would be comparing
         the office against its own copy; the roll comes from the citizen
         registry, with current eligibility, or the comparison is worth
         nothing.
-
-        Returns None if the claim does not authenticate. One outcome for
-        every failure, as everywhere else on this office: an endpoint that
-        distinguished 'not a supervisor' from 'bad signature' would say who
-        the supervisors are to anyone who asked.
         """
-        if supervisor_id not in supervisors:
-            return None
-        cert = self.population_register.lookup(supervisor_id)
-        if cert is None:
-            return None
-        if not keys.verify_signature(
-            cert.public_key, signature,
-            supervision_payload(self.election_id, supervisor_id, nonce),
-        ):
-            return None
-        if nonce in self._supervision_nonces:
-            return None
-
-        # ==== authenticated ====
-        self._supervision_nonces.add(nonce)
         self._supervisor_downloads += 1
-        self._audit.append(AuditEntry(
-            supervisor_id, Outcome.RESERVED, "supervision register released"))
-
         head, head_signature = self.signed_release_head()
         count, count_signature = self.signed_release_count()
         return {

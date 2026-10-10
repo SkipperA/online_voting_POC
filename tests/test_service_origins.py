@@ -51,8 +51,8 @@ def test_every_origin_has_its_own_port():
     assert len(ports) == len(set(ports)), "two origins share a port and so share an origin"
 
 
-def test_five_trust_domains_and_two_that_are_not():
-    assert len(origins.TRUST_DOMAINS) == 5
+def test_six_trust_domains_and_two_that_are_not():
+    assert len(origins.TRUST_DOMAINS) == 6
     assert {o.name for o in origins.ALL} - {o.name for o in origins.TRUST_DOMAINS} == {
         "config",
         "setup",

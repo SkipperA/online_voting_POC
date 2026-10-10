@@ -12,10 +12,10 @@ Coercion-Resistant Online Voting System*. Row references (B4, C3, …) are to
 
 ## 1. Origins
 
-Seven origins. **Five trust domains.** The count differs on purpose and the
+Eight origins. **Five trust domains.** The count differs on purpose and the
 difference is stated here so that nobody adds them up wrong.
 
-An origin is scheme + host + port, so seven ports on `127.0.0.1` are seven
+An origin is scheme + host + port, so eight ports on `127.0.0.1` are seven
 distinct origins with fully separate storage, `postMessage` targets, and
 service workers. Named hosts in `/etc/hosts` read better in a demonstration
 but buy nothing technically.

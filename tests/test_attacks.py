@@ -1035,75 +1035,44 @@ def test_the_statement_key_signs_statements_and_nothing_else(election):
                            "accepted", receipt.entry_hash, receipt.signature)
 
 
-def _supervision(vro, voter, nonce, supervisors):
-    from ovpoc.vro import supervision_payload
-    return vro.supervise(
-        voter.voter_id, nonce,
-        voter.wallet.sign(supervision_payload(vro.election_id, voter.voter_id, nonce)),
-        supervisors)
+def test_supervision_shows_the_identifiers_and_the_refusals(election):
+    """What the public artefacts cannot show: who, and who was turned away.
 
-
-def test_supervision_is_refused_to_everyone_but_a_named_supervisor(election):
-    """One outcome for every failure, as everywhere else on this office.
-
-    An endpoint that distinguished "not a supervisor" from "bad signature"
-    would say who the supervisors are to anyone who asked.
+    There is no supervisor list and no signature on this call. The
+    protection is the perimeter the origin is served behind; a registry in
+    front of a demonstration would have protected it from nobody.
     """
     vro, voters, _ = election
-    supervisor, outsider = voters[0], voters[1]
-    named = {supervisor.voter_id}
-
-    assert _supervision(vro, outsider, b"n1", named) is None
-    assert _supervision(vro, supervisor, b"n2", named) is not None
-
-    # A real signature, over the wrong election.
-    from ovpoc.vro import supervision_payload
-    wrong = vro.supervise(
-        supervisor.voter_id, b"n3",
-        supervisor.wallet.sign(supervision_payload("other-poll", supervisor.voter_id, b"n3")),
-        named)
-    assert wrong is None
-
-
-def test_a_supervision_request_cannot_be_replayed(election):
-    """The file is static once the poll closes, so a captured claim would
-    otherwise fetch it at any later time -- and the published download count
-    would attribute that to the supervisor whose signature it carried."""
-    vro, voters, _ = election
-    supervisor = voters[0]
-    named = {supervisor.voter_id}
-    from ovpoc.vro import supervision_payload
-
-    nonce = b"once"
-    signature = supervisor.wallet.sign(
-        supervision_payload(vro.election_id, supervisor.voter_id, nonce))
-
-    assert vro.supervise(supervisor.voter_id, nonce, signature, named) is not None
-    assert vro.supervise(supervisor.voter_id, nonce, signature, named) is None
-
-
-def test_supervision_shows_the_identifiers_and_the_refusals(election):
-    """What the public artefacts cannot show: who, and who was turned away."""
-    vro, voters, _ = election
-    supervisor = voters[0]
     register(vro, voters[1])
 
-    dump = _supervision(vro, supervisor, b"n", {supervisor.voter_id})
+    dump = vro.supervision_dump()
     assert [r["voter_id"] for r in dump["releases"]] == [voters[1].voter_id]
     assert dump["count"] == 1
     assert any(e["voter_id"] == voters[1].voter_id for e in dump["audit"])
 
 
-def test_every_supervision_download_is_counted(election):
-    """Published, so the office cannot hand the register out quietly."""
+def test_each_commitment_rebuilds_from_the_identifier_and_its_opening(election):
+    """A supervisor checks the register rather than reading it.
+
+    Otherwise they would be taking the word of the party being supervised
+    for the one thing the published commitments cannot be opened to show.
+    """
+    from ovpoc.vro import commit
+
     vro, voters, _ = election
-    supervisor = voters[0]
-    named = {supervisor.voter_id}
+    for voter in voters:
+        register(vro, voter)
 
+    dump = vro.supervision_dump()
+    for entry in dump["releases"]:
+        rebuilt = b64(commit(entry["voter_id"], unb64(entry["opening"])))
+        assert rebuilt == entry["commitment"]
+
+
+def test_every_reading_of_the_register_is_counted(election):
+    """Published, so the office cannot hand the register out quietly."""
+    vro, _, _ = election
     assert vro.supervisor_downloads == 0
-    _supervision(vro, supervisor, b"a", named)
-    _supervision(vro, supervisor, b"b", named)
+    vro.supervision_dump()
+    vro.supervision_dump()
     assert vro.supervisor_downloads == 2
-
-    _supervision(vro, voters[1], b"c", named)        # refused
-    assert vro.supervisor_downloads == 2, "a refusal is not a download"

@@ -83,7 +83,6 @@ class Deployment:
         num_choices: int = DEFAULT_CHOICES,
         bits: int = 3072,
         tally_interval_seconds: int | None = None,
-        supervisors: tuple[str, ...] = (),
         document_root: Path = DOCUMENT_ROOT,
     ) -> "Deployment":
         population = PopulationRegister()
@@ -100,7 +99,6 @@ class Deployment:
             tally_interval_seconds=tally_interval_seconds,
             opens="2026-09-25T08:00:00Z",
             closes="2026-09-25T20:00:00Z",
-            supervisors=supervisors,
         )
         config.write(document_root)
         return cls(
@@ -138,7 +136,6 @@ class Deployment:
             election_id=self.config.election_id,
             num_choices=self.ebb.num_choices,
             tally_interval_seconds=self.ebb.tally_interval_seconds,
-            supervisors=self.config.supervisors,
         )
         return path
 
@@ -187,7 +184,6 @@ class Deployment:
             tally_interval_seconds=body["tally_interval_seconds"],
             opens="2026-09-25T08:00:00Z",
             closes="2026-09-25T20:00:00Z",
-            supervisors=body["supervisors"],
         )
         config.write(document_root)
         return cls(

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Supervision — release register</title>
+<style>
+ :root{color-scheme:light dark}
+ body{font:15px/1.6 ui-sans-serif,system-ui,sans-serif;margin:0 auto;max-width:56rem;padding:2rem 1.25rem 4rem}
+ h1{font-size:1.35rem;margin:0 0 .2rem} .sub{color:#666;margin:0 0 1.4rem}
+ section{border:1px solid #8884;border-radius:6px;padding:.9rem 1.1rem;margin:0 0 1rem}
+ h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:#777;margin:0 0 .7rem}
+ .row{display:grid;grid-template-columns:16rem 1fr;gap:.35rem 1rem;padding:.15rem 0}
+ .label{color:#666}
+ .value{font-family:ui-monospace,monospace;font-size:13px;word-break:break-all}
+ .ok{color:#15803d} .warn{color:#b91c1c;font-weight:600} .muted{color:#888}
+ button{font:inherit;padding:.4rem .85rem}
+ table{border-collapse:collapse;width:100%;font-size:13.5px}
+ th{text-align:left;color:#777;font-weight:600;font-size:.72rem;letter-spacing:.06em;
+    text-transform:uppercase;border-bottom:1px solid #8884;padding:.3rem .5rem .3rem 0}
+ td{padding:.25rem .5rem .25rem 0;border-bottom:1px solid #8882;vertical-align:top}
+ td.mono{font-family:ui-monospace,monospace;font-size:12.5px;word-break:break-all}
+ .note{background:#dc262618;border-left:3px solid #dc2626;padding:.7rem .9rem;margin:0 0 1.2rem;font-size:13.5px}
+ .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b91c1c;margin-bottom:.3rem}
+ #status{margin-top:1rem;font-weight:600}
+</style></head>
+<body data-config-origin="">
+<h1>Supervision — release register</h1>
+<p class="sub">The office's own record of who was issued a token, with the
+identifiers in it.</p>
+
+<p class="note"><b>This page names citizens</b>
+Everything below is participation data. It says who asked for a ballot and
+who was refused one — never how anyone voted, which nothing the office holds
+can reveal. There is no login: whoever can reach this origin is a supervisor,
+so the control is the perimeter it is served behind, and anything taken off
+this page carries no protection with it.</p>
+
+<p style="margin:-.4rem 0 1.3rem"><button id="refresh">Re-read</button>
+<button id="download">Download the file</button>
+<span id="asof" style="color:#888;font-size:13px">—</span></p>
+
+<section>
+  <h2>Does the office's own record hold together?</h2>
+  <div class="row"><span class="label">tokens released</span><span class="value" id="count">—</span></div>
+  <div class="row"><span class="label">commitments rebuild the chain</span><span class="value" id="chain">—</span></div>
+  <div class="row"><span class="label">head signed under k_p^(O)</span><span class="value" id="head-sig">—</span></div>
+  <div class="row"><span class="label">count signed under k_p^(O)</span><span class="value" id="count-sig">—</span></div>
+  <div class="row"><span class="label">one release per identifier</span><span class="value" id="dupes">—</span></div>
+  <div class="row"><span class="label">times this register was read</span><span class="value" id="downloads">—</span></div>
+  <p style="margin:.7rem 0 0;color:#666;font-size:13.5px">
+  Each commitment is recomputed here from its identifier and opening value,
+  and the chain from the genesis hash — so the register is checked rather
+  than read. The signatures are verified against the keys published in the
+  election configuration, not against anything in the data.</p>
+</section>
+
+<section>
+  <h2>Releases</h2>
+  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
+  Compare these identifiers against the electoral roll from the citizen
+  registry, with current eligibility. Not against any list this office
+  supplied: that would be comparing the office against its own copy.</p>
+  <table><thead><tr><th>#</th><th>identifier</th><th>commitment</th><th>rebuilt</th></tr></thead>
+  <tbody id="releases"><tr><td colspan="4">…</td></tr></tbody></table>
+</section>
+
+<section>
+  <h2>Refusals and other outcomes</h2>
+  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
+  The office's audit log, including the true reason behind refusals the
+  requester saw as one indistinguishable answer (§3.2). A run of probes
+  against named citizens is visible here and nowhere else.</p>
+  <table><thead><tr><th>identifier</th><th>outcome</th><th>reason</th></tr></thead>
+  <tbody id="audit"><tr><td colspan="3">…</td></tr></tbody></table>
+</section>
+
+<section>
+  <h2>What this cannot show you</h2>
+  <p style="margin:0;color:#666;font-size:13.5px">
+  A single well-formed release recorded for an eligible citizen who abstained
+  and never checked is indistinguishable here from a genuine one. Separating
+  them needs the voter's signed request, which the office verifies and does
+  not keep — retaining what authenticates a request would turn a transient
+  credential into a durable record of who asked. That gap is the reason the
+  issuing power should be split across mutually independent offices.</p>
+</section>
+
+<p id="status">Loading…</p>
+<script src="supervisor.js"></script>
+</body></html>

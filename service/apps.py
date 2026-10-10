@@ -24,6 +24,7 @@ from . import origins
 from .api import ebb_app as ebb_api
 from .api import vro_app as vro_api
 from .api import setup_app as setup_api
+from .api import supervisor_app as supervisor_api
 from .api import wallet_app as wallet_api
 from .state import Deployment
 
@@ -31,6 +32,7 @@ WEB = Path(__file__).resolve().parents[1] / "web"
 VOTER_APP_STATIC = WEB / "voter-app" / "static"
 WALLET_STATIC = WEB / "wallet" / "static"
 SETUP_STATIC = WEB / "setup" / "static"
+SUPERVISOR_STATIC = WEB / "supervisor" / "static"
 INDEX_STATIC = WEB / "index" / "static"
 CHECKER_STATIC = WEB / "checker" / "static"
 OFFICE_STATIC = WEB / "office" / "static"
@@ -200,6 +202,25 @@ def wallet_app(deployment: Deployment) -> FastAPI:
     return app
 
 
+def supervisor_console(deployment: Deployment) -> FastAPI:
+    """8006 — the register with identifiers, served from its own origin."""
+    app = supervisor_api(deployment, _base)
+
+    @app.get("/", response_class=HTMLResponse)
+    async def page() -> HTMLResponse:
+        return HTMLResponse(
+            (SUPERVISOR_STATIC / "index.html").read_text(encoding="utf-8")
+            .replace('data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"')
+        )
+
+    @app.get("/supervisor.js")
+    async def script() -> Response:
+        return Response((SUPERVISOR_STATIC / "supervisor.js").read_text(encoding="utf-8"),
+                        media_type="text/javascript")
+
+    return app
+
+
 def setup_console(deployment: Deployment) -> FastAPI:
     """8009 — the console, served from the same origin as its endpoints."""
     app = setup_api(deployment, _base)
@@ -318,6 +339,7 @@ def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
         origins.VRO: vro_app(deployment),
         origins.EBB: ebb_app(deployment),
         origins.CHECKER: checker_app(deployment),
+        origins.SUPERVISOR: supervisor_console(deployment),
         origins.SETUP: setup_console(deployment),
     }
     for origin in origins.ALL:

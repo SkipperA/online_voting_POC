@@ -203,12 +203,6 @@ class TokenRequestBody(BaseModel):
     wallet_signature: str
 
 
-class SupervisionBody(BaseModel):
-    voter_id: str
-    nonce: str
-    signature: str
-
-
 class ReleaseQueryBody(BaseModel):
     voter_id: str
     signature: str
@@ -455,45 +449,6 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
                 for entry in vro.audit_log
             ],
         }
-
-    @app.post("/supervision")
-    async def supervision(body: SupervisionBody) -> Response:
-        """The register with the identifiers in it, for a named supervisor.
-
-        Enabled only once the ballot box has closed. While the poll is open
-        this file is a live list of who has and has not taken part, which is
-        the lever §3.7 describes: an enforcer of a boycott needs to
-        establish only that a citizen did not participate. Afterwards it is
-        a record of an election that is over.
-
-        Reading the box's state from here is a shortcut this deployment can
-        take because both run in one process. A real one would need the
-        box's signed statement that it had closed, which is the shape the
-        opening and closing acts will want anyway.
-        """
-        if "records" not in deployment.ebb.published_view():
-            raise HTTPException(409, "supervision opens when the ballot box closes")
-
-        dump = vro.supervise(
-            body.voter_id, unb64(body.nonce), unb64(body.signature),
-            set(deployment.config.supervisors),
-        )
-        if dump is None:
-            raise HTTPException(403, "not a supervisor of this election")
-
-        full = {
-            "format": SUPERVISION_FORMAT,
-            "election_id": deployment.config.election_id,
-            "configuration_digest": deployment.config.digest_hex(),
-            "genesis_hash": deployment.config.genesis_hash.hex(),
-            **dump,
-        }
-        name = f"supervision-{deployment.config.election_id}.json"
-        return Response(
-            content=canonical_bytes(full),
-            media_type="application/json",
-            headers={"content-disposition": f'attachment; filename="{name}"'},
-        )
 
     @app.get("/releases")
     async def releases() -> Response:
@@ -758,6 +713,66 @@ class EnrolBody(BaseModel):
 
 class TallyIntervalBody(BaseModel):
     seconds: int | None = None
+
+
+def supervisor_app(deployment: Deployment, base) -> FastAPI:
+    """8006 — the release register with the identifiers in it.
+
+    No supervisor list and no signature. The protection is the perimeter:
+    this origin is reachable only from inside the operator's network, and
+    whoever can reach it is a supervisor by construction. That is how it
+    would be deployed, behind a VPN whose key is the credential, and
+    building a registry and a replay defence in front of a demonstration
+    would have protected it from nobody.
+
+    Its own origin rather than a path on the office, because a browser
+    origin is scheme, host and port: a page that can read identifiers must
+    not share a fetch policy with the endpoints a voter's device talks to.
+    It is also the one origin that must not be exposed when the rest are.
+
+    Open only once the box has closed. While the poll is open this is a live
+    list of who has and has not taken part, which is the lever §3.7
+    describes -- an enforcer of a boycott needs to establish only that a
+    citizen did not participate. Reading the box's state from here is a
+    shortcut this deployment can take because both run in one process; a
+    real one needs the box's signed statement that it closed.
+    """
+    app = base(origins.SUPERVISOR)
+
+    def _dump() -> dict:
+        if "records" not in deployment.ebb.published_view():
+            raise HTTPException(409, "supervision opens when the ballot box closes")
+        return {
+            "format": SUPERVISION_FORMAT,
+            "election_id": deployment.config.election_id,
+            "configuration_digest": deployment.config.digest_hex(),
+            "genesis_hash": deployment.config.genesis_hash.hex(),
+            **deployment.vro.supervision_dump(),
+            "supervisor_downloads": deployment.vro.supervisor_downloads,
+        }
+
+    @app.get("/data")
+    async def data() -> dict:
+        """For the page. Counted like any other release of the register."""
+        return _dump()
+
+    @app.get("/supervision")
+    async def download() -> Response:
+        """The same thing as a file, canonically serialised.
+
+        It needs no signature of its own: recompute each commitment from its
+        [id, opening] pair, chain them, and the head the office already
+        signed accounts for the whole file.
+        """
+        dump = _dump()
+        name = f"supervision-{deployment.config.election_id}.json"
+        return Response(
+            content=canonical_bytes(dump),
+            media_type="application/json",
+            headers={"content-disposition": f'attachment; filename="{name}"'},
+        )
+
+    return app
 
 
 def setup_app(deployment: Deployment, base) -> FastAPI:
