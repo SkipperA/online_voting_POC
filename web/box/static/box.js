@@ -43,6 +43,10 @@ async function refresh() {
   $('rejected').textContent = rejected.length;
   $('head').textContent = view.heads.accepted;
   $('close').disabled = !open;
+  $('get-ledger').disabled = open;
+  $('ledger-note').textContent = open
+    ? 'the registry is released in clear at the close'
+    : 'one canonical file; check it somewhere this origin does not control';
   $('close-note').textContent = open ? '' : 'already closed; this cannot be undone';
 
   showReports(reports);
@@ -68,6 +72,8 @@ $('close').onclick = async () => {
   await fetch('/close', { method: 'POST' });
   refresh();
 };
+
+$('get-ledger').onclick = () => { window.location = '/ledger'; };
 
 $('refresh').onclick = () => refresh();
 refresh().catch((err) => { $('asof').textContent = `failed: ${err}`; });

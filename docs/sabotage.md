@@ -18,7 +18,7 @@ confident the surrounding comments sound.
 | wallet_signature_check_removed | `test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_office_console_shows_recorded_beside_disclosed` |
 | finalize_selfcheck_removed | `test_finalize_rejects_a_dishonest_vro_response` |
 | chain_verification_disabled | `test_altering_a_recorded_ballot_breaks_the_hash_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain` |
-| ledger_chaining_removed | `test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_release_dump_needs_no_signature_of_its_own` |
+| ledger_chaining_removed | `test_a_stranger_can_recompute_the_result_from_the_downloads`<br>`test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_release_dump_needs_no_signature_of_its_own` |
 | rejected_ballots_supersede | `test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_the_adversarial_scenarios_all_hold` |
 | selection_range_check_removed | `test_a_protest_ballot_is_counted_as_invalid_not_rejected`<br>`test_distinct_protest_codes_are_not_merged`<br>`test_the_adversarial_scenarios_all_hold` |
 | vro_key_pinning_removed | `test_a_substituted_vro_key_is_refused_by_the_voter_app` |
@@ -142,6 +142,7 @@ Ledger entries no longer reference the previous entry, so order and deletions ar
 Patched in `src/ovpoc/ledger.py`.
 
 Caught by:
+- `test_a_stranger_can_recompute_the_result_from_the_downloads`
 - `test_an_outsider_can_recompute_the_result_from_the_public_ledger`
 - `test_deleting_a_ballot_breaks_the_hash_chain`
 - `test_ledger_vectors`

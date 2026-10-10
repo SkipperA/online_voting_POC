@@ -852,3 +852,21 @@ def test_the_release_dump_names_nobody(live):
     dump = live.http.get(f"{live.vro}/releases").json()
     assert all(set(e) == {"index", "commitment"} for e in dump["entries"])
     assert "opening" not in body
+
+
+def test_the_downloads_are_reachable_from_a_page(live):
+    """An endpoint nothing links to is an endpoint nobody uses.
+
+    Both files existed for a while with no control anywhere that fetched
+    them, which is the same way the supervisor list shipped unreachable.
+    """
+    checker = live.http.get(f"{live.checker}/").text
+    assert 'id="get-ledger"' in checker
+    assert 'id="get-releases"' in checker
+    assert "verify_election.py" in checker, "and the command that checks them"
+
+    script = live.http.get(f"{live.checker}/checker.js").text
+    assert "/ledger" in script and "/releases" in script
+
+    console = live.http.get(f"{live.ebb}/").text
+    assert 'id="get-ledger"' in console

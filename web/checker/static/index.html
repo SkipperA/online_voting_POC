@@ -62,6 +62,28 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
 </section>
 
 <section>
+  <h2>Anyone · take the election away and check it elsewhere</h2>
+  <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">The strongest check
+  is not one this page runs. Download the two files and verify them on a
+  machine none of these origins controls: a page served by the box, however
+  honest its arithmetic, is still a page served by the box.</p>
+  <p style="margin:0 0 .7rem">
+    <button id="get-ledger">Ballot box ledger</button>
+    <button id="get-releases">Release register</button>
+    <button id="get-config">Election configuration</button>
+  </p>
+  <div class="row"><span class="label">ledger</span><span class="value" id="ledger-state">—</span></div>
+  <p style="color:#666;font-size:13.5px;margin:.7rem 0 0">Then, with Python
+  and <code>cryptography</code> and nothing else:</p>
+  <pre style="font-size:12.5px;background:#8881;padding:.6rem .8rem;border-radius:4px;overflow-x:auto"
+>python tools/verify_election.py election.json ledger.json releases.json</pre>
+  <p style="color:#666;font-size:13.5px;margin:.4rem 0 0">Every token checked
+  against the office's published key, every selection against the ad-hoc key
+  that token certifies, the chain rebuilt from the genesis hash, supersession
+  applied, and the tally recomputed. It exits non-zero if anything fails.</p>
+</section>
+
+<section>
   <h2>One voter · was a token released in my name?</h2>
   <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">D1. The query must
   carry a signature of <code>id</code> made in the wallet, so only that voter

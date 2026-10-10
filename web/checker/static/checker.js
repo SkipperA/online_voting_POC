@@ -72,6 +72,8 @@ async function refresh() {
     for (const id of ['announced', 'recomputed', 'agree']) {
       show(id, 'not until the poll closes', 'muted');
     }
+    show('ledger-state', 'withheld until the close; the chain is published now',
+         'muted');
     $('asof').textContent = `as of ${stamp()}`;
     show('status', 'Voting is open. Contents are withheld; the chain is not.');
     return;
@@ -102,6 +104,7 @@ async function refresh() {
   const same = JSON.stringify(announced) === JSON.stringify(mine)
     && JSON.stringify(tally.protest_codes) === JSON.stringify(protest);
   show('announced', JSON.stringify(tally.counts) + ' protest ' + JSON.stringify(tally.protest_codes));
+  show('ledger-state', 'released in clear — the download is the whole registry', 'ok');
   show('recomputed', JSON.stringify(mine) + ' protest ' + JSON.stringify(protest));
   show('agree', same ? 'the box announced what the records say'
                      : 'DISAGREEMENT — the announced result does not follow', same ? 'ok' : 'warn');
@@ -110,6 +113,13 @@ async function refresh() {
 }
 
 let CREDENTIALS = null;
+
+// Downloads rather than fetches: the file has to leave this origin to be
+// worth anything. A verdict computed here is a verdict from a page the
+// audited parties serve.
+$('get-ledger').onclick = () => { window.location = `${EBB}/ledger`; };
+$('get-releases').onclick = () => { window.location = `${VRO}/releases`; };
+$('get-config').onclick = () => { window.location = `${CONFIG}/election.json`; };
 
 $('refresh').onclick = () => refresh();
 $('d1-again').onclick = () => CREDENTIALS && ask(CREDENTIALS);

@@ -29,6 +29,9 @@ jobs:
         # The vectors are what the other implementations read, so drift here
         # is drift in the contract, not in a test fixture.
         run: python tools/golden_vectors.py --check
+      - name: Independent recount of a real election
+        run: python -m pytest tests/test_independent_verifier.py -q
+
       - name: Regression anchors
         run: |
           python demo.py > /dev/null
