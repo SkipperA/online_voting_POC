@@ -73,7 +73,8 @@ def pair_from(seed: bytes) -> keys.SigningKeyPair:
 def write(path: Path, *, token_private, statement_key, box_statement_key,
           register, personas,
           election_id: str, num_choices: int,
-          tally_interval_seconds: int | None = None) -> None:
+          tally_interval_seconds: int | None = None,
+          supervisors: tuple[str, ...] = ()) -> None:
     """Write the durable half. Called by the setup console, never at runtime."""
     path.mkdir(parents=True, exist_ok=True)
     (path / "README.md").write_text(
@@ -115,6 +116,7 @@ def write(path: Path, *, token_private, statement_key, box_statement_key,
                 "election_id": election_id,
                 "num_choices": num_choices,
                 "tally_interval_seconds": tally_interval_seconds,
+                "supervisors": list(supervisors),
                 "vro_statement_seed": b64(seed_of(statement_key)),
                 "ebb_statement_seed": b64(seed_of(box_statement_key)),
                 "electoral_register": sorted(register),
@@ -155,6 +157,7 @@ def read(path: Path) -> dict:
         "election_id": body["election_id"],
         "num_choices": body["num_choices"],
         "tally_interval_seconds": body.get("tally_interval_seconds"),
+        "supervisors": tuple(body.get("supervisors", ())),
         "token_private": private,
         "token_public": private.public_key(),
         "statement_key": pair_from(unb64(body["vro_statement_seed"])),

@@ -38,6 +38,10 @@ class ElectionConfig:
     vro_token_key_spki: bytes          # k_p^(R), DER SubjectPublicKeyInfo
     vro_statement_key: bytes           # k_p^(O), raw Ed25519
     ebb_statement_key: bytes           # k_p^(B), raw Ed25519
+    #: Who may claim the register with identifiers in it. Published and
+    #: pinned, so everyone can see who is entitled to see, and adding one
+    #: changes the digest -- a build-time act, like the publication interval.
+    supervisors: tuple[str, ...]
     num_choices: int
     genesis_hash: bytes
     tally_interval_seconds: int | None
@@ -54,6 +58,7 @@ class ElectionConfig:
         num_choices: int,
         opens: str,
         closes: str,
+        supervisors: tuple[str, ...] = (),
         tally_interval_seconds: int | None = None,
     ) -> "ElectionConfig":
         return cls(
@@ -64,6 +69,7 @@ class ElectionConfig:
             ),
             vro_statement_key=statement_key,
             ebb_statement_key=box_statement_key,
+            supervisors=tuple(supervisors),
             num_choices=num_choices,
             genesis_hash=ledger.GENESIS,
             tally_interval_seconds=tally_interval_seconds,
@@ -92,6 +98,7 @@ class ElectionConfig:
             "vro_token_key_fingerprint": self.token_key_fingerprint,
             "vro_statement_key": b64(self.vro_statement_key),
             "ebb_statement_key": b64(self.ebb_statement_key),
+            "supervisors": list(self.supervisors),
             "num_choices": self.num_choices,
             "genesis_hash": self.genesis_hash.hex(),
             "tally_interval_seconds": self.tally_interval_seconds,

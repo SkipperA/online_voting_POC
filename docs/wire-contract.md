@@ -203,6 +203,47 @@ authenticate a query about their own. A file that disclosed participation
 would be the plaintext register of §3.7, handed over in a more convenient
 form.
 
+### The supervision dump (`POST /supervision`, VRO, from the close)
+
+The register with the identifiers in it. Not public: claimed by one of the
+supervisors named in the published configuration, with a wallet signature
+over `supervision_payload(election_id, supervisor_id, nonce)` verified
+against that supervisor's qualified certificate.
+
+| Field | Note |
+|---|---|
+| `releases[]` | `{index, voter_id, opening, commitment}`. The openings are here because a supervisor cannot verify the commitments without them |
+| `audit[]` | `{voter_id, outcome, reason}` in order, including the true reason behind refusals the requester saw as one indistinguishable answer (§3.2). No timestamps |
+| `head`, `head_signature`, `count`, `count_signature` | As in the public dump, so the two can be compared |
+
+**Enabled only from the close.** While the poll is open this file is a live
+list of who has and has not taken part, which is the lever §3.7 describes.
+
+**Fresh each time.** The nonce is the supervisor's own and the office
+refuses one it has seen — the ballot box's defence against a replayed
+ballot, used here for the same reason, since the file is static once the
+poll has closed.
+
+**Counted.** `supervisor_downloads` is published on `/releases` and
+`/release-log`, so the office cannot hand the register out quietly.
+
+**One outcome for every failure.** Not a supervisor, no certificate, bad
+signature and a reused nonce are all 403: an endpoint that distinguished
+them would say who the supervisors are to anyone who asked.
+
+What it catches that nothing else does: a release naming somebody not on
+the roll, and two releases for one identifier — the atomicity failure of
+§5.4, still invisible in the public artefacts but demonstrable here
+afterwards. What it does not catch is a single well-formed release for an
+eligible citizen who abstained and never checked; only the voter's signed
+request would separate that from a genuine one, and the office does not
+retain it. That residual belongs to distributed issuance.
+
+The electoral register is not in the file. A supervisor comparing these
+identifiers against a roll this office supplied would be comparing the
+office against its own copy; the roll comes from the citizen registry, with
+current eligibility.
+
 ---
 
 ## 7. Receipt — ballot box → voter

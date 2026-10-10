@@ -12,7 +12,7 @@ confident the surrounding comments sound.
 | Defense removed | Tests that caught it |
 |---|---|
 | token_verification_disabled | `test_a_valid_token_cannot_be_reused_with_a_different_key`<br>`test_finalize_rejects_a_dishonest_vro_response`<br>`test_forged_token_is_rejected_by_the_ballot_box`<br>`test_multiplicative_forgery_is_defeated_by_pss_encoding`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_rsabssa_vectors`<br>`test_signature_does_not_transfer_to_another_message`<br>`test_the_adversarial_scenarios_all_hold` |
-| ed25519_verification_disabled | `test_a_bystander_cannot_forge_such_a_proof`<br>`test_a_receipt_is_evidence_about_one_election_only`<br>`test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_a_tampered_receipt_does_not_verify`<br>`test_an_unauthenticated_release_query_is_refused`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_tampering_with_the_selection_breaks_the_signature`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_box_signs_the_heads_it_publishes`<br>`test_the_nonce_is_covered_by_the_ballot_signature`<br>`test_the_office_console_shows_recorded_beside_disclosed`<br>`test_the_office_signs_the_count_the_audit_depends_on`<br>`test_the_statement_key_signs_statements_and_nothing_else` |
+| ed25519_verification_disabled | `test_a_bystander_cannot_forge_such_a_proof`<br>`test_a_receipt_is_evidence_about_one_election_only`<br>`test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_a_tampered_receipt_does_not_verify`<br>`test_an_unauthenticated_release_query_is_refused`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_supervision_is_refused_to_everyone_but_a_named_supervisor`<br>`test_tampering_with_the_selection_breaks_the_signature`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_box_signs_the_heads_it_publishes`<br>`test_the_nonce_is_covered_by_the_ballot_signature`<br>`test_the_office_console_shows_recorded_beside_disclosed`<br>`test_the_office_signs_the_count_the_audit_depends_on`<br>`test_the_statement_key_signs_statements_and_nothing_else` |
 | eligibility_check_removed | `test_an_identified_person_not_on_the_electoral_register_is_told_so` |
 | one_token_per_voter_removed | `test_a_second_token_is_refused_for_the_same_voter`<br>`test_a_second_token_request_is_refused`<br>`test_the_adversarial_scenarios_all_hold` |
 | wallet_signature_check_removed | `test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_office_console_shows_recorded_beside_disclosed` |
@@ -32,7 +32,7 @@ confident the surrounding comments sound.
 | receipt_signed_with_a_throwaway_key | `test_a_receipt_is_evidence_about_one_election_only`<br>`test_a_receipt_verifies_under_the_published_statement_key` |
 | replayed_ballot_accepted_again | `test_a_replayed_ballot_cannot_annul_a_later_one` |
 | tally_available_before_the_close | `test_a_running_tally_is_published_only_when_configured`<br>`test_the_tally_endpoint_cannot_read_around_the_cadence`<br>`test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`<br>`test_three_voters_cast_and_verify` |
-| reservation_publishes_the_commitment | `test_a_reservation_publishes_nothing`<br>`test_the_release_log_records_exactly_who_took_a_token` |
+| reservation_publishes_the_commitment | `test_a_reservation_publishes_nothing`<br>`test_supervision_shows_the_identifiers_and_the_refusals`<br>`test_the_release_log_records_exactly_who_took_a_token` |
 | protest_distribution_collapsed | `test_distinct_protest_codes_are_not_merged`<br>`test_the_adversarial_scenarios_all_hold` |
 | submissions_accepted_after_the_close | `test_a_ballot_arriving_after_the_close_is_not_recorded`<br>`test_the_adversarial_scenarios_all_hold` |
 | receipt_omits_the_entry_position | `PATTERN NOT FOUND` |
@@ -72,6 +72,7 @@ Caught by:
 - `test_eligibility_is_never_revealed_before_identity`
 - `test_impersonation_fails_without_the_wallet_key`
 - `test_release_denials_are_signed_under_a_separate_office_key`
+- `test_supervision_is_refused_to_everyone_but_a_named_supervisor`
 - `test_tampering_with_the_selection_breaks_the_signature`
 - `test_the_adversarial_scenarios_all_hold`
 - `test_the_audit_log_records_the_true_reason_in_every_case`
@@ -300,6 +301,7 @@ Patched in `src/ovpoc/vro.py`.
 
 Caught by:
 - `test_a_reservation_publishes_nothing`
+- `test_supervision_shows_the_identifiers_and_the_refusals`
 - `test_the_release_log_records_exactly_who_took_a_token`
 
 ### `protest_distribution_collapsed`

@@ -30,6 +30,7 @@ from .state import Deployment
 #: rather than read it hopefully.
 LEDGER_FORMAT = "ovpoc-ledger/1"
 RELEASES_FORMAT = "ovpoc-releases/1"
+SUPERVISION_FORMAT = "ovpoc-supervision/1"
 
 
 # --------------------------------------------------------------------------
@@ -200,6 +201,12 @@ class TokenRequestBody(BaseModel):
     voter_id: str
     blinded_key: str
     wallet_signature: str
+
+
+class SupervisionBody(BaseModel):
+    voter_id: str
+    nonce: str
+    signature: str
 
 
 class ReleaseQueryBody(BaseModel):
@@ -449,6 +456,45 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             ],
         }
 
+    @app.post("/supervision")
+    async def supervision(body: SupervisionBody) -> Response:
+        """The register with the identifiers in it, for a named supervisor.
+
+        Enabled only once the ballot box has closed. While the poll is open
+        this file is a live list of who has and has not taken part, which is
+        the lever §3.7 describes: an enforcer of a boycott needs to
+        establish only that a citizen did not participate. Afterwards it is
+        a record of an election that is over.
+
+        Reading the box's state from here is a shortcut this deployment can
+        take because both run in one process. A real one would need the
+        box's signed statement that it had closed, which is the shape the
+        opening and closing acts will want anyway.
+        """
+        if "records" not in deployment.ebb.published_view():
+            raise HTTPException(409, "supervision opens when the ballot box closes")
+
+        dump = vro.supervise(
+            body.voter_id, unb64(body.nonce), unb64(body.signature),
+            set(deployment.config.supervisors),
+        )
+        if dump is None:
+            raise HTTPException(403, "not a supervisor of this election")
+
+        full = {
+            "format": SUPERVISION_FORMAT,
+            "election_id": deployment.config.election_id,
+            "configuration_digest": deployment.config.digest_hex(),
+            "genesis_hash": deployment.config.genesis_hash.hex(),
+            **dump,
+        }
+        name = f"supervision-{deployment.config.election_id}.json"
+        return Response(
+            content=canonical_bytes(full),
+            media_type="application/json",
+            headers={"content-disposition": f'attachment; filename="{name}"'},
+        )
+
     @app.get("/releases")
     async def releases() -> Response:
         """The release register as one file, on the ledger's terms.
@@ -483,6 +529,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             "head_signature": b64(head_signature),
             "count": count,
             "count_signature": b64(count_signature),
+            "supervisor_downloads": vro.supervisor_downloads,
         }
         name = f"releases-{deployment.config.election_id}.json"
         return Response(
@@ -513,6 +560,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             "head_signature": b64(head_signature),
             "count": count,
             "count_signature": b64(count_signature),
+            "supervisor_downloads": vro.supervisor_downloads,
         }
 
     return app
