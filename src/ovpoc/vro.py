@@ -431,7 +431,14 @@ class VRO:
                 "no entry for this id in the population register",
             )
 
-        pass  # SABOTAGE: no wallet signature check
+        if not keys.verify_signature(
+            cert.public_key, request.wallet_signature, request.signed_payload()
+        ):
+            return self._record(
+                request.voter_id,
+                Outcome.NOT_IDENTIFIED,
+                "request signature does not verify under the certified key",
+            )
 
         # ==== THE IDENTITY BOUNDARY ====
         # Nothing above this line may report a specific reason, and nothing

@@ -18,11 +18,11 @@ confident the surrounding comments sound.
 | wallet_signature_check_removed | `test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_office_console_shows_recorded_beside_disclosed` |
 | finalize_selfcheck_removed | `test_finalize_rejects_a_dishonest_vro_response` |
 | chain_verification_disabled | `test_altering_a_recorded_ballot_breaks_the_hash_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain` |
-| ledger_chaining_removed | `test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own` |
+| ledger_chaining_removed | `test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_release_dump_needs_no_signature_of_its_own` |
 | rejected_ballots_supersede | `test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_the_adversarial_scenarios_all_hold` |
 | selection_range_check_removed | `test_a_protest_ballot_is_counted_as_invalid_not_rejected`<br>`test_distinct_protest_codes_are_not_merged`<br>`test_the_adversarial_scenarios_all_hold` |
 | vro_key_pinning_removed | `test_a_substituted_vro_key_is_refused_by_the_voter_app` |
-| release_log_publishes_ids | `test_a_voter_can_verify_the_answer_against_the_published_log`<br>`test_no_origin_discloses_an_id_during_a_complete_run`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_release_log_publishes_no_voter_identities`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_vro_cannot_link_its_signature_to_a_published_ballot` |
+| release_log_publishes_ids | `test_a_voter_can_verify_the_answer_against_the_published_log`<br>`test_no_origin_discloses_an_id_during_a_complete_run`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_release_dump_names_nobody`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_release_log_publishes_no_voter_identities`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_release_register_downloads_as_one_canonical_file`<br>`test_the_vro_cannot_link_its_signature_to_a_published_ballot` |
 | release_query_auth_removed | `test_an_unauthenticated_release_query_is_refused`<br>`test_the_adversarial_scenarios_all_hold` |
 | eligibility_checked_before_identity | `test_an_unknown_id_is_not_identified`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_wallet_reaches_the_office_over_the_wire` |
 | revocation_reported_before_identity | `test_a_revoked_certificate_is_reported_only_after_the_signature` |
@@ -146,6 +146,7 @@ Caught by:
 - `test_deleting_a_ballot_breaks_the_hash_chain`
 - `test_ledger_vectors`
 - `test_the_dump_needs_no_signature_of_its_own`
+- `test_the_release_dump_needs_no_signature_of_its_own`
 
 ### `rejected_ballots_supersede`
 
@@ -187,8 +188,11 @@ Caught by:
 - `test_a_voter_can_verify_the_answer_against_the_published_log`
 - `test_no_origin_discloses_an_id_during_a_complete_run`
 - `test_the_adversarial_scenarios_all_hold`
+- `test_the_release_dump_names_nobody`
+- `test_the_release_dump_needs_no_signature_of_its_own`
 - `test_the_release_log_publishes_no_voter_identities`
 - `test_the_release_log_records_exactly_who_took_a_token`
+- `test_the_release_register_downloads_as_one_canonical_file`
 - `test_the_vro_cannot_link_its_signature_to_a_published_ballot`
 
 ### `release_query_auth_removed`
