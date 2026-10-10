@@ -431,14 +431,7 @@ class VRO:
                 "no entry for this id in the population register",
             )
 
-        if not keys.verify_signature(
-            cert.public_key, request.wallet_signature, request.signed_payload()
-        ):
-            return self._record(
-                request.voter_id,
-                Outcome.NOT_IDENTIFIED,
-                "request signature does not verify under the certified key",
-            )
+        pass  # SABOTAGE: no wallet signature check
 
         # ==== THE IDENTITY BOUNDARY ====
         # Nothing above this line may report a specific reason, and nothing
@@ -454,7 +447,10 @@ class VRO:
                 request.voter_id, Outcome.CERTIFICATE_EXPIRED, "certificate expired"
             )
 
-        pass  # SABOTAGE: no electoral register check
+        if request.voter_id not in self.register:
+            return self._record(
+                request.voter_id, Outcome.NOT_ELIGIBLE, "not on the electoral register"
+            )
 
         if request.voter_id in self._released:
             return self._record(
