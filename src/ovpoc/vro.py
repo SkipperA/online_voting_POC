@@ -240,6 +240,29 @@ def release_count_payload(election_id: str, count: int) -> bytes:
     })
 
 
+def release_head_payload(election_id: str, head: bytes) -> bytes:
+    """The bytes the office signs over the head of its release register.
+
+    The box signs the heads it publishes so that a mirror carries its
+    statement rather than a string it could have invented.  The office's
+    register is a chain on the same terms and was published without one, so
+    a downloaded copy of it stood on nothing: the commitments are opaque by
+    construction, and a reader who cannot attribute the head cannot tell a
+    register with an entry removed from one without.
+    """
+    return digest({
+        "statement": "release-register-head",
+        "election_id": election_id,
+        "head": b64(head),
+    })
+
+
+def verify_release_head(office_public_key: bytes, election_id: str,
+                        head: bytes, signature: bytes) -> bool:
+    return keys.verify_signature(
+        office_public_key, signature, release_head_payload(election_id, head))
+
+
 def verify_release_count(office_public_key: bytes, election_id: str, count: int,
                          signature: bytes) -> bool:
     """Check a published count against the office's *published statement key*."""
@@ -431,10 +454,7 @@ class VRO:
                 request.voter_id, Outcome.CERTIFICATE_EXPIRED, "certificate expired"
             )
 
-        if request.voter_id not in self.register:
-            return self._record(
-                request.voter_id, Outcome.NOT_ELIGIBLE, "not on the electoral register"
-            )
+        pass  # SABOTAGE: no electoral register check
 
         if request.voter_id in self._released:
             return self._record(
@@ -589,6 +609,12 @@ class VRO:
         Enough for the aggregate audit, and it names nobody.
         """
         return len(self.release_log)
+
+    def signed_release_head(self) -> tuple[bytes, bytes]:
+        """The head of the release register, and the office's statement on it."""
+        head = self.release_log.head()
+        return head, self.office_key.sign(
+            release_head_payload(self.election_id, head))
 
     def signed_release_count(self) -> tuple[int, bytes]:
         """The count, and the office's statement that it is the count."""

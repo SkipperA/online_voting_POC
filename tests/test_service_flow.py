@@ -801,3 +801,54 @@ def test_the_ledger_does_not_carry_the_keys_it_is_checked_against(live):
     assert "statement_key" not in dump
     assert "vro_token_key_spki" not in dump
     assert dump["configuration_digest"]
+
+
+def test_the_release_register_downloads_as_one_canonical_file(live):
+    """The office's data on the same terms as the box's.
+
+    Available throughout rather than from the close: nothing in this
+    register is a ballot, so nothing in it is withheld.
+    """
+    from ovpoc.messages import canonical_bytes
+
+    response = live.http.get(f"{live.vro}/releases")
+    assert response.status_code == 200
+    assert "attachment" in response.headers["content-disposition"]
+    dump = response.json()
+    assert response.content == canonical_bytes(dump)
+    assert dump["count"] == len(dump["entries"])
+
+
+def test_the_release_dump_needs_no_signature_of_its_own(live):
+    """One signature accounts for the whole register, as with the ledger."""
+    from ovpoc.ledger import compute_entry_hash
+    from ovpoc.vro import verify_release_count, verify_release_head
+
+    dump = live.http.get(f"{live.vro}/releases").json()
+    config = live.http.get(f"{live.config}/election.json").json()
+    office = unb64(config["vro_statement_key"])
+
+    head = bytes.fromhex(dump["genesis_hash"])
+    for i, e in enumerate(dump["entries"]):
+        head = compute_entry_hash(i, {"commitment": e["commitment"]}, head)
+    assert head.hex() == dump["head"]
+
+    assert verify_release_head(office, config["election_id"], head,
+                               unb64(dump["head_signature"]))
+    assert verify_release_count(office, config["election_id"], dump["count"],
+                                unb64(dump["count_signature"]))
+
+
+def test_the_release_dump_names_nobody(live):
+    """It says how many tokens exist and nothing whatever about whose.
+
+    The commitments are opaque, and the values that open them go to one
+    voter at a time. A file that leaked participation would be the register
+    §3.7 refuses to publish, handed over in a more convenient form.
+    """
+    body = live.http.get(f"{live.vro}/releases").text
+    for voter_id in VOTERS.values():
+        assert voter_id not in body
+    dump = live.http.get(f"{live.vro}/releases").json()
+    assert all(set(e) == {"index", "commitment"} for e in dump["entries"])
+    assert "opening" not in body

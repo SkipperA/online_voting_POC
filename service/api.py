@@ -29,6 +29,7 @@ from .state import Deployment
 #: store: a verifier written against one shape should refuse another
 #: rather than read it hopefully.
 LEDGER_FORMAT = "ovpoc-ledger/1"
+RELEASES_FORMAT = "ovpoc-releases/1"
 
 
 # --------------------------------------------------------------------------
@@ -232,7 +233,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         # closure that matters is against a page the *voting application*
         # serves (§3.7), and naming the checker keeps that argument intact
         # instead of trading it for convenience.
-        for_checker = path in ("/release-log", "/release-queries")
+        for_checker = path in ("/release-log", "/release-queries", "/releases")
         if request.method == "OPTIONS" and for_checker:
             return Response(status_code=204, headers={
                 "Access-Control-Allow-Origin": origins.CHECKER.url,
@@ -448,6 +449,48 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             ],
         }
 
+    @app.get("/releases")
+    async def releases() -> Response:
+        """The release register as one file, on the ledger's terms.
+
+        Available throughout, unlike the box's dump: the register is
+        published as tokens are released (Table 1), and nothing in it is
+        withheld until the close because nothing in it is a ballot.
+
+        Like the ledger it carries no signature of its own and needs none.
+        Recompute the chain from the commitments against the genesis hash;
+        if the head you reach is the head the office signed under k_p^(O),
+        the whole register is accounted for by that one signature.
+
+        What it does not carry is who. The commitments name nobody, and
+        the values that open them are released to one voter at a time, to
+        the voter who can authenticate a query about their own. A reader of
+        this file learns how many tokens exist and nothing whatever about
+        whose (Section 3.7).
+        """
+        head, head_signature = vro.signed_release_head()
+        count, count_signature = vro.signed_release_count()
+        dump = {
+            "format": RELEASES_FORMAT,
+            "election_id": deployment.config.election_id,
+            "configuration_digest": deployment.config.digest_hex(),
+            "genesis_hash": deployment.config.genesis_hash.hex(),
+            "entries": [
+                {"index": e.index, "commitment": e.payload["commitment"]}
+                for e in vro.release_log.entries
+            ],
+            "head": head.hex(),
+            "head_signature": b64(head_signature),
+            "count": count,
+            "count_signature": b64(count_signature),
+        }
+        name = f"releases-{deployment.config.election_id}.json"
+        return Response(
+            content=canonical_bytes(dump),
+            media_type="application/json",
+            headers={"content-disposition": f'attachment; filename="{name}"'},
+        )
+
     @app.get("/release-log")
     async def release_log() -> dict:
         """The published register: commitments, and nothing about whose.
@@ -462,10 +505,12 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         check in the design rested on an unattributable claim made by the
         party with the motive to understate it.
         """
+        head, head_signature = vro.signed_release_head()
         count, count_signature = vro.signed_release_count()
         return {
             "entries": [e.payload for e in vro.release_log.entries],
-            "head": vro.release_log.head().hex(),
+            "head": head.hex(),
+            "head_signature": b64(head_signature),
             "count": count,
             "count_signature": b64(count_signature),
         }

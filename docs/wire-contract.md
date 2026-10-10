@@ -179,6 +179,30 @@ components, so the box must not vouch for the office's: fetch it from
 `GET /release-log` on the VRO, where `count` is accompanied by
 `count_signature` under `k_p^(O)`.
 
+### The release register dump (`GET /releases`, VRO, throughout)
+
+The office's data on the ledger's terms, and available from the opening
+rather than from the close: nothing in this register is a ballot, so
+nothing in it is withheld.
+
+| Field | Note |
+|---|---|
+| `format` | `ovpoc-releases/1` |
+| `election_id`, `configuration_digest`, `genesis_hash` | As for the ledger. The keys are pinned from the published configuration, not read from the file |
+| `entries[]` | `{index, commitment}` in order. `hash([id, opening])`, one per token released |
+| `head`, `head_signature` | The register's chain head and the office's statement over it, under `k_p^(O)` |
+| `count`, `count_signature` | The figure the count audit needs, and the office's statement over it |
+
+It carries no signature of its own for the same reason the ledger does not:
+recompute the chain from the commitments against the genesis hash, and the
+signed head accounts for all of it.
+
+It names nobody. The commitments are opaque by construction and the values
+that open them are released to one voter at a time, to the voter who can
+authenticate a query about their own. A file that disclosed participation
+would be the plaintext register of §3.7, handed over in a more convenient
+form.
+
 ---
 
 ## 7. Receipt — ballot box → voter
