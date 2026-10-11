@@ -47,14 +47,38 @@ from cryptography.hazmat.primitives.asymmetric import ed25519, padding
 
 SALT_LEN = 48  # RFC 9474, RSABSSA-SHA384-PSS
 
-failures: list[str] = []
+class Report:
+    """What was checked, in order, with the verdict beside each.
 
+    Results rather than printed lines, so that the same checks can be run
+    from a command line and from a service without a second implementation
+    that might quietly disagree with this one.
+    """
 
-def check(ok: bool, description: str, detail: str = "") -> bool:
-    print(f"  [{'ok' if ok else 'FAIL'}] {description}{'  ' + detail if detail else ''}")
-    if not ok:
-        failures.append(description)
-    return ok
+    def __init__(self) -> None:
+        self.checks: list[dict] = []
+        self.sections: list[str] = []
+        self.tally: dict = {}
+
+    def section(self, title: str) -> None:
+        self.sections.append(title)
+
+    def check(self, ok: bool, description: str, detail: str = "") -> bool:
+        self.checks.append({"section": self.sections[-1] if self.sections else "",
+                            "ok": bool(ok), "description": description,
+                            "detail": detail})
+        return ok
+
+    @property
+    def failures(self) -> list[str]:
+        return [c["description"] for c in self.checks if not c["ok"]]
+
+    @property
+    def ok(self) -> bool:
+        return not self.failures
+
+    def as_dict(self) -> dict:
+        return {"ok": self.ok, "checks": self.checks, "tally": self.tally}
 
 
 def unb64(text: str) -> bytes:
@@ -103,23 +127,23 @@ def entry_hash(index: int, payload: dict, prev: bytes) -> bytes:
     return sha256(index.to_bytes(8, "big"), prev, canonical(payload))
 
 
-def verify(config_path: Path, ledger_path: Path, releases_path: Path) -> int:
-    config_bytes = config_path.read_bytes()
+def run_checks(config_bytes: bytes, ledger_bytes: bytes,
+               releases_bytes: bytes) -> Report:
+    """Every check, against three downloaded files and nothing else."""
+    report = Report()
+    check = report.check
     config = json.loads(config_bytes)
     config_digest = hashlib.sha256(config_bytes).hexdigest()
-
-    ledger_bytes = ledger_path.read_bytes()
     ledger = json.loads(ledger_bytes)
-    releases = json.loads(releases_path.read_bytes())
+    releases = json.loads(releases_bytes)
 
     token_key = serialization.load_der_public_key(unb64(config["vro_token_key_spki"]))
     box_key = unb64(config["ebb_statement_key"])
     office_key = unb64(config["vro_statement_key"])
     election = config["election_id"]
 
-    print(f"\nElection {election}, configuration {config_digest[:16]}…")
 
-    print("\nThe files describe this election")
+    report.section("The files describe this election")
     check(ledger["format"] == "ovpoc-ledger/1", "ledger format understood",
           ledger["format"])
     check(ledger["election_id"] == election, "ledger names this election")
@@ -130,7 +154,7 @@ def verify(config_path: Path, ledger_path: Path, releases_path: Path) -> int:
     check(ledger_bytes == canonical(ledger),
           "ledger is canonically serialised, so its hash is comparable")
 
-    print("\nEvery ballot came from an eligible voter, and said what it says")
+    report.section("Every ballot came from an eligible voter, and said what it says")
     accepted = ledger["accepted"]
     tokens_ok = votes_ok = 0
     for entry in accepted:
@@ -154,7 +178,7 @@ def verify(config_path: Path, ledger_path: Path, releases_path: Path) -> int:
     check(len(seen) == len(accepted), "no record appears twice among the accepted",
           f"{len(seen)} distinct of {len(accepted)}")
 
-    print("\nThe registry has not been altered since each ballot was accepted")
+    report.section("The registry has not been altered since each ballot was accepted")
     head = bytes.fromhex(ledger["genesis_hash"])
     intact = True
     for i, entry in enumerate(accepted):
@@ -171,14 +195,14 @@ def verify(config_path: Path, ledger_path: Path, releases_path: Path) -> int:
                           "ledger": "accepted", "statement": "registry-head"}))),
         "the head is signed by the box's published statement key")
 
-    print("\nOne vote each, the last one counted")
+    report.section("One vote each, the last one counted")
     final: dict[str, dict] = {}
     for entry in accepted:
         final[entry["record"]["adhoc_public_key"]] = entry["record"]
     check(True, "supersession applied among accepted entries only",
           f"{len(accepted)} ballots from {len(final)} voters")
 
-    print("\nThe count audit, across two components")
+    report.section("The count audit, across two components")
     office_head = bytes.fromhex(releases["genesis_hash"])
     for i, entry in enumerate(releases["entries"]):
         office_head = entry_hash(i, {"commitment": entry["commitment"]}, office_head)
@@ -197,19 +221,45 @@ def verify(config_path: Path, ledger_path: Path, releases_path: Path) -> int:
           "distinct ad-hoc keys do not exceed tokens released",
           f"{len(final)} <= {releases['count']}")
 
-    print("\nThe result")
     choices = range(1, config["num_choices"] + 1)
     counts = Counter(r["selection"] for r in final.values())
-    for choice in choices:
-        print(f"  option {choice}: {counts.get(choice, 0)}")
-    protest = {s: n for s, n in counts.items() if s not in choices}
-    if protest:
-        print(f"  outside the list, by value: {protest}")
-    print(f"  rejected submissions, published and not counted: {len(ledger['rejected'])}")
+    report.tally = {
+        "election_id": election,
+        "configuration_digest": config_digest,
+        "options": {c: counts.get(c, 0) for c in choices},
+        "outside_the_list": {s: n for s, n in counts.items() if s not in choices},
+        "ballots": len(accepted),
+        "voters": len(final),
+        "rejected": len(ledger["rejected"]),
+    }
+    return report
 
-    if failures:
-        print(f"\n{len(failures)} CHECK(S) FAILED")
-        for failure in failures:
+
+def verify(config_path: Path, ledger_path: Path, releases_path: Path) -> int:
+    """The command line: run the checks, print them, exit non-zero on failure."""
+    report = run_checks(config_path.read_bytes(), ledger_path.read_bytes(),
+                        releases_path.read_bytes())
+    tally = report.tally
+    print(f"\nElection {tally['election_id']}, "
+          f"configuration {tally['configuration_digest'][:16]}…")
+    section = None
+    for item in report.checks:
+        if item["section"] != section:
+            section = item["section"]
+            print(f"\n{section}")
+        detail = f"  {item['detail']}" if item["detail"] else ""
+        print(f"  [{'ok' if item['ok'] else 'FAIL'}] {item['description']}{detail}")
+
+    print("\nThe result")
+    for choice, n in tally["options"].items():
+        print(f"  option {choice}: {n}")
+    if tally["outside_the_list"]:
+        print(f"  outside the list, by value: {tally['outside_the_list']}")
+    print(f"  rejected submissions, published and not counted: {tally['rejected']}")
+
+    if not report.ok:
+        print(f"\n{len(report.failures)} CHECK(S) FAILED")
+        for failure in report.failures:
             print(f"  - {failure}")
         return 1
     print("\nEvery check passed. This result follows from the published records.")

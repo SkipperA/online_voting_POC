@@ -2,6 +2,7 @@
 const VRO = document.body.dataset.vroOrigin;
 const EBB = document.body.dataset.ebbOrigin;
 const CONFIG = document.body.dataset.configOrigin;
+const VERIFIER = document.body.dataset.verifierOrigin;
 const $ = (id) => document.getElementById(id);
 const show = (id, text, cls) => { const e = $(id); e.textContent = text; e.className = `value ${cls || ''}`; };
 
@@ -117,9 +118,24 @@ let CREDENTIALS = null;
 // Downloads rather than fetches: the file has to leave this origin to be
 // worth anything. A verdict computed here is a verdict from a page the
 // audited parties serve.
+$('verifier-link').href = VERIFIER;
 $('get-ledger').onclick = () => { window.location = `${EBB}/ledger`; };
 $('get-releases').onclick = () => { window.location = `${VRO}/releases`; };
-$('get-config').onclick = () => { window.location = `${CONFIG}/election.json`; };
+
+// The configuration is served to be *read* -- it is the one inert, publicly
+// pinned artefact, and giving it a download disposition would make it
+// awkward to look at. So it is saved here instead, byte for byte: the
+// published digest is over exactly those bytes, and a copy retyped out of a
+// browser window is a different file even when it looks identical.
+$('get-config').onclick = async () => {
+  const bytes = await (await fetch(`${CONFIG}/election.json`)).blob();
+  const url = URL.createObjectURL(bytes);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'election.json';
+  link.click();
+  URL.revokeObjectURL(url);
+};
 
 $('refresh').onclick = () => refresh();
 $('d1-again').onclick = () => CREDENTIALS && ask(CREDENTIALS);

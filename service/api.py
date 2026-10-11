@@ -12,6 +12,10 @@ decoder rather than two.
 
 from __future__ import annotations
 
+import importlib.util
+import json
+from pathlib import Path
+
 import httpx
 from cryptography.hazmat.primitives import serialization
 from fastapi import FastAPI, HTTPException, Response
@@ -24,6 +28,15 @@ from ovpoc.vro import release_query_payload
 
 from . import origins
 from .state import Deployment
+
+# Loaded rather than imported: the verifier lives in `tools/` and
+# deliberately imports nothing from this project, which is the whole of its
+# value. Reaching into it one way keeps that true.
+VERIFIER_SOURCE = Path(__file__).resolve().parents[1] / "tools" / "verify_election.py"
+_spec = importlib.util.spec_from_file_location("ovpoc_verifier", VERIFIER_SOURCE)
+_verifier = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_verifier)
+run_checks = _verifier.run_checks
 
 #: The dump's own version, independent of the wire contract and the
 #: store: a verifier written against one shape should refuse another
@@ -771,6 +784,122 @@ def supervisor_app(deployment: Deployment, base) -> FastAPI:
             media_type="application/json",
             headers={"content-disposition": f'attachment; filename="{name}"'},
         )
+
+    return app
+
+
+class VerificationBody(BaseModel):
+    """The files as downloaded, verbatim.
+
+    Text rather than parsed JSON, because the configuration digest is over
+    the bytes that were served: re-rendering the object would change them
+    and the ledger would appear to pin a configuration nobody published.
+    Byte-for-byte is also the only thing worth checking -- a file that has
+    been through a parser is no longer the file the box signed for.
+    """
+
+    election: str
+    ledger: str
+    releases: str
+
+
+def verifier_app(deployment: Deployment, base) -> FastAPI:
+    """8007 — cross-checks an election somebody downloaded.
+
+    It holds no election state and reads nothing from the deployment: the
+    three files come from the caller and every key is taken from the
+    configuration among them. Running the same election this deployment is
+    serving is a coincidence of convenience, not a dependency.
+
+    It runs `tools/verify_election.py`, the same code the command line
+    runs, loaded rather than reimplemented. A second implementation in the
+    page would be a second thing to get right and could disagree with the
+    first without anybody noticing.
+
+    Being convenient, it is also the weaker check, and the page says so: a
+    verdict from an origin the operator serves is a verdict from the
+    operator. The script is downloadable here precisely so that the real
+    check can be run somewhere else.
+    """
+    app = base(origins.VERIFIER)
+
+    #: What each of the three files has to contain to be that file. Enough
+    #: to tell them apart and to say which one is in the wrong place --
+    #: not a schema, and not a substitute for the checks themselves.
+    EXPECTED = {
+        "election": ("the election configuration",
+                     ("election_id", "vro_token_key_spki", "vro_statement_key",
+                      "ebb_statement_key", "num_choices", "genesis_hash")),
+        "ledger": ("the ballot box ledger",
+                   ("format", "accepted", "rejected", "heads", "head_signatures")),
+        "releases": ("the release register",
+                     ("format", "entries", "head", "count")),
+    }
+
+    def _kind_of(parsed: dict) -> str | None:
+        """Which of the three this looks like, by its own contents."""
+        if isinstance(parsed, dict):
+            if parsed.get("format", "").startswith("ovpoc-ledger"):
+                return "ledger"
+            if parsed.get("format", "").startswith("ovpoc-releases"):
+                return "releases"
+            if "vro_token_key_spki" in parsed:
+                return "election"
+        return None
+
+    def _parsed(slot: str, text: str) -> dict:
+        """Read one file, and say what is wrong with it in words.
+
+        A bare KeyError from deep inside the checks tells the reader that
+        something called 'entries' was missing and nothing about which of
+        three files to look at -- which is exactly how this failed the
+        first time somebody used it.
+        """
+        label, required = EXPECTED[slot]
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(400, f"{label} is not JSON: {exc}")
+
+        looks_like = _kind_of(parsed)
+        if looks_like and looks_like != slot:
+            raise HTTPException(400, (
+                f"the file given as {label} looks like "
+                f"{EXPECTED[looks_like][0]}. The three go in their own slots."))
+
+        missing = [key for key in required if key not in parsed]
+        if missing:
+            source = {"election": "config origin", "ledger": "ballot box",
+                      "releases": "office"}[slot]
+            raise HTTPException(400, (
+                f"{label} is missing {', '.join(missing)}. It should be the "
+                f"file the {source} serves."))
+        return parsed
+
+    @app.post("/check")
+    async def check(body: VerificationBody) -> dict:
+        for slot, text in (("election", body.election), ("ledger", body.ledger),
+                           ("releases", body.releases)):
+            _parsed(slot, text)
+        try:
+            report = run_checks(
+                body.election.encode("utf-8"),
+                body.ledger.encode("utf-8"),
+                body.releases.encode("utf-8"),
+            )
+        except Exception as exc:
+            raise HTTPException(400, (
+                "the three files are each of the right kind, but one of them "
+                f"could not be read through: {exc}"))
+        return report.as_dict()
+
+    @app.get("/verify_election.py")
+    async def script() -> Response:
+        """The verifier itself, so it can be run away from this origin."""
+        return Response(VERIFIER_SOURCE.read_text(encoding="utf-8"),
+                        media_type="text/x-python",
+                        headers={"content-disposition":
+                                 'attachment; filename="verify_election.py"'})
 
     return app
 

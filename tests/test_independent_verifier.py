@@ -130,3 +130,133 @@ def test_the_verifier_rejects_a_ledger_checked_against_another_election(
     result = run_verifier(closed_election)
     assert result.returncode == 1
     assert "pins the configuration being used" in result.stdout
+
+
+def test_the_verifier_service_runs_the_same_checks(closed_election, tmp_path):
+    """8007 reports what the command line reports, because it is the same code.
+
+    A page that reimplemented the checks would be a second thing to get
+    right, and could disagree with the first without anybody noticing.
+    """
+    deployment = Deployment.create(bits=2048, num_choices=3,
+                                   document_root=tmp_path / "unused")
+    client = TestClient(build_all(deployment)[origins.VERIFIER])
+
+    report = client.post("/check", json={
+        "election": closed_election["election.json"].read_text(),
+        "ledger": closed_election["ledger.json"].read_text(),
+        "releases": closed_election["releases.json"].read_text(),
+    }).json()
+
+    assert report["ok"], [c for c in report["checks"] if not c["ok"]]
+    assert report["tally"]["options"] == {"1": 2, "2": 1, "3": 0}
+    assert report["tally"]["voters"] == 3
+
+    # The election it is checking is not the one this origin belongs to.
+    assert report["tally"]["election_id"] == json.loads(
+        closed_election["election.json"].read_bytes())["election_id"]
+
+
+def test_the_verifier_service_reports_a_broken_election_rather_than_refusing(
+    closed_election, tmp_path
+):
+    """A failing check is an answer, not an error."""
+    ledger = json.loads(closed_election["ledger.json"].read_bytes())
+    ledger["accepted"][0]["record"]["selection"] = 3
+
+    deployment = Deployment.create(bits=2048, num_choices=3,
+                                   document_root=tmp_path / "unused")
+    client = TestClient(build_all(deployment)[origins.VERIFIER])
+    response = client.post("/check", json={
+        "election": closed_election["election.json"].read_text(),
+        "ledger": json.dumps(ledger),
+        "releases": closed_election["releases.json"].read_text(),
+    })
+
+    assert response.status_code == 200
+    report = response.json()
+    assert not report["ok"]
+    assert any(not c["ok"] for c in report["checks"])
+
+
+def test_the_verifier_service_hands_out_the_program_it_runs(tmp_path):
+    """So the check that rests on nobody can be run somewhere else."""
+    deployment = Deployment.create(bits=2048, num_choices=3,
+                                   document_root=tmp_path / "unused")
+    client = TestClient(build_all(deployment)[origins.VERIFIER])
+
+    served = client.get("/verify_election.py")
+    assert served.status_code == 200
+    assert "attachment" in served.headers["content-disposition"]
+    assert served.text == VERIFIER.read_text(encoding="utf-8")
+    assert "import ovpoc" not in served.text, "it must stay independent"
+
+
+def _verifier_client(tmp_path):
+    deployment = Deployment.create(bits=2048, num_choices=3,
+                                   document_root=tmp_path / "unused")
+    return TestClient(build_all(deployment)[origins.VERIFIER])
+
+
+def test_a_file_in_the_wrong_place_is_named_as_such(closed_election, tmp_path):
+    """The first person to use this page got a bare KeyError: 'entries'.
+
+    Three files and three slots is three chances to pair them wrongly, and
+    an exception from inside the checks says which key was missing rather
+    than which file to look at.
+    """
+    client = _verifier_client(tmp_path)
+    response = client.post("/check", json={
+        "election": closed_election["election.json"].read_text(),
+        "ledger": closed_election["releases.json"].read_text(),   # swapped
+        "releases": closed_election["ledger.json"].read_text(),   # swapped
+    })
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "ballot box ledger" in detail
+    assert "release register" in detail
+
+
+def test_a_missing_file_says_what_was_expected_and_from_where(
+    closed_election, tmp_path
+):
+    """Not 'entries', but which file and which origin serves it."""
+    client = _verifier_client(tmp_path)
+    response = client.post("/check", json={
+        "election": closed_election["election.json"].read_text(),
+        "ledger": closed_election["ledger.json"].read_text(),
+        "releases": '{"nothing": true}',
+    })
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "release register" in detail
+    assert "entries" in detail, "it may say which keys, as long as it says which file"
+    assert "office" in detail
+
+
+def test_something_that_is_not_json_says_so(closed_election, tmp_path):
+    client = _verifier_client(tmp_path)
+    response = client.post("/check", json={
+        "election": "this is not a file",
+        "ledger": closed_election["ledger.json"].read_text(),
+        "releases": closed_election["releases.json"].read_text(),
+    })
+    assert response.status_code == 400
+    assert "not JSON" in response.json()["detail"]
+
+
+def test_the_three_files_are_recognised_by_their_contents(live=None):
+    """The page assigns by content, so there is no slot to get wrong.
+
+    Pinned here because it is the fix for the failure above, and a later
+    edit that reinstates three separate inputs would reinstate the failure.
+    """
+    page = (Path(__file__).resolve().parents[1]
+            / "web" / "verifier" / "static" / "index.html").read_text()
+    script = (Path(__file__).resolve().parents[1]
+              / "web" / "verifier" / "static" / "verifier.js").read_text()
+    assert 'id="pick"' in page and "multiple" in page
+    assert 'id="f-ledger"' not in page, "no per-file slots to mismatch"
+    assert "function kindOf" in script

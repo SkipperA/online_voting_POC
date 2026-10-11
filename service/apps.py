@@ -25,6 +25,7 @@ from .api import ebb_app as ebb_api
 from .api import vro_app as vro_api
 from .api import setup_app as setup_api
 from .api import supervisor_app as supervisor_api
+from .api import verifier_app as verifier_api
 from .api import wallet_app as wallet_api
 from .state import Deployment
 
@@ -33,6 +34,7 @@ VOTER_APP_STATIC = WEB / "voter-app" / "static"
 WALLET_STATIC = WEB / "wallet" / "static"
 SETUP_STATIC = WEB / "setup" / "static"
 SUPERVISOR_STATIC = WEB / "supervisor" / "static"
+VERIFIER_STATIC = WEB / "verifier" / "static"
 INDEX_STATIC = WEB / "index" / "static"
 CHECKER_STATIC = WEB / "checker" / "static"
 OFFICE_STATIC = WEB / "office" / "static"
@@ -221,6 +223,22 @@ def supervisor_console(deployment: Deployment) -> FastAPI:
     return app
 
 
+def verifier_console(deployment: Deployment) -> FastAPI:
+    """8007 — cross-checks an election from its downloaded files."""
+    app = verifier_api(deployment, _base)
+
+    @app.get("/", response_class=HTMLResponse)
+    async def page() -> HTMLResponse:
+        return HTMLResponse((VERIFIER_STATIC / "index.html").read_text(encoding="utf-8"))
+
+    @app.get("/verifier.js")
+    async def script() -> Response:
+        return Response((VERIFIER_STATIC / "verifier.js").read_text(encoding="utf-8"),
+                        media_type="text/javascript")
+
+    return app
+
+
 def setup_console(deployment: Deployment) -> FastAPI:
     """8009 — the console, served from the same origin as its endpoints."""
     app = setup_api(deployment, _base)
@@ -299,6 +317,7 @@ def checker_app(deployment: Deployment) -> FastAPI:
             .replace('data-vro-origin=""', f'data-vro-origin="{origins.VRO.url}"')
             .replace('data-ebb-origin=""', f'data-ebb-origin="{origins.EBB.url}"')
             .replace('data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"')
+            .replace('data-verifier-origin=""', f'data-verifier-origin="{origins.VERIFIER.url}"')
         )
 
     @app.get("/checker.js")
@@ -340,6 +359,7 @@ def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
         origins.EBB: ebb_app(deployment),
         origins.CHECKER: checker_app(deployment),
         origins.SUPERVISOR: supervisor_console(deployment),
+        origins.VERIFIER: verifier_console(deployment),
         origins.SETUP: setup_console(deployment),
     }
     for origin in origins.ALL:

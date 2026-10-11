@@ -15,7 +15,7 @@
  .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b45309;margin-bottom:.3rem}
  #status{margin-top:1rem;font-weight:600}
 </style></head>
-<body data-vro-origin="" data-ebb-origin="" data-config-origin="">
+<body data-vro-origin="" data-ebb-origin="" data-config-origin="" data-verifier-origin="">
 <h1>Independent checker</h1>
 <p class="sub">The checks of §3.7, from an origin neither the voting
 application nor the wallet controls.</p>
@@ -77,6 +77,10 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
   and <code>cryptography</code> and nothing else:</p>
   <pre style="font-size:12.5px;background:#8881;padding:.6rem .8rem;border-radius:4px;overflow-x:auto"
 >python tools/verify_election.py election.json ledger.json releases.json</pre>
+  <p style="color:#666;font-size:13.5px;margin:.4rem 0 0">Or load the three
+  files into the <a id="verifier-link" href="#">cross-check service</a>, which
+  runs the same program for you — convenient, and weaker for it, since that
+  origin belongs to this deployment too.</p>
   <p style="color:#666;font-size:13.5px;margin:.4rem 0 0">Every token checked
   against the office's published key, every selection against the ad-hoc key
   that token certifies, the chain rebuilt from the genesis hash, supersession

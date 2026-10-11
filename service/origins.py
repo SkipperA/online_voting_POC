@@ -1,11 +1,11 @@
-"""The eight origins of stage 1, in one table.
+"""The nine origins of stage 1, in one table.
 
 Separate ports rather than paths, because a browser origin is scheme, host
 *and* port.  Paths under one origin would share a JavaScript context, a CSP
 and a fetch policy, and the isolation the design claims would be a diagram
 rather than a fact.  See `docs/Stage1_Surface_and_Boundary_Map.md` §1.
 
-Six of the eight are trust domains.  `config` is inert and `setup` is
+Seven of the nine are trust domains.  `config` is inert and `setup` is
 build-time -- the poll must run with 8009 stopped, which is a test rather
 than an intention.
 """
@@ -47,9 +47,11 @@ EBB = Origin("ebb", 8004, True, "submission, receipts, published view")
 CHECKER = Origin("checker", 8005, True, "the three independent checks of §3.7")
 SUPERVISOR = Origin("supervisor", 8006, True,
                     "the release register with identifiers; perimeter-protected")
+VERIFIER = Origin("verifier", 8007, True,
+                  "cross-checks a downloaded election; holds no election state")
 SETUP = Origin("setup", 8009, False, "build-time authoring of election.json")
 
-ALL = (CONFIG, VOTER_APP, WALLET, VRO, EBB, CHECKER, SUPERVISOR, SETUP)
+ALL = (CONFIG, VOTER_APP, WALLET, VRO, EBB, CHECKER, SUPERVISOR, VERIFIER, SETUP)
 RUNTIME = tuple(o for o in ALL if o is not SETUP)
 TRUST_DOMAINS = tuple(o for o in ALL if o.trust_domain)
 
