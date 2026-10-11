@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Recount an election from its published files, without this project's code.
 
-    python tools/verify_election.py election.json ledger.json releases.json
+    python tools/verify_election.py Election_config_demo-2026.json EBB_dump_demo-2026.json VRO_dump_demo-2026
 
 The point of this script is what it does *not* import.  Nothing from
 `ovpoc` is used: the only dependencies are the standard library and
