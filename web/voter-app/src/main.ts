@@ -193,20 +193,32 @@ function forget() {
 }
 
 /**
- * While a key exists and no ballot has been accepted, a reload costs the
- * voter their entitlement. The browser's own prompt is a blunt instrument,
- * but it is the only one that can interrupt a reload, and the restore
- * below is what makes the answer survivable either way.
+ * A reload costs the voter their entitlement for as long as the key
+ * exists -- which is to say, for the whole session, and not only until a
+ * ballot has been accepted.
+ *
+ * The first version of this disarmed the guard on acceptance, reasoning
+ * that the ballot was safely in the box. It is, and that is not the point:
+ * re-voting is the design's answer to coercion, and a voter who has lost
+ * the ad-hoc key cannot re-vote. No second token is available, so the
+ * ballot already cast becomes final by accident -- the one outcome the
+ * mechanism exists to prevent.
+ *
+ * The prompt is advisory. Browsers suppress it without prior interaction,
+ * ignore it for programmatic navigation, and honour it unevenly on mobile,
+ * so it cannot be the only thing between a voter and a spent entitlement.
+ * The restore below is what covers the times it does not fire.
  */
 function guardAgainstReload() {
   window.addEventListener('beforeunload', (e) => {
-    if (!ADHOC || CAST) return;
+    if (!ADHOC || FINISHED) return;
     e.preventDefault();
     e.returnValue = '';
   });
 }
 
-let CAST = false;
+/** Set only when the voter discards the ballot deliberately. */
+let FINISHED = false;
 
 async function main() {
   status('Working…');
@@ -294,7 +306,6 @@ async function restore(): Promise<boolean> {
   // box would be holding an entry they could no longer point to.
   for (const past of saved.casts || []) {
     ROUND += 1;
-    CAST = true;
     showCast(past.ballot, past.canonical);
     showReceipt(past.receipt);
   }
@@ -315,7 +326,7 @@ function startOver() {
   const button = document.createElement('button');
   button.textContent = 'Discard it and start again';
   button.style.marginLeft = '.6rem';
-  button.onclick = () => { forget(); location.reload(); };
+  button.onclick = () => { FINISHED = true; forget(); location.reload(); };
   document.getElementById('status')!.append(button);
 }
 
@@ -525,7 +536,6 @@ function showCast(ballot: any, canonical: string) {
 }
 
 async function doCast(ballot: any, canonical: string) {
-  CAST = true;        // from here a reload costs the voter nothing
   const receipt = await (await fetch(`${EBB_ORIGIN}/ballots`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify(ballot),

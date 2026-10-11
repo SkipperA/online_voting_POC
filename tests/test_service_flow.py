@@ -891,6 +891,16 @@ def test_the_voter_app_survives_a_reload(live):
     assert "async function restore()" in source
     assert "beforeunload" in source
 
+    # The guard stays armed for the whole session. Disarming it once a
+    # ballot was accepted was the first version's mistake: the ballot is
+    # safely in the box, and a voter who has lost the key can no longer
+    # re-vote, so the ballot already cast becomes final by accident --
+    # which is the one outcome re-voting exists to prevent.
+    guard = source[source.index("function guardAgainstReload()"):]
+    guard = guard[:guard.index("\n}")]
+    assert "FINISHED" in guard
+    assert "accepted" not in guard, "acceptance must not disarm the guard"
+
     # The restore path must rebuild the display, never redo the protocol.
     restore = source[source.index("async function restore()"):]
     restore = restore[:restore.index("/** Discard")]
