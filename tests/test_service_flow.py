@@ -896,3 +896,11 @@ def test_the_voter_app_survives_a_reload(live):
     restore = restore[:restore.index("/** Discard")]
     for forbidden in ("generateKey", "suite.blind", "suite.finalize", "fetch("):
         assert forbidden not in restore, f"restore() must not {forbidden}"
+
+    # Including the ballots already cast. A page that comes back showing no
+    # ballot tells a voter who had cast one, and not saved the receipt,
+    # that nothing happened -- while the box holds an entry they can no
+    # longer point to.
+    assert "showCast(past.ballot" in restore
+    assert "showReceipt(past.receipt" in restore
+    assert "casts?:" in source, "the receipts are part of what is kept"

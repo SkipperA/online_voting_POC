@@ -161,6 +161,12 @@ type Saved = {
   blinded?: string;
   inv?: string;
   token?: string;
+  // Each accepted or rejected submission, in order. Not an optimisation:
+  // the receipt is the voter's evidence that their entry is in the
+  // registry at a given position under a given head (§3.5), and a reload
+  // that discards it discards that. A voter who saved the file is fine; a
+  // voter who had not yet is not.
+  casts?: { ballot: any; canonical: string; receipt: any }[];
 };
 
 function save(patch: Partial<Saved>) {
@@ -281,8 +287,25 @@ async function restore(): Promise<boolean> {
     await showUnblind();
   }
 
-  status('An unfinished ballot was found on this device and has been restored. '
-       + 'Nothing was re-signed or re-sent.', 'warn');
+  // Every submission that was made, with its receipt. Without these the
+  // page reads as though nothing had been cast -- which is wrong in the
+  // one direction that matters: a voter who had cast a ballot and not
+  // saved the receipt would have no sign that it ever happened, and the
+  // box would be holding an entry they could no longer point to.
+  for (const past of saved.casts || []) {
+    ROUND += 1;
+    CAST = true;
+    showCast(past.ballot, past.canonical);
+    showReceipt(past.receipt);
+  }
+
+  const cast = (saved.casts || []).length;
+  status(cast
+    ? `Restored: the token, and ${cast} ballot${cast > 1 ? 's' : ''} already `
+      + 'cast with their receipts. Nothing was re-signed or re-sent — mark '
+      + 'again to supersede.'
+    : 'An unfinished ballot was found on this device and has been restored. '
+      + 'Nothing was re-signed or re-sent.', cast ? 'ok' : 'warn');
   startOver();
   return true;
 }
@@ -476,6 +499,12 @@ async function doSign(selection: number) {
     vote_signature: b64url(voteSignature),
   };
 
+  showCast(ballot, canonical);
+  status('Ballot signed. Nothing has been sent yet.');
+}
+
+/** The cast step, from a ballot that has just been signed or was restored. */
+function showCast(ballot: any, canonical: string) {
   render({
     id: `cast-${ROUND}`, fig: '9 → 10/1',
     title: ROUND === 1 ? 'Cast the ballot' : `Cast the ballot (attempt ${ROUND})`,
@@ -485,7 +514,7 @@ async function doSign(selection: number) {
          'altering any of them in transit invalidates it. The nonce is what ' +
          'lets the box tell a re-vote from a replay of an earlier ballot: ' +
          'without it, two ballots for the same choice would be identical.',
-    action: { label: 'Send to the ballot box', run: () => doCast(ballot) },
+    action: { label: 'Send to the ballot box', run: () => doCast(ballot, canonical) },
   });
   payload(`cast-${ROUND}`, 'the ballot, exactly as it will be sent', ballot,
           `ballot-${ROUND}.json`);
@@ -493,15 +522,22 @@ async function doSign(selection: number) {
   enable(`cast-${ROUND}`);
   document.getElementById(`step-cast-${ROUND}`)!
     .scrollIntoView({ behavior: 'smooth', block: 'center' });
-  status('Ballot signed. Nothing has been sent yet.');
 }
 
-async function doCast(ballot: object) {
+async function doCast(ballot: any, canonical: string) {
   CAST = true;        // from here a reload costs the voter nothing
   const receipt = await (await fetch(`${EBB_ORIGIN}/ballots`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify(ballot),
   })).json();
+
+  const held = read();
+  save({ casts: [...(held?.casts || []), { ballot, canonical, receipt }] });
+  showReceipt(receipt);
+}
+
+/** The receipt, and the reopening of the marking step for a re-vote. */
+function showReceipt(receipt: any) {
   complete(`cast-${ROUND}`);
 
   render({
