@@ -11,7 +11,6 @@ const escape = (s) => String(s).replace(/[&<>]/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 const files = { election: null, ledger: null, releases: null };
-const names = { election: null, ledger: null, releases: null };
 
 const LABEL = {
   election: 'election configuration',
@@ -19,52 +18,72 @@ const LABEL = {
   releases: 'release register',
 };
 
-/** Which of the three a file is, by what is in it rather than where it was put. */
-function kindOf(text) {
-  let parsed;
-  try { parsed = JSON.parse(text); } catch { return null; }
-  if (String(parsed.format || '').startsWith('ovpoc-ledger')) return 'ledger';
-  if (String(parsed.format || '').startsWith('ovpoc-releases')) return 'releases';
+/** Which of our files this is, by what is in it rather than what it is called. */
+function kindOf(parsed) {
+  const format = String(parsed.format || '');
+  if (format.startsWith('ovpoc-ledger')) return 'ledger';
+  if (format.startsWith('ovpoc-releases')) return 'releases';
+  if (format.startsWith('ovpoc-supervision')) return 'supervision';
   if ('vro_token_key_spki' in parsed) return 'election';
   return null;
 }
 
-function state() {
-  for (const key of Object.keys(files)) {
-    const slot = $(`have-${key}`);
-    slot.textContent = files[key] ? names[key] : 'not loaded';
-    slot.className = `value ${files[key] ? 'ok' : 'muted'}`;
-  }
+function note(key, text, cls) {
+  const e = $(`have-${key}`);
+  e.textContent = text;
+  e.className = `value ${cls || 'muted'}`;
+}
+
+function ready() {
   $('run').disabled = !(files.election && files.ledger && files.releases);
 }
 
 /**
- * Files are assigned by content, not by which input they were dropped on.
- * Three inputs and three files is three chances to get the pairing wrong,
- * and the first person to use this page got a bare KeyError for their
- * trouble.
+ * Each file is checked as it is chosen rather than at the end. A file in
+ * the wrong place is then named at the moment it is put there, instead of
+ * surfacing as a missing key somewhere inside the verification.
  */
-async function accept(fileList) {
-  for (const file of fileList) {
+function load(inputId, slot) {
+  $(inputId).onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
     // Kept verbatim. The configuration digest is over the bytes that were
     // served, so a file that has been through a parser and back is no
     // longer the file being checked.
     const text = await file.text();
-    const kind = kindOf(text);
-    if (!kind) {
-      $('status').textContent = `${file.name} is not one of the three files.`;
-      $('status').className = 'warn';
-      continue;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      files[slot] = null;
+      note(slot, `${file.name} is not JSON`, 'warn');
+      ready();
+      return;
     }
-    files[kind] = text;
-    names[kind] = file.name;
-    $('status').textContent = `${file.name} read as the ${LABEL[kind]}.`;
-    $('status').className = '';
-  }
-  state();
+
+    const kind = kindOf(parsed);
+    if (kind === 'supervision') {
+      files[slot] = null;
+      note(slot, 'that is the supervision register — it names citizens and is '
+         + 'not part of this check', 'warn');
+    } else if (kind && kind !== slot) {
+      files[slot] = null;
+      note(slot, `that is the ${LABEL[kind]}`, 'warn');
+    } else if (!kind) {
+      files[slot] = null;
+      note(slot, `${file.name} is not one of these files`, 'warn');
+    } else {
+      files[slot] = text;
+      note(slot, file.name, 'ok');
+    }
+    ready();
+  };
 }
 
-$('pick').onchange = (e) => accept(e.target.files);
+load('f-election', 'election');
+load('f-ledger', 'ledger');
+load('f-releases', 'releases');
 
 function render(report) {
   let group = null;

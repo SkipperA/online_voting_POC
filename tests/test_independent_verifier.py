@@ -247,16 +247,64 @@ def test_something_that_is_not_json_says_so(closed_election, tmp_path):
     assert "not JSON" in response.json()["detail"]
 
 
-def test_the_three_files_are_recognised_by_their_contents(live=None):
-    """The page assigns by content, so there is no slot to get wrong.
+def test_each_file_is_checked_as_it_is_chosen(live=None):
+    """One input per file, and each one validated on arrival.
 
-    Pinned here because it is the fix for the failure above, and a later
-    edit that reinstates three separate inputs would reinstate the failure.
+    Three inputs is the shape a person expects, so the slots are back; what
+    must not come back is discovering a mismatch halfway through the
+    verification as a missing key. The page names the file at the moment it
+    is put in the wrong place, the supervision register included -- which is
+    the file that looks like it belongs here and does not.
     """
-    page = (Path(__file__).resolve().parents[1]
-            / "web" / "verifier" / "static" / "index.html").read_text()
-    script = (Path(__file__).resolve().parents[1]
-              / "web" / "verifier" / "static" / "verifier.js").read_text()
-    assert 'id="pick"' in page and "multiple" in page
-    assert 'id="f-ledger"' not in page, "no per-file slots to mismatch"
+    static = Path(__file__).resolve().parents[1] / "web" / "verifier" / "static"
+    page = (static / "index.html").read_text()
+    script = (static / "verifier.js").read_text()
+
+    for slot in ("election", "ledger", "releases"):
+        assert f'id="f-{slot}"' in page
+        assert f"have-{slot}" in page, "and somewhere to say what arrived"
     assert "function kindOf" in script
+    assert "supervision" in script, "the file that looks like it belongs here"
+
+
+def test_the_downloads_are_named_for_what_they_are(tmp_path):
+    """Two files from the office with similar names is how this went wrong.
+
+    `releases-demo-2026.json` and `supervision-demo-2026.json` are
+    different artefacts -- one public, one naming citizens -- and the
+    second is the one that looks like it belongs in the check.
+    """
+    deployment = Deployment.create(bits=2048, num_choices=3,
+                                   document_root=tmp_path / "published")
+    clients = {o: TestClient(app) for o, app in build_all(deployment).items()}
+    clients[origins.EBB].post("/close")
+
+    expected = {
+        (origins.EBB, "/ledger"): "EBB_dump_demo-2026.json",
+        (origins.VRO, "/releases"): "VRO_dump_demo-2026.json",
+        (origins.SUPERVISOR, "/supervision"): "VRO_supervision_demo-2026.json",
+    }
+    for (origin, path), name in expected.items():
+        disposition = clients[origin].get(path).headers["content-disposition"]
+        assert name in disposition, (path, disposition)
+
+
+def test_the_supervision_register_is_refused_with_its_name(closed_election, tmp_path):
+    """Not "missing entries", but which file this is and where it belongs."""
+    deployment = Deployment.create(bits=2048, num_choices=3,
+                                   document_root=tmp_path / "published")
+    clients = {o: TestClient(app) for o, app in build_all(deployment).items()}
+    clients[origins.EBB].post("/close")
+    supervision = clients[origins.SUPERVISOR].get("/supervision").text
+
+    client = _verifier_client(tmp_path / "other")
+    response = client.post("/check", json={
+        "election": closed_election["election.json"].read_text(),
+        "ledger": closed_election["ledger.json"].read_text(),
+        "releases": supervision,
+    })
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "supervision register" in detail
+    assert "/releases" in detail, "and where the right one comes from"

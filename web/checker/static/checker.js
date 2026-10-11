@@ -128,11 +128,13 @@ $('get-releases').onclick = () => { window.location = `${VRO}/releases`; };
 // published digest is over exactly those bytes, and a copy retyped out of a
 // browser window is a different file even when it looks identical.
 $('get-config').onclick = async () => {
-  const bytes = await (await fetch(`${CONFIG}/election.json`)).blob();
+  const response = await fetch(`${CONFIG}/election.json`);
+  const bytes = await response.clone().blob();
+  const { election_id: election } = await response.json();
   const url = URL.createObjectURL(bytes);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'election.json';
+  link.download = `Election_config_${election}.json`;
   link.click();
   URL.revokeObjectURL(url);
 };

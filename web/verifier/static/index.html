@@ -37,19 +37,23 @@ and nothing else.</p>
 
 <section>
   <h2>The three files</h2>
-  <p style="margin:0 0 .8rem"><input type="file" id="pick" multiple
-     accept=".json,application/json"></p>
-  <p style="color:#666;font-size:13.5px;margin:0 0 .8rem">Choose all three at
-  once, or one at a time. Each is recognised by what is in it, so the order
-  does not matter and there is no slot to put a file in the wrong one.</p>
-  <div class="row"><span class="label">election configuration</span><span class="value muted" id="have-election">not loaded</span></div>
-  <div class="row"><span class="label">ballot box ledger</span><span class="value muted" id="have-ledger">not loaded</span></div>
-  <div class="row"><span class="label">release register</span><span class="value muted" id="have-releases">not loaded</span></div>
+  <div class="row"><span class="label">Election_config_….json</span>
+    <span><input type="file" id="f-election" accept=".json,application/json">
+    <span class="value muted" id="have-election">from the config origin</span></span></div>
+  <div class="row"><span class="label">EBB_dump_….json</span>
+    <span><input type="file" id="f-ledger" accept=".json,application/json">
+    <span class="value muted" id="have-ledger">from the ballot box, once closed</span></span></div>
+  <div class="row"><span class="label">VRO_dump_….json</span>
+    <span><input type="file" id="f-releases" accept=".json,application/json">
+    <span class="value muted" id="have-releases">from the office</span></span></div>
   <p style="margin:.8rem 0 0"><button id="run" disabled>Run every check</button>
   <span id="asof" style="margin-left:.6rem;color:#888;font-size:13px">—</span></p>
   <p style="color:#666;font-size:13.5px;margin:.7rem 0 0">All three download
-  from the checker page: the configuration from the config origin, the ledger
-  from the ballot box once it has closed, the register from the office.</p>
+  from the checker page. Each is checked as it is chosen, so a file in the
+  wrong place is named rather than discovered halfway through. Note that
+  <code>VRO_supervision_….json</code> is a different artefact — it names
+  citizens, comes from the supervisor origin, and is not part of this
+  check.</p>
 </section>
 
 <section>

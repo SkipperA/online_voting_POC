@@ -244,3 +244,40 @@ def test_the_index_does_not_disclose_an_identifier(clients, deployment):
     body = clients["config"].get("/").text
     for voter_id in TEST_VOTER_IDS:
         assert voter_id not in body
+
+
+# -- what a page fetches, and what it is allowed to fetch ------------------
+
+def test_every_origin_the_checker_fetches_will_answer_it(clients):
+    """The page and the allowance are written in different files.
+
+    Nothing had connected them: the suite checked the recount arithmetic in
+    Python and never asked what a page is permitted to fetch. This reads
+    the script and tries each request the way the browser would, under a
+    hostname the allowance does not name -- which is how the recount came
+    to fail for anyone who typed `localhost`.
+    """
+    import re
+    from pathlib import Path
+
+    script = (Path(__file__).resolve().parents[1]
+              / "web" / "checker" / "static" / "checker.js").read_text()
+
+    wanted = {
+        "EBB": (origins.EBB, set(re.findall(r"\$\{EBB\}(/[\w-]+)", script))),
+        "VRO": (origins.VRO, set(re.findall(r"\$\{VRO\}(/[\w-]+)", script))),
+    }
+    assert wanted["EBB"][1], "the script should be fetching something from the box"
+
+    # Deliberately not the canonical spelling: the same surface by another
+    # name is the same surface, and the browser is unforgiving about it.
+    as_the_browser_sends_it = f"http://localhost:{origins.CHECKER.port}"
+
+    for name, (origin, paths) in wanted.items():
+        for path in paths:
+            response = clients[origin.name].get(
+                path, headers={"origin": as_the_browser_sends_it})
+            allowed = response.headers.get("access-control-allow-origin")
+            assert allowed in ("*", as_the_browser_sends_it), (
+                f"the checker fetches {name}{path} and would be refused: "
+                f"allow-origin was {allowed!r}")

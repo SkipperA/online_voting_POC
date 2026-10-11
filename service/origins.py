@@ -38,6 +38,22 @@ class Origin:
     def url(self) -> str:
         return f"http://{HOST}:{self.port}"
 
+    def matches(self, sent: str | None) -> bool:
+        """Is this surface, reached by whatever name the caller used?
+
+        A page opened at localhost:8005 and one at 127.0.0.1:8005 are
+        different browser origins and the same surface. Naming one of them
+        in an allowance means the other is refused -- which is how the
+        checker's recount came to fail in the browser for anyone who typed
+        `localhost`, while every test passed, because the tests send the
+        canonical name.
+
+        The port is what identifies the surface here: each runs on its own,
+        which is the whole of the separation in stage 1. A deployment on
+        real hostnames would match those instead, and should.
+        """
+        return bool(sent) and sent.rsplit(":", 1)[-1] == str(self.port)
+
 
 CONFIG = Origin("config", 8000, False, "election.json and its digest, as static files")
 VOTER_APP = Origin("voter-app", 8001, True, "the voting client; never reads id")

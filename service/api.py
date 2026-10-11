@@ -29,6 +29,18 @@ from ovpoc.vro import release_query_payload
 from . import origins
 from .state import Deployment
 
+
+def _for_checker(request) -> str:
+    """The checker's origin, as the browser will have spelled it.
+
+    Echoed rather than canonical: the surface is identified by its port, so
+    a page served at localhost and one at 127.0.0.1 are the same checker.
+    Anything else gets the canonical name and is refused by the browser,
+    which is the point -- this is still a named origin and not `*`.
+    """
+    sent = request.headers.get("origin")
+    return sent if origins.CHECKER.matches(sent) else origins.CHECKER.url
+
 # Loaded rather than imported: the verifier lives in `tools/` and
 # deliberately imports nothing from this project, which is the whole of its
 # value. Reaching into it one way keeps that true.
@@ -250,7 +262,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         for_checker = path in ("/release-log", "/release-queries", "/releases")
         if request.method == "OPTIONS" and for_checker:
             return Response(status_code=204, headers={
-                "Access-Control-Allow-Origin": origins.CHECKER.url,
+                "Access-Control-Allow-Origin": _for_checker(request),
                 "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
                 "Access-Control-Allow-Headers": "content-type",
                 "Access-Control-Max-Age": "600",
@@ -259,7 +271,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         if request.method == "GET" and path.startswith("/token-replies/"):
             response.headers["Access-Control-Allow-Origin"] = "*"
         elif for_checker:
-            response.headers["Access-Control-Allow-Origin"] = origins.CHECKER.url
+            response.headers["Access-Control-Allow-Origin"] = _for_checker(request)
         return response
 
     @app.post("/token-requests")
@@ -499,7 +511,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             "count_signature": b64(count_signature),
             "supervisor_downloads": vro.supervisor_downloads,
         }
-        name = f"releases-{deployment.config.election_id}.json"
+        name = f"VRO_dump_{deployment.config.election_id}.json"
         return Response(
             content=canonical_bytes(dump),
             media_type="application/json",
@@ -558,7 +570,11 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
     # `/close` and `/tally` are deliberately left out. Closing the poll is an
     # act of the box performed by an operator (E1); a page should not be able
     # to provoke it, least of all a page the voting application serves.
-    CROSS_ORIGIN = {"/ballots", "/published"}
+    #: `/ledger` joins the published view here: both are artefacts anyone
+    #: may read (Table 1), and the checker offers the download. Navigation
+    #: would not need it, but a page that fetches the file to save it does,
+    #: and the two should not differ by how the button happens to work.
+    CROSS_ORIGIN = {"/ballots", "/published", "/ledger"}
 
     def _open(path: str) -> bool:
         return path in CROSS_ORIGIN or path.startswith("/ballots/")
@@ -588,7 +604,7 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
         """
         response = await call_next(request)
         if request.url.path == "/tally":
-            response.headers["Access-Control-Allow-Origin"] = origins.CHECKER.url
+            response.headers["Access-Control-Allow-Origin"] = _for_checker(request)
         return response
 
     @app.post("/ballots")
@@ -664,7 +680,7 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
             "heads": view["heads"],
             "head_signatures": view["head_signatures"],
         }
-        name = f"ledger-{deployment.config.election_id}.json"
+        name = f"EBB_dump_{deployment.config.election_id}.json"
         return Response(
             content=canonical_bytes(dump),
             media_type="application/json",
@@ -778,7 +794,7 @@ def supervisor_app(deployment: Deployment, base) -> FastAPI:
         signed accounts for the whole file.
         """
         dump = _dump()
-        name = f"supervision-{deployment.config.election_id}.json"
+        name = f"VRO_supervision_{deployment.config.election_id}.json"
         return Response(
             content=canonical_bytes(dump),
             media_type="application/json",
@@ -836,6 +852,13 @@ def verifier_app(deployment: Deployment, base) -> FastAPI:
                      ("format", "entries", "head", "count")),
     }
 
+    OTHER_FILES = {
+        "ovpoc-supervision": (
+            "the supervision register from the supervisor origin. That one "
+            "names citizens and is a different artefact; the check needs the "
+            "public release register the office serves at /releases"),
+    }
+
     def _kind_of(parsed: dict) -> str | None:
         """Which of the three this looks like, by its own contents."""
         if isinstance(parsed, dict):
@@ -846,6 +869,11 @@ def verifier_app(deployment: Deployment, base) -> FastAPI:
             if "vro_token_key_spki" in parsed:
                 return "election"
         return None
+
+    def _other_file(parsed: dict) -> str | None:
+        """A file of ours, but not one of these three."""
+        kind = parsed.get("format", "").rsplit("/", 1)[0] if isinstance(parsed, dict) else ""
+        return OTHER_FILES.get(kind)
 
     def _parsed(slot: str, text: str) -> dict:
         """Read one file, and say what is wrong with it in words.
@@ -860,6 +888,10 @@ def verifier_app(deployment: Deployment, base) -> FastAPI:
             parsed = json.loads(text)
         except json.JSONDecodeError as exc:
             raise HTTPException(400, f"{label} is not JSON: {exc}")
+
+        other = _other_file(parsed)
+        if other:
+            raise HTTPException(400, f"the file given as {label} is {other}.")
 
         looks_like = _kind_of(parsed)
         if looks_like and looks_like != slot:
