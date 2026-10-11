@@ -13,6 +13,7 @@ the name of the one it argues for.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import httpx
 import pytest
@@ -870,3 +871,28 @@ def test_the_downloads_are_reachable_from_a_page(live):
 
     console = live.http.get(f"{live.ebb}/").text
     assert 'id="get-ledger"' in console
+
+
+def test_the_voter_app_survives_a_reload(live):
+    """A refresh must not spend a voter's entitlement on a key nobody holds.
+
+    Between the token being issued and the ballot being cast, the ad-hoc
+    key *is* the ballot: the office will not issue a second token, and no
+    part of the protocol recovers one. These are source assertions rather
+    than a browser, which is the limit of what this suite can say -- the
+    behaviour itself has to be tried by reloading at each step.
+    """
+    source = (Path(__file__).resolve().parents[1]
+              / "web" / "voter-app" / "src" / "main.ts").read_text()
+
+    assert "sessionStorage" in source
+    assert "localStorage." not in source, (
+        "a key that can cast this ballot should not outlive the tab")
+    assert "async function restore()" in source
+    assert "beforeunload" in source
+
+    # The restore path must rebuild the display, never redo the protocol.
+    restore = source[source.index("async function restore()"):]
+    restore = restore[:restore.index("/** Discard")]
+    for forbidden in ("generateKey", "suite.blind", "suite.finalize", "fetch("):
+        assert forbidden not in restore, f"restore() must not {forbidden}"

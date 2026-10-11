@@ -134,7 +134,73 @@ let ADHOC_PUBLIC: Uint8Array;
 let BLINDED: Uint8Array;
 let INV: Uint8Array;
 let TOKEN: Uint8Array;
+let ADHOC_JWK: JsonWebKey | null = null;
 let ROUND = 0;   // a voter may cast again; each attempt gets its own steps
+
+/**
+ * What a reload must not destroy.
+ *
+ * The ad-hoc key is the ballot. Lose it between the token being issued and
+ * the ballot being cast and the voter's single entitlement is spent on a
+ * key nobody holds: the office will not issue a second token, and no part
+ * of the protocol can recover one. A page refresh should not be able to
+ * disenfranchise somebody.
+ *
+ * sessionStorage rather than localStorage, deliberately. It survives the
+ * reload, which is the failure, and dies with the tab -- so a key that can
+ * cast this voter's ballot is not left on disk after the demonstration. On
+ * a real device this state lives in the application's own storage, and the
+ * signing key in the platform keystore (§3.7).
+ */
+const SAVE_KEY = 'ovpoc.ballot-in-progress';
+
+type Saved = {
+  election_id: string;
+  jwk?: JsonWebKey;
+  adhoc_public?: string;
+  blinded?: string;
+  inv?: string;
+  token?: string;
+};
+
+function save(patch: Partial<Saved>) {
+  try {
+    const held = { ...(read() || { election_id: CONFIG.election_id }), ...patch };
+    sessionStorage.setItem(SAVE_KEY, JSON.stringify(held));
+  } catch {
+    // Storage can be refused. Carry on without it rather than stopping the
+    // voter: the cost is the old behaviour, not a failure to vote.
+  }
+}
+
+function read(): Saved | null {
+  try {
+    const raw = sessionStorage.getItem(SAVE_KEY);
+    return raw ? JSON.parse(raw) as Saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function forget() {
+  try { sessionStorage.removeItem(SAVE_KEY); } catch { /* nothing to undo */ }
+}
+
+/**
+ * While a key exists and no ballot has been accepted, a reload costs the
+ * voter their entitlement. The browser's own prompt is a blunt instrument,
+ * but it is the only one that can interrupt a reload, and the restore
+ * below is what makes the answer survivable either way.
+ */
+function guardAgainstReload() {
+  window.addEventListener('beforeunload', (e) => {
+    if (!ADHOC || CAST) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+}
+
+let CAST = false;
 
 async function main() {
   status('Working…');
@@ -171,16 +237,82 @@ async function main() {
          'else, and is discarded when the election ends.',
     action: { label: 'Generate k_s^a, k_p^a', run: doKeygen },
   });
+
+  guardAgainstReload();
+  if (await restore()) return;
+
   enable('keygen');
   status('Ready. Each step waits for you.');
+}
+
+/**
+ * Pick the ballot up where a reload dropped it.
+ *
+ * Each step is shown again from the values that produced it, so the page
+ * reads as it did before rather than jumping to the end with no account of
+ * how it got there. The ballot is not re-signed and nothing is re-sent:
+ * only the display is rebuilt.
+ */
+async function restore(): Promise<boolean> {
+  const saved = read();
+  if (!saved || !saved.jwk || !saved.adhoc_public) return false;
+  if (saved.election_id !== CONFIG.election_id) {
+    forget();                 // a ballot for an election nobody is running
+    return false;
+  }
+
+  ADHOC_JWK = saved.jwk;
+  ADHOC_PUBLIC = unb64url(saved.adhoc_public);
+  ADHOC = {
+    privateKey: await crypto.subtle.importKey(
+      'jwk', saved.jwk, { name: 'Ed25519' }, true, ['sign']),
+    publicKey: await crypto.subtle.importKey(
+      'raw', ADHOC_PUBLIC, { name: 'Ed25519' }, true, ['verify']),
+  };
+  showKeygen();
+
+  if (saved.blinded && saved.inv) {
+    BLINDED = unb64url(saved.blinded);
+    INV = unb64url(saved.inv);
+    showBlind();
+  }
+  if (saved.token) {
+    TOKEN = unb64url(saved.token);
+    await showUnblind();
+  }
+
+  status('An unfinished ballot was found on this device and has been restored. '
+       + 'Nothing was re-signed or re-sent.', 'warn');
+  startOver();
+  return true;
+}
+
+/** Discard the restored ballot, for the next run of the demonstration. */
+function startOver() {
+  const button = document.createElement('button');
+  button.textContent = 'Discard it and start again';
+  button.style.marginLeft = '.6rem';
+  button.onclick = () => { forget(); location.reload(); };
+  document.getElementById('status')!.append(button);
 }
 
 async function doKeygen() {
   ADHOC = await crypto.subtle.generateKey(
     { name: 'Ed25519' }, true, ['sign', 'verify']) as CryptoKeyPair;
   ADHOC_PUBLIC = new Uint8Array(await crypto.subtle.exportKey('raw', ADHOC.publicKey));
-  const jwk = await crypto.subtle.exportKey('jwk', ADHOC.privateKey);
+  ADHOC_JWK = await crypto.subtle.exportKey('jwk', ADHOC.privateKey);
+  save({ jwk: ADHOC_JWK, adhoc_public: b64url(ADHOC_PUBLIC) });
+  showKeygen();
+}
 
+/**
+ * The rendering, separated from the computation so that a restored
+ * session can show the step it has already performed. Every `show*`
+ * below is written to be callable with state that came from storage
+ * rather than from the operation that produced it.
+ */
+function showKeygen() {
+  const jwk = ADHOC_JWK as JsonWebKey;
   payload('keygen', 'k_p^a — the ad-hoc public key. This is the message the ' +
           'office will sign, without being able to see it.', b64url(ADHOC_PUBLIC));
   secrets('keygen', [['k_s^a', String(jwk.d)]]);
@@ -204,7 +336,11 @@ async function doBlind() {
   const blind = await suite.blind(TOKEN_KEY, suite.prepare(ADHOC_PUBLIC));
   BLINDED = blind.blindedMsg;
   INV = blind.inv;
+  save({ blinded: b64url(BLINDED), inv: b64url(INV) });
+  showBlind();
+}
 
+function showBlind() {
   secrets('blind', [['r⁻¹', b64url(INV)]]);
   payload('blind', 'c — the blinded value. Discloses nothing: without r⁻¹ it is ' +
           'a uniform number in [0, n_R).', b64url(BLINDED));
@@ -258,6 +394,12 @@ async function doCollect() {
 }
 
 async function doUnblind(sc: Uint8Array) {
+  TOKEN = await suite.finalize(TOKEN_KEY, ADHOC_PUBLIC, sc, INV);
+  save({ token: b64url(TOKEN) });
+  await showUnblind();
+}
+
+async function showUnblind() {
   render({
     id: 'unblind', fig: '8', title: 'Remove the blinding, and verify',
     where: 'this device',
@@ -266,7 +408,6 @@ async function doUnblind(sc: Uint8Array) {
          'the voter learns whether the office followed the protocol — and the ' +
          'entitlement is already spent if it did not (§5.5).',
   });
-  TOKEN = await suite.finalize(TOKEN_KEY, ADHOC_PUBLIC, sc, INV);
   const valid = await suite.verify(TOKEN_KEY, TOKEN, ADHOC_PUBLIC);
   payload('unblind', 's_{k_p^a} — the token. An ordinary RSA-PSS signature now; ' +
           'any library checks it against the published key.', {
@@ -356,6 +497,7 @@ async function doSign(selection: number) {
 }
 
 async function doCast(ballot: object) {
+  CAST = true;        // from here a reload costs the voter nothing
   const receipt = await (await fetch(`${EBB_ORIGIN}/ballots`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify(ballot),
