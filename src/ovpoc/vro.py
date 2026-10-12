@@ -325,6 +325,9 @@ class VRO:
     _released: set[str] = field(default_factory=set)
     _openings: dict[str, bytes] = field(default_factory=dict)
     _audit: list[AuditEntry] = field(default_factory=list)
+    #: voter_id -> (c, s), the blinded value and the citizen's signature
+    #: over hash([id, c]). Supervision material; never published.
+    _requests: dict[str, tuple[bytes, bytes]] = field(default_factory=dict)
     _supervisor_downloads: int = 0
     #: id -> the blinded value it was reserved for. Internal; never published.
     _reserved: dict[str, bytes] = field(default_factory=dict)
@@ -542,6 +545,25 @@ class VRO:
         opening = secrets.token_bytes(32)
         self._openings[request.voter_id] = opening
         self._released.add(request.voter_id)
+
+        # The request itself is kept, not discarded once it has been checked.
+        #
+        # It is the one object in the whole exchange the office cannot
+        # manufacture: `s` is the citizen's own signature, under a key a
+        # certification authority binds to them. A release the office minted
+        # for somebody who never asked has no `s` to show, and a supervisor
+        # reading this record finds that out for every citizen at once --
+        # including the ones who abstain and never perform their own check,
+        # which is the only case the published artefacts cannot reach.
+        #
+        # What is kept is larger than what is published. The commitment says
+        # a token was released for an identifier; the signature says that
+        # citizen asked for it, non-repudiably and permanently. It discloses
+        # no more about the ballot: the blinding means nothing here reveals
+        # whether the token was ever used, let alone for what. Absence from
+        # this register is conclusive; presence is not (Section 3.7).
+        self._requests[request.voter_id] = (request.blinded_key,
+                                            request.wallet_signature)
         self.release_log.append({"commitment": b64(commit(request.voter_id, opening))})
 
         # ---- step 6/A: the blind signature ----
@@ -652,6 +674,11 @@ class VRO:
         count, count_signature = self.signed_release_count()
         return {
             "releases": [
+                {"index": i, "voter_id": voter_id, "opening": b64(opening),
+                 "commitment": b64(commit(voter_id, opening)),
+                 "blinded_key": b64(self._requests[voter_id][0]),
+                 "request_signature": b64(self._requests[voter_id][1])}
+                if voter_id in self._requests else
                 {"index": i, "voter_id": voter_id, "opening": b64(opening),
                  "commitment": b64(commit(voter_id, opening))}
                 for i, (voter_id, opening) in enumerate(self._openings.items())

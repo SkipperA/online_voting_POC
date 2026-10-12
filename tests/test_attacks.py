@@ -1076,3 +1076,54 @@ def test_every_reading_of_the_register_is_counted(election):
     vro.supervision_dump()
     vro.supervision_dump()
     assert vro.supervisor_downloads == 2
+
+
+def test_a_release_carries_the_request_the_office_could_not_have_made(election):
+    """The one object in the exchange the office cannot manufacture.
+
+    A supervisor verifies it under the key a certification authority binds
+    to that citizen. A release the office minted for somebody who never
+    asked has no signature to show -- which is the case the published
+    artefacts cannot reach, because a citizen who abstains and never checks
+    leaves a fabricated release indistinguishable from a real one.
+    """
+    from ovpoc.messages import AuthRequest
+
+    vro, voters, _ = election
+    voter = voters[0]
+    register(vro, voter)
+
+    entry, = vro.supervision_dump()["releases"]
+    assert entry["voter_id"] == voter.voter_id
+
+    rebuilt = AuthRequest(
+        voter_id=entry["voter_id"],
+        blinded_key=unb64(entry["blinded_key"]),
+        wallet_signature=b"",
+    )
+    certificate = vro.population_register.lookup(voter.voter_id)
+    assert keys.verify_signature(
+        certificate.public_key, unb64(entry["request_signature"]),
+        rebuilt.signed_payload())
+
+
+def test_a_minted_release_has_no_request_behind_it(election):
+    """What a supervisor is looking for, and would find.
+
+    The office can write a commitment and a count for a citizen who never
+    asked. It cannot write the signature, so the release stands out --
+    whether the citizen ever looks or not.
+    """
+    vro, voters, _ = election
+    register(vro, voters[0])
+
+    # The office fabricates a release the ordinary way it would have to:
+    # by writing the record directly, since no request exists to process.
+    minted = voters[1].voter_id
+    vro._openings[minted] = b"\x02" * 32
+    vro._released.add(minted)
+
+    found = {e["voter_id"]: e for e in vro.supervision_dump()["releases"]}
+    assert "request_signature" in found[voters[0].voter_id]
+    assert "request_signature" not in found[minted], (
+        "a fabricated release has nothing to show")

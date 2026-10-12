@@ -213,7 +213,7 @@ is the console, `GET /data` the same content for that page, `GET
 
 | Field | Note |
 |---|---|
-| `releases[]` | `{index, voter_id, opening, commitment}`. The openings are here because a supervisor cannot verify the commitments without them |
+| `releases[]` | `{index, voter_id, opening, commitment, blinded_key, request_signature}`. The openings are here because a supervisor cannot verify the commitments without them; `request_signature` is the citizen's own signature over `hash([id, c])`, the one object the office could not have manufactured, so a release with none behind it was not asked for |
 | `audit[]` | `{voter_id, outcome, reason}` in order, including the true reason behind refusals the requester saw as one indistinguishable answer (§3.2). No timestamps |
 | `head`, `head_signature`, `count`, `count_signature` | As in the public dump, so the two can be compared |
 | `supervisor_downloads` | Also published on `/releases` and `/release-log`, so the office cannot hand the register out quietly |

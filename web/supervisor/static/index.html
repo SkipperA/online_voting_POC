@@ -43,6 +43,7 @@ this page carries no protection with it.</p>
   <div class="row"><span class="label">head signed under k_p^(O)</span><span class="value" id="head-sig">—</span></div>
   <div class="row"><span class="label">count signed under k_p^(O)</span><span class="value" id="count-sig">—</span></div>
   <div class="row"><span class="label">one release per identifier</span><span class="value" id="dupes">—</span></div>
+  <div class="row"><span class="label">every release was asked for</span><span class="value" id="unasked">—</span></div>
   <div class="row"><span class="label">times this register was read</span><span class="value" id="downloads">—</span></div>
   <p style="margin:.7rem 0 0;color:#666;font-size:13.5px">
   Each commitment is recomputed here from its identifier and opening value,
@@ -57,7 +58,14 @@ this page carries no protection with it.</p>
   Compare these identifiers against the electoral roll from the citizen
   registry, with current eligibility. Not against any list this office
   supplied: that would be comparing the office against its own copy.</p>
-  <table><thead><tr><th>#</th><th>identifier</th><th>commitment</th><th>rebuilt</th></tr></thead>
+  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">Each release
+  carries the citizen's own signature over their token request — the one
+  object in the exchange this office could not have manufactured. A release
+  with no signature behind it was not asked for. Verify the signatures
+  against certificates from the certification authority, for the same reason
+  as the roll.</p>
+  <table><thead><tr><th>#</th><th>identifier</th><th>commitment</th><th>rebuilt</th>
+    <th>signed request</th></tr></thead>
   <tbody id="releases"><tr><td colspan="4">…</td></tr></tbody></table>
 </section>
 
@@ -74,12 +82,15 @@ this page carries no protection with it.</p>
 <section>
   <h2>What this cannot show you</h2>
   <p style="margin:0;color:#666;font-size:13.5px">
-  A single well-formed release recorded for an eligible citizen who abstained
-  and never checked is indistinguishable here from a genuine one. Separating
-  them needs the voter's signed request, which the office verifies and does
-  not keep — retaining what authenticates a request would turn a transient
-  credential into a durable record of who asked. That gap is the reason the
-  issuing power should be split across mutually independent offices.</p>
+  Whether a token that was released was ever used. The blinding is what
+  makes that unknowable: nothing here, and nothing in the ballot box, joins
+  a citizen to a ballot. Absence from this register is conclusive evidence
+  that somebody did not take part; presence is not evidence that they did.
+  <br><br>
+  Nor whether an office colluded with a citizen — a signed request made by a
+  voter who then handed the token on looks exactly like any other. That is
+  the case for splitting the issuing power across mutually independent
+  offices, which supervision does not replace.</p>
 </section>
 
 <p id="status">Loading…</p>

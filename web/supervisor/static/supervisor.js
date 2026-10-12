@@ -103,6 +103,12 @@ async function refresh() {
 
   const ids = data.releases.map((r) => r.voter_id);
   const repeated = [...new Set(ids.filter((v, i) => ids.indexOf(v) !== i))];
+  const unasked = data.releases.filter((r) => !r.request_signature);
+  show('unasked', unasked.length
+    ? `NO SIGNED REQUEST FOR: ${unasked.map((r) => r.voter_id).join(', ')}`
+    : `every release carries the citizen's own signed request`,
+    unasked.length ? 'warn' : 'ok');
+
   show('dupes', repeated.length
     ? `TWO RELEASES FOR: ${repeated.join(', ')}`
     : `${ids.length} identifiers, none repeated`, repeated.length ? 'warn' : 'ok');
@@ -112,8 +118,12 @@ async function refresh() {
         <td>${r.index}</td><td class="mono">${escape(r.voter_id)}</td>
         <td class="mono">${escape(r.commitment.slice(0, 24))}…</td>
         <td class="${rebuilt[i] === r.commitment ? 'ok' : 'warn'}">${
-          rebuilt[i] === r.commitment ? 'matches' : 'DOES NOT MATCH'}</td></tr>`).join('')
-    : '<tr><td colspan="4">no tokens released</td></tr>';
+          rebuilt[i] === r.commitment ? 'matches' : 'DOES NOT MATCH'}</td>
+        <td class="${r.request_signature ? 'ok' : 'warn'}">${
+          r.request_signature
+            ? `${escape(r.request_signature.slice(0, 16))}…`
+            : 'NONE — not asked for'}</td></tr>`).join('')
+    : '<tr><td colspan="5">no tokens released</td></tr>';
 
   $('audit').innerHTML = data.audit.length
     ? data.audit.map((e) => `<tr>
