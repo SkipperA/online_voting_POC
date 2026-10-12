@@ -136,6 +136,61 @@ async function refresh() {
      + 'own record, against keys from the published configuration.', 'ok');
 }
 
+/**
+ * D: were the released tokens asked for?
+ *
+ * The signature is checked here rather than displayed. A page that showed
+ * the first few characters would catch a release the office invented out
+ * of nothing and miss one carrying plausible rubbish, which is most of the
+ * way to catching nothing.
+ */
+async function verifyRequests() {
+  const data = await (await fetch('/data')).json();
+  const { certificates } = await (await fetch('/certificates')).json();
+
+  const rows = [];
+  let good = 0;
+  let missing = 0;
+  for (const release of data.releases) {
+    const key = certificates[release.voter_id];
+    let verdict;
+    let cls;
+    if (!release.request_signature) {
+      verdict = 'no signature — this release was not asked for';
+      cls = 'warn';
+      missing += 1;
+    } else if (!key) {
+      verdict = 'no certificate on file for this identifier';
+      cls = 'warn';
+    } else {
+      const ok = await verifyStatement(
+        key,
+        { blinded_key: release.blinded_key, voter_id: release.voter_id },
+        release.request_signature).catch(() => false);
+      verdict = ok ? `the key certified to ${release.voter_id}`
+                   : 'DOES NOT VERIFY under that citizen\'s key';
+      cls = ok ? 'ok' : 'warn';
+      if (ok) good += 1;
+    }
+    rows.push(`<tr><td class="mono">${escape(release.voter_id)}</td>
+      <td class="mono">${release.request_signature
+        ? `${escape(release.request_signature.slice(0, 16))}…` : '—'}</td>
+      <td class="${cls}">${escape(verdict)}</td></tr>`);
+  }
+
+  $('requests').innerHTML = rows.length
+    ? rows.join('') : '<tr><td colspan="3">no tokens released</td></tr>';
+  const total = data.releases.length;
+  show('verdict', good === total
+    ? `all ${total} releases were asked for, by the citizen named`
+    : `${good} of ${total} verify; ${missing} have no signature at all`,
+    good === total ? 'ok' : 'warn');
+  $('verify-asof').textContent = `checked at ${new Date().toLocaleTimeString()}`;
+}
+
+$('verify').onclick = () => verifyRequests()
+  .catch((err) => show('verdict', `could not check: ${err}`, 'warn'));
+
 $('refresh').onclick = () => refresh();
 $('download').onclick = () => { window.location = '/supervision'; };
 refresh().catch((err) => show('status', `Could not read the register: ${err}`, 'warn'));

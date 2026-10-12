@@ -914,3 +914,33 @@ def test_the_voter_app_survives_a_reload(live):
     assert "showCast(past.ballot" in restore
     assert "showReceipt(past.receipt" in restore
     assert "casts?:" in source, "the receipts are part of what is kept"
+
+
+def test_the_supervisor_console_checks_the_requests_rather_than_showing_them(live):
+    """A signature displayed is not a signature checked.
+
+    Showing the first few characters catches a release the office invented
+    out of nothing and misses one carrying plausible rubbish, which is most
+    of the way to catching nothing.
+    """
+    script = live.http.get(f"{live.url(8006)}/supervisor.js").text
+    assert "verifyRequests" in script
+    assert "crypto.subtle.verify" in script
+    assert "/certificates" in script, "and against keys from outside the dump"
+
+    page = live.http.get(f"{live.url(8006)}/").text
+    assert 'id="verify"' in page
+    assert 'id="verdict"' in page
+
+
+def test_the_certificates_say_they_are_not_an_authority(live):
+    """The one thing a supervisor must not take from the party supervised.
+
+    Served because a demonstration with no certification authority in it
+    could not check a signature at all, which is worse -- but labelled, so
+    nobody mistakes the arrangement for the real one.
+    """
+    served = live.http.get(f"{live.url(8006)}/certificates").json()
+    assert "certificates" in served
+    assert "not" in served["_not_an_authority"].lower()
+    assert "certification authority" in served["_not_an_authority"]

@@ -70,6 +70,29 @@ this page carries no protection with it.</p>
 </section>
 
 <section>
+  <h2>Was every token actually asked for?</h2>
+  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">Each release
+  carries the citizen's own signature over their token request —
+  <code>s = sig(hash([id, c]))</code> — which is the one object in the
+  exchange this office could not have manufactured. Checking it, rather
+  than noting that something is present, is the difference between finding
+  a fabricated release and finding a release with sixteen plausible
+  characters in the right column.</p>
+  <p style="margin:0 0 .7rem"><button id="verify">Verify every request
+  signature</button>
+  <span id="verify-asof" style="margin-left:.6rem;color:#888;font-size:13px">—</span></p>
+  <div class="row"><span class="label">verdict</span><span class="value" id="verdict">not checked</span></div>
+  <table><thead><tr><th>identifier</th><th>signature</th><th>verifies under</th></tr></thead>
+  <tbody id="requests"><tr><td colspan="3">—</td></tr></tbody></table>
+  <p style="margin:.7rem 0 0;color:#666;font-size:13.5px">The keys come from
+  <code>/certificates</code> on this origin, which is the demonstration
+  standing in for a certification authority. A supervisor checking an office
+  against keys that office supplied is checking it against itself: in a real
+  election these come from the authority's published trust lists, like the
+  electoral roll and for the same reason.</p>
+</section>
+
+<section>
   <h2>Refusals and other outcomes</h2>
   <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
   The office's audit log, including the true reason behind refusals the

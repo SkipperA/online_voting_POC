@@ -73,6 +73,16 @@ class PopulationRegister:
 
     _entries: dict[str, Certificate] = field(default_factory=dict)
 
+    @property
+    def entries(self) -> dict[str, "Certificate"]:
+        """Everything on file, for a demonstration that has no authority in it.
+
+        Not part of the interface the VRO uses: an office that could
+        enumerate the population register would be a register lookup
+        service, which Section 3.2 is at pains that it must not become.
+        """
+        return dict(self._entries)
+
     # -- the interface the VRO depends on ------------------------------
     def lookup(self, person_id: str) -> Certificate | None:
         """Return the certificate for `person_id`, or None if there is none.

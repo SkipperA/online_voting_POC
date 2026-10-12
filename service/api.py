@@ -780,6 +780,32 @@ def supervisor_app(deployment: Deployment, base) -> FastAPI:
             "supervisor_downloads": deployment.vro.supervisor_downloads,
         }
 
+    @app.get("/certificates")
+    async def certificates() -> dict:
+        """The public keys the request signatures verify under.
+
+        A supervisor must not take these from the office: a signature
+        checked against a key the signer handed over verifies whatever the
+        signer likes. In a deployment they come from the certification
+        authority, against published trust lists -- the same place the
+        electoral roll comes from, and for the same reason.
+
+        They are served here because a demonstration with no certification
+        authority in it would otherwise have no way to check a signature at
+        all, which is worse. The page says where they came from.
+        """
+        return {
+            "_not_an_authority": (
+                "Served by the demonstration, not by a certification "
+                "authority. A supervisor checking an office against keys "
+                "that office supplied is checking it against itself."),
+            "certificates": {
+                voter_id: b64(certificate.public_key)
+                for voter_id, certificate
+                in deployment.vro.population_register.entries.items()
+            },
+        }
+
     @app.get("/data")
     async def data() -> dict:
         """For the page. Counted like any other release of the register."""
