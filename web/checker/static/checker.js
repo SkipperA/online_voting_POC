@@ -77,6 +77,17 @@ async function refresh() {
     ? 'withheld while voting is open — commitments only'
     : `${accepted.length} released in clear`, open ? 'muted' : 'ok');
 
+  // Both of these need the ledger, which does not exist until the close:
+  // the records are withheld while voting is open (§3.5), so the endpoint
+  // answers 409 and a button wired to it navigates to an error nobody sees.
+  // Disabled with the reason stated, rather than live and inert.
+  $('get-ledger').disabled = open;
+  $('check-live').disabled = open;
+  show('when', open
+    ? 'the ledger is released in clear at the close; until then there is '
+      + 'nothing to download and nothing to recount'
+    : 'the records are out — every check below is available', open ? 'muted' : 'ok');
+
   if (open) {
     $('asof').textContent = `as of ${stamp()}`;
     show('status', 'Voting is open. Contents are withheld; the chain is not.');

@@ -1000,3 +1000,22 @@ def test_no_page_calls_a_global_it_meant_to_define(live):
             assert defined, (
                 f"{script.name} calls {builtin}() and does not define it: "
                 f"that is the browser's global, not the helper intended")
+
+
+def test_a_control_that_cannot_work_yet_says_so(live):
+    """A button wired to an endpoint that answers 409 is a button that
+    does nothing visible.
+
+    The ledger does not exist until the close -- the records are withheld
+    (§3.5) -- so downloading it or recounting from it during the poll
+    navigates to an error the browser shows nowhere. The box console
+    already disabled its own download and said why; the checker's three
+    buttons were added later and were left live.
+    """
+    script = live.http.get(f"{live.checker}/checker.js").text
+    for control in ("get-ledger", "check-live"):
+        assert f"$('{control}').disabled = open" in script, (
+            f"{control} needs the ledger and must be off while voting is open")
+
+    page = live.http.get(f"{live.checker}/").text
+    assert 'id="when"' in page, "and the page must say why, not just refuse"
