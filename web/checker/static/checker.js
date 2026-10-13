@@ -5,6 +5,15 @@ const CONFIG = document.body.dataset.configOrigin;
 const $ = (id) => document.getElementById(id);
 const show = (id, text, cls) => { const e = $(id); e.textContent = text; e.className = `value ${cls || ''}`; };
 
+/**
+ * Not `escape`: that is a built-in global, the legacy URL encoder, and a
+ * page that calls it without defining its own gets %20 where it wanted a
+ * space. Shadowing a global to mean something else is the trap; a name of
+ * our own is the way out of it.
+ */
+const esc = (s) => String(s).replace(/[&<>]/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
 const stamp = () => new Date().toLocaleTimeString();
 
 // The published election configuration, read once and held. Every signature
@@ -160,24 +169,24 @@ function render(report) {
   let group = null;
   const rows = report.checks.map((c) => {
     const heading = c.section !== group
-      ? `<div class="group">${escape(c.section)}</div>` : '';
+      ? `<div class="group">${esc(c.section)}</div>` : '';
     group = c.section;
     return `${heading}<div class="check">
       <span class="verdict ${c.ok ? 'ok' : 'warn'}">${c.ok ? 'pass' : 'FAIL'}</span>
-      <span>${escape(c.description)}${
-        c.detail ? `<br><span class="detail">${escape(c.detail)}</span>` : ''}</span>
+      <span>${esc(c.description)}${
+        c.detail ? `<br><span class="detail">${esc(c.detail)}</span>` : ''}</span>
     </div>`;
   });
   $('checks').innerHTML = rows.join('');
 
   const t = report.tally;
   const options = Object.entries(t.options)
-    .map(([k, n]) => `<div class="row"><span class="label">option ${escape(k)}</span><span class="value">${n}</span></div>`);
+    .map(([k, n]) => `<div class="row"><span class="label">option ${esc(k)}</span><span class="value">${n}</span></div>`);
   const protest = Object.entries(t.outside_the_list)
-    .map(([k, n]) => `<div class="row"><span class="label">outside the list: ${escape(k)}</span><span class="value">${n}</span></div>`);
+    .map(([k, n]) => `<div class="row"><span class="label">outside the list: ${esc(k)}</span><span class="value">${n}</span></div>`);
   $('recount').innerHTML = `
-    <div class="row"><span class="label">election</span><span class="value">${escape(t.election_id)}</span></div>
-    <div class="row"><span class="label">configuration</span><span class="value">${escape(t.configuration_digest)}</span></div>
+    <div class="row"><span class="label">election</span><span class="value">${esc(t.election_id)}</span></div>
+    <div class="row"><span class="label">configuration</span><span class="value">${esc(t.configuration_digest)}</span></div>
     ${options.join('')}${protest.join('')}
     <div class="row"><span class="label">ballots accepted</span><span class="value">${t.ballots} from ${t.voters} voters</span></div>
     <div class="row"><span class="label">rejected, published</span><span class="value">${t.rejected}</span></div>`;

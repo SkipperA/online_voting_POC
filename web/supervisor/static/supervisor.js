@@ -12,7 +12,13 @@ const $ = (id) => document.getElementById(id);
 const show = (id, text, cls) => {
   const e = $(id); e.textContent = text; e.className = `value ${cls || ''}`;
 };
-const escape = (s) => String(s).replace(/[&<>]/g,
+/**
+ * Not `escape`: that is a built-in global, the legacy URL encoder, and a
+ * page that calls it without defining its own gets %20 where it wanted a
+ * space. Shadowing a global to mean something else is the trap; a name of
+ * our own is the way out of it.
+ */
+const esc = (s) => String(s).replace(/[&<>]/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 const unb64 = (t) => Uint8Array.from(
@@ -115,20 +121,20 @@ async function refresh() {
 
   $('releases').innerHTML = data.releases.length
     ? data.releases.map((r, i) => `<tr>
-        <td>${r.index}</td><td class="mono">${escape(r.voter_id)}</td>
-        <td class="mono">${escape(r.commitment.slice(0, 24))}…</td>
+        <td>${r.index}</td><td class="mono">${esc(r.voter_id)}</td>
+        <td class="mono">${esc(r.commitment.slice(0, 24))}…</td>
         <td class="${rebuilt[i] === r.commitment ? 'ok' : 'warn'}">${
           rebuilt[i] === r.commitment ? 'matches' : 'DOES NOT MATCH'}</td>
         <td class="${r.request_signature ? 'ok' : 'warn'}">${
           r.request_signature
-            ? `${escape(r.request_signature.slice(0, 16))}…`
+            ? `${esc(r.request_signature.slice(0, 16))}…`
             : 'NONE — not asked for'}</td></tr>`).join('')
     : '<tr><td colspan="5">no tokens released</td></tr>';
 
   $('audit').innerHTML = data.audit.length
     ? data.audit.map((e) => `<tr>
-        <td class="mono">${escape(e.voter_id)}</td><td>${escape(e.outcome)}</td>
-        <td>${escape(e.reason)}</td></tr>`).join('')
+        <td class="mono">${esc(e.voter_id)}</td><td>${esc(e.outcome)}</td>
+        <td>${esc(e.reason)}</td></tr>`).join('')
     : '<tr><td colspan="3">nothing recorded</td></tr>';
 
   $('asof').textContent = `as of ${new Date().toLocaleTimeString()}`;
@@ -172,10 +178,10 @@ async function verifyRequests() {
       cls = ok ? 'ok' : 'warn';
       if (ok) good += 1;
     }
-    rows.push(`<tr><td class="mono">${escape(release.voter_id)}</td>
+    rows.push(`<tr><td class="mono">${esc(release.voter_id)}</td>
       <td class="mono">${release.request_signature
-        ? `${escape(release.request_signature.slice(0, 16))}…` : '—'}</td>
-      <td class="${cls}">${escape(verdict)}</td></tr>`);
+        ? `${esc(release.request_signature.slice(0, 16))}…` : '—'}</td>
+      <td class="${cls}">${esc(verdict)}</td></tr>`);
   }
 
   $('requests').innerHTML = rows.length

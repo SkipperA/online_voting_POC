@@ -971,3 +971,32 @@ def test_every_element_a_page_reaches_for_exists_on_it(live):
         reached |= set(re.findall(r"getElementById\('([\w-]+)'\)", script))
         missing = sorted(i for i in reached if f'id="{i}"' not in page)
         assert not missing, f"{name}: script reaches for {missing}, page has none"
+
+
+def test_no_page_calls_a_global_it_meant_to_define(live):
+    """`escape` is a built-in: the legacy URL encoder.
+
+    One page defined its own and shadowed it; when that code was moved to
+    a page that had not, every label came out with %20 where it wanted a
+    space -- and nothing failed, because calling a global that exists is
+    not an error. The id check added for the last such bug could not see
+    this one: the element resolved fine, it was the text that was wrong.
+
+    So the rule is a name of our own rather than a shadowed global, and
+    this reads the scripts for the shadowing.
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[1] / "web"
+    shadowable = ("escape", "unescape", "name", "status", "length", "top")
+
+    for script in sorted(root.glob("*/static/*.js")):
+        source = script.read_text()
+        for builtin in shadowable:
+            called = re.findall(rf"(?<![\w.]){builtin}\(", source)
+            if not called:
+                continue
+            defined = re.search(rf"(?:const|let|var|function)\s+{builtin}\b", source)
+            assert defined, (
+                f"{script.name} calls {builtin}() and does not define it: "
+                f"that is the browser's global, not the helper intended")

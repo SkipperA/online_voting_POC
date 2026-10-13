@@ -1,7 +1,13 @@
 /** The ballot box's operator console. Reads the registry; closes the poll. */
 const $ = (id) => document.getElementById(id);
 
-const escape = (s) => String(s).replace(/[&<>]/g,
+/**
+ * Not `escape`: that is a built-in global, the legacy URL encoder, and a
+ * page that calls it without defining its own gets %20 where it wanted a
+ * space. Shadowing a global to mean something else is the trap; a name of
+ * our own is the way out of it.
+ */
+const esc = (s) => String(s).replace(/[&<>]/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 // Both figures come from the box, but while the poll is open they do not come
@@ -22,10 +28,10 @@ function showReports(reports) {
     return;
   }
   $('reports').innerHTML = reports.map((r) => `<tr>
-      <td class="mono">${escape(r.at)}</td>
+      <td class="mono">${esc(r.at)}</td>
       <td>${r.after_accepted}</td>
       <td>${r.voters}</td>
-      <td class="mono">${escape(JSON.stringify(r.counts))}</td>
+      <td class="mono">${esc(JSON.stringify(r.counts))}</td>
     </tr>`).join('');
 }
 
@@ -54,7 +60,7 @@ async function refresh() {
   if (!open) {
     const t = await (await fetch('/tally')).json();
     showWillCount(t.voters, 'final');
-    $('tally').innerHTML = `<pre>${escape(JSON.stringify(t, null, 2))}</pre>`;
+    $('tally').innerHTML = `<pre>${esc(JSON.stringify(t, null, 2))}</pre>`;
   } else {
     const latest = reports.length ? reports[reports.length - 1] : null;
     showWillCount(latest ? latest.voters : '—',
