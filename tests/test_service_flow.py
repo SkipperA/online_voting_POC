@@ -990,7 +990,14 @@ def test_no_page_calls_a_global_it_meant_to_define(live):
     root = Path(__file__).resolve().parents[1] / "web"
     shadowable = ("escape", "unescape", "name", "status", "length", "top")
 
+    # Hand-written scripts only. bundle.js is esbuild's output, is not
+    # tracked, and exists or not depending on whether anybody has run the
+    # build -- so a rule applied to it makes the suite pass on a fresh
+    # clone and fail on a working one, which is worse than no rule. Its
+    # source is TypeScript and is checked by the compiler instead.
     for script in sorted(root.glob("*/static/*.js")):
+        if script.name == "bundle.js":
+            continue
         source = script.read_text()
         for builtin in shadowable:
             called = re.findall(rf"(?<![\w.]){builtin}\(", source)
