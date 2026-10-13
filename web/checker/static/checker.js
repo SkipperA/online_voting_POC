@@ -2,7 +2,6 @@
 const VRO = document.body.dataset.vroOrigin;
 const EBB = document.body.dataset.ebbOrigin;
 const CONFIG = document.body.dataset.configOrigin;
-const VERIFIER = document.body.dataset.verifierOrigin;
 const $ = (id) => document.getElementById(id);
 const show = (id, text, cls) => { const e = $(id); e.textContent = text; e.className = `value ${cls || ''}`; };
 
@@ -70,47 +69,23 @@ async function refresh() {
     : `${accepted.length} released in clear`, open ? 'muted' : 'ok');
 
   if (open) {
-    for (const id of ['announced', 'recomputed', 'agree']) {
-      show(id, 'not until the poll closes', 'muted');
-    }
-    show('ledger-state', 'withheld until the close; the chain is published now',
-         'muted');
     $('asof').textContent = `as of ${stamp()}`;
     show('status', 'Voting is open. Contents are withheld; the chain is not.');
     return;
   }
 
-  // Supersession among *accepted* ballots only. A rejected submission must
-  // leave an earlier ballot untouched, or any reader of the box could annul
-  // a stranger's vote by copying their public key and token.
-  const latest = new Map();
-  for (const r of accepted) latest.set(r.adhoc_public_key, r.selection);
-
   // Now that the records are open, the bound that holds can be checked:
   // distinct ad-hoc keys against tokens released. One token, one key, any
   // number of ballots under it.
-  const within = latest.size <= log.count;
+  const keys = new Set(accepted.map((r) => r.adhoc_public_key));
+  const within = keys.size <= log.count;
   show('count-audit',
-       `${latest.size} distinct ad-hoc keys ≤ ${log.count} tokens released — ` +
+       `${keys.size} distinct ad-hoc keys \u2264 ${log.count} tokens released — ` +
        `${within ? 'holds' : 'VIOLATED'}`, within ? 'ok' : 'warn');
-  const counts = {}, protest = {};
-  for (const sel of latest.values()) {
-    const inRange = Number.isInteger(sel) && sel >= 1;
-    (inRange ? counts : protest)[sel] = ((inRange ? counts : protest)[sel] || 0) + 1;
-  }
-  const tally = await (await fetch(`${EBB}/tally`)).json();
-  const announced = Object.fromEntries(
-    Object.entries(tally.counts).filter(([, v]) => v > 0));
-  const mine = Object.fromEntries(Object.entries(counts).filter(([, v]) => v > 0));
-  const same = JSON.stringify(announced) === JSON.stringify(mine)
-    && JSON.stringify(tally.protest_codes) === JSON.stringify(protest);
-  show('announced', JSON.stringify(tally.counts) + ' protest ' + JSON.stringify(tally.protest_codes));
-  show('ledger-state', 'released in clear — the download is the whole registry', 'ok');
-  show('recomputed', JSON.stringify(mine) + ' protest ' + JSON.stringify(protest));
-  show('agree', same ? 'the box announced what the records say'
-                     : 'DISAGREEMENT — the announced result does not follow', same ? 'ok' : 'warn');
+
   $('asof').textContent = `as of ${stamp()}`;
-  show('status', 'Poll closed. Everything above was recomputed from published records.');
+  show('status', 'Poll closed. Run the full check below: the recount this page '
+     + 'used to do here verified no tokens and no signatures.');
 }
 
 let CREDENTIALS = null;
@@ -118,7 +93,137 @@ let CREDENTIALS = null;
 // Downloads rather than fetches: the file has to leave this origin to be
 // worth anything. A verdict computed here is a verdict from a page the
 // audited parties serve.
-$('verifier-link').href = VERIFIER;
+/**
+ * The whole check, fed either way.
+ *
+ * One implementation, run on the server by `tools/verify_election.py` --
+ * the same program the button below hands out. A second implementation in
+ * this page would be a second thing to get right, and could disagree with
+ * the first without anyone noticing.
+ */
+const LABEL = {
+  election: 'election configuration',
+  ledger: 'ballot box ledger',
+  releases: 'release register',
+};
+
+const files = { election: null, ledger: null, releases: null };
+
+function kindOf(parsed) {
+  const format = String(parsed.format || '');
+  if (format.startsWith('ovpoc-ledger')) return 'ledger';
+  if (format.startsWith('ovpoc-releases')) return 'releases';
+  if (format.startsWith('ovpoc-supervision')) return 'supervision';
+  if ('vro_token_key_spki' in parsed) return 'election';
+  return null;
+}
+
+function note(key, text, cls) {
+  const e = $(`have-${key}`);
+  e.textContent = text;
+  e.className = `value ${cls || 'muted'}`;
+}
+
+function loadFile(inputId, slot) {
+  $(inputId).onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    // Kept verbatim: the configuration digest is over the bytes that were
+    // published, so a file through a parser and back is a different file.
+    const text = await file.text();
+    let parsed;
+    try { parsed = JSON.parse(text); } catch {
+      files[slot] = null; note(slot, `${file.name} is not JSON`, 'warn');
+      $('check-files').disabled = true; return;
+    }
+    const kind = kindOf(parsed);
+    if (kind === 'supervision') {
+      files[slot] = null;
+      note(slot, 'that is the supervision register — it names citizens and is '
+         + 'not part of this check', 'warn');
+    } else if (kind && kind !== slot) {
+      files[slot] = null; note(slot, `that is the ${LABEL[kind]}`, 'warn');
+    } else if (!kind) {
+      files[slot] = null; note(slot, `${file.name} is not one of these`, 'warn');
+    } else {
+      files[slot] = text; note(slot, file.name, 'ok');
+    }
+    $('check-files').disabled = !(files.election && files.ledger && files.releases);
+  };
+}
+
+loadFile('f-election', 'election');
+loadFile('f-ledger', 'ledger');
+loadFile('f-releases', 'releases');
+
+function render(report) {
+  let group = null;
+  const rows = report.checks.map((c) => {
+    const heading = c.section !== group
+      ? `<div class="group">${escape(c.section)}</div>` : '';
+    group = c.section;
+    return `${heading}<div class="check">
+      <span class="verdict ${c.ok ? 'ok' : 'warn'}">${c.ok ? 'pass' : 'FAIL'}</span>
+      <span>${escape(c.description)}${
+        c.detail ? `<br><span class="detail">${escape(c.detail)}</span>` : ''}</span>
+    </div>`;
+  });
+  $('checks').innerHTML = rows.join('');
+
+  const t = report.tally;
+  const options = Object.entries(t.options)
+    .map(([k, n]) => `<div class="row"><span class="label">option ${escape(k)}</span><span class="value">${n}</span></div>`);
+  const protest = Object.entries(t.outside_the_list)
+    .map(([k, n]) => `<div class="row"><span class="label">outside the list: ${escape(k)}</span><span class="value">${n}</span></div>`);
+  $('tally').innerHTML = `
+    <div class="row"><span class="label">election</span><span class="value">${escape(t.election_id)}</span></div>
+    <div class="row"><span class="label">configuration</span><span class="value">${escape(t.configuration_digest)}</span></div>
+    ${options.join('')}${protest.join('')}
+    <div class="row"><span class="label">ballots accepted</span><span class="value">${t.ballots} from ${t.voters} voters</span></div>
+    <div class="row"><span class="label">rejected, published</span><span class="value">${t.rejected}</span></div>`;
+
+  $('status').textContent = report.ok
+    ? 'Every check passed. This result follows from the records in these files.'
+    : `${report.checks.filter((c) => !c.ok).length} check(s) failed — the result above does not follow.`;
+  $('status').className = report.ok ? 'ok' : 'warn';
+}
+
+
+async function check(three) {
+  show('verdict', 'checking…', '');
+  const response = await fetch('/check', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(three),
+  });
+  if (!response.ok) {
+    show('verdict', (await response.json()).detail, 'warn');
+    return;
+  }
+  render(await response.json());
+  $('check-asof').textContent = `checked at ${stamp()}`;
+}
+
+$('check-files').onclick = () => check(files)
+  .catch((err) => show('verdict', `could not check: ${err}`, 'warn'));
+
+// The convenient path: fetch what the parties published, then check it. The
+// page says what that is worth — the files came from the audited parties a
+// moment ago, over a connection to a page they serve.
+$('check-live').onclick = async () => {
+  try {
+    const [election, ledger, releases] = await Promise.all([
+      (await fetch(`${CONFIG}/election.json`)).text(),
+      (await fetch(`${EBB}/ledger`)).text(),
+      (await fetch(`${VRO}/releases`)).text(),
+    ]);
+    await check({ election, ledger, releases });
+  } catch (err) {
+    show('verdict', `could not read the artefacts: ${err}`, 'warn');
+  }
+};
+
+$('get-script').onclick = () => { window.location = '/verify_election.py'; };
+
 $('get-ledger').onclick = () => { window.location = `${EBB}/ledger`; };
 $('get-releases').onclick = () => { window.location = `${VRO}/releases`; };
 

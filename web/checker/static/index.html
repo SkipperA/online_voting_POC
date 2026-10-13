@@ -15,7 +15,7 @@
  .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b45309;margin-bottom:.3rem}
  #status{margin-top:1rem;font-weight:600}
 </style></head>
-<body data-vro-origin="" data-ebb-origin="" data-config-origin="" data-verifier-origin="">
+<body data-vro-origin="" data-ebb-origin="" data-config-origin="">
 <h1>Independent checker</h1>
 <p class="sub">The checks of §3.7, from an origin neither the voting
 application nor the wallet controls.</p>
@@ -51,40 +51,59 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
 </section>
 
 <section>
-  <h2>Anyone · recount, once the poll has closed</h2>
-  <div class="row"><span class="label">announced by the box</span><span class="value" id="announced">…</span></div>
-  <div class="row"><span class="label">recomputed here</span><span class="value" id="recomputed">…</span></div>
-  <div class="row"><span class="label">agreement</span><span class="value" id="agree">…</span></div>
-  <p style="color:#666;font-size:13.5px;margin:.6rem 0 0">Recomputed in this
-  page from the released records — supersession among accepted ballots only,
-  and the distribution over distinct out-of-range values preserved rather than
-  collapsed into one figure.</p>
+  <h2>Anyone · every check, from the published artefacts</h2>
+  <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">Every token verified
+  against the office's published key, every selection against the ad-hoc key
+  that token certifies, the chain rebuilt from the genesis hash, supersession
+  applied, the tally recomputed, and the count audit across both components.
+  Not a summary of what the box announced — the result, worked out again.</p>
+  <p style="margin:0 0 .7rem">
+    <button id="check-live">Fetch the three artefacts and check them</button>
+    <span id="check-asof" style="color:#888;font-size:13px">—</span></p>
+  <div class="row"><span class="label">verdict</span><span class="value" id="verdict">not checked</span></div>
+  <div id="checks" style="margin-top:.6rem"></div>
+  <div id="recount" style="margin-top:.6rem"></div>
+  <p style="color:#666;font-size:13.5px;margin:.7rem 0 0">This fetches the
+  artefacts from the parties that published them, which is the convenient
+  way and the weaker one: a verdict computed from files those parties handed
+  over a moment ago, on a page they serve. Below is the same check on files
+  you already hold.</p>
 </section>
 
 <section>
-  <h2>Anyone · take the election away and check it elsewhere</h2>
-  <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">The strongest check
-  is not one this page runs. Download the two files and verify them on a
-  machine none of these origins controls: a page served by the box, however
-  honest its arithmetic, is still a page served by the box.</p>
-  <p style="margin:0 0 .7rem">
-    <button id="get-ledger">Ballot box ledger</button>
-    <button id="get-releases">Release register</button>
-    <button id="get-config">Election configuration</button>
-  </p>
-  <div class="row"><span class="label">ledger</span><span class="value" id="ledger-state">—</span></div>
-  <p style="color:#666;font-size:13.5px;margin:.7rem 0 0">Then, with Python
-  and <code>cryptography</code> and nothing else:</p>
+  <h2>Anyone · the same check, on files published elsewhere</h2>
+  <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">After the close the
+  office, the ballot box and the administering body publish these three. Take
+  them from an archive, a mirror, or anywhere that is not this deployment, and
+  check them here — or better, with the program below on a machine none of
+  these origins can reach.</p>
+  <div class="row"><span class="label">Election_config_….json</span>
+    <span><input type="file" id="f-election" accept=".json,application/json">
+    <span class="value muted" id="have-election">from the administering body</span></span></div>
+  <div class="row"><span class="label">EBB_dump_….json</span>
+    <span><input type="file" id="f-ledger" accept=".json,application/json">
+    <span class="value muted" id="have-ledger">from the ballot box</span></span></div>
+  <div class="row"><span class="label">VRO_dump_….json</span>
+    <span><input type="file" id="f-releases" accept=".json,application/json">
+    <span class="value muted" id="have-releases">from the office</span></span></div>
+  <p style="margin:.8rem 0 0"><button id="check-files" disabled>Check these files</button>
+    <button id="get-ledger">Download the ledger</button>
+    <button id="get-releases">Download the register</button>
+    <button id="get-config">Download the configuration</button></p>
+  <p style="color:#666;font-size:13.5px;margin:.7rem 0 0">Each file is
+  recognised by what is in it, so a file in the wrong place is named rather
+  than discovered halfway through. <code>VRO_supervision_….json</code> is a
+  different artefact — it names citizens and is not part of this check.</p>
+</section>
+
+<section>
+  <h2>Anyone · run it where nobody involved can reach it</h2>
+  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">The same program,
+  importing nothing from the election: the standard library and
+  <code>cryptography</code>. It exits non-zero if any check fails.</p>
+  <p style="margin:0 0 .7rem"><button id="get-script">Download the verifier</button></p>
   <pre style="font-size:12.5px;background:#8881;padding:.6rem .8rem;border-radius:4px;overflow-x:auto"
->python tools/verify_election.py election.json ledger.json releases.json</pre>
-  <p style="color:#666;font-size:13.5px;margin:.4rem 0 0">Or load the three
-  files into the <a id="verifier-link" href="#">cross-check service</a>, which
-  runs the same program for you — convenient, and weaker for it, since that
-  origin belongs to this deployment too.</p>
-  <p style="color:#666;font-size:13.5px;margin:.4rem 0 0">Every token checked
-  against the office's published key, every selection against the ad-hoc key
-  that token certifies, the chain rebuilt from the genesis hash, supersession
-  applied, and the tally recomputed. It exits non-zero if anything fails.</p>
+>python verify_election.py Election_config_….json EBB_dump_….json VRO_dump_….json</pre>
 </section>
 
 <section>

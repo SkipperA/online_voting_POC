@@ -140,7 +140,7 @@ def test_the_verifier_service_runs_the_same_checks(closed_election, tmp_path):
     """
     deployment = Deployment.create(bits=2048, num_choices=3,
                                    document_root=tmp_path / "unused")
-    client = TestClient(build_all(deployment)[origins.VERIFIER])
+    client = TestClient(build_all(deployment)[origins.CHECKER])
 
     report = client.post("/check", json={
         "election": closed_election["election.json"].read_text(),
@@ -166,7 +166,7 @@ def test_the_verifier_service_reports_a_broken_election_rather_than_refusing(
 
     deployment = Deployment.create(bits=2048, num_choices=3,
                                    document_root=tmp_path / "unused")
-    client = TestClient(build_all(deployment)[origins.VERIFIER])
+    client = TestClient(build_all(deployment)[origins.CHECKER])
     response = client.post("/check", json={
         "election": closed_election["election.json"].read_text(),
         "ledger": json.dumps(ledger),
@@ -183,7 +183,7 @@ def test_the_verifier_service_hands_out_the_program_it_runs(tmp_path):
     """So the check that rests on nobody can be run somewhere else."""
     deployment = Deployment.create(bits=2048, num_choices=3,
                                    document_root=tmp_path / "unused")
-    client = TestClient(build_all(deployment)[origins.VERIFIER])
+    client = TestClient(build_all(deployment)[origins.CHECKER])
 
     served = client.get("/verify_election.py")
     assert served.status_code == 200
@@ -195,7 +195,7 @@ def test_the_verifier_service_hands_out_the_program_it_runs(tmp_path):
 def _verifier_client(tmp_path):
     deployment = Deployment.create(bits=2048, num_choices=3,
                                    document_root=tmp_path / "unused")
-    return TestClient(build_all(deployment)[origins.VERIFIER])
+    return TestClient(build_all(deployment)[origins.CHECKER])
 
 
 def test_a_file_in_the_wrong_place_is_named_as_such(closed_election, tmp_path):
@@ -250,15 +250,15 @@ def test_something_that_is_not_json_says_so(closed_election, tmp_path):
 def test_each_file_is_checked_as_it_is_chosen(live=None):
     """One input per file, and each one validated on arrival.
 
-    Three inputs is the shape a person expects, so the slots are back; what
-    must not come back is discovering a mismatch halfway through the
-    verification as a missing key. The page names the file at the moment it
-    is put in the wrong place, the supervision register included -- which is
-    the file that looks like it belongs here and does not.
+    Three inputs is the shape a person expects; what must not come back is
+    discovering a mismatch halfway through the verification as a missing
+    key. The page names the file at the moment it is put in the wrong
+    place, the supervision register included -- which is the file that
+    looks like it belongs here and does not.
     """
-    static = Path(__file__).resolve().parents[1] / "web" / "verifier" / "static"
+    static = Path(__file__).resolve().parents[1] / "web" / "checker" / "static"
     page = (static / "index.html").read_text()
-    script = (static / "verifier.js").read_text()
+    script = (static / "checker.js").read_text()
 
     for slot in ("election", "ledger", "releases"):
         assert f'id="f-{slot}"' in page

@@ -27,7 +27,7 @@ but buy nothing technically.
 | 8002 | **wallet** | Yes | Consent page and the signing daemon behind it (`driver/wallet/`) | `k_s^{(v)}` to anything, including its own page |
 | 8003 | **VRO** | Yes | Token endpoints, release query, back-office console | The voter app's bundle; `k_p^{(R)}` as a pin source |
 | 8004 | **EBB** | Yes | Ballot submission, receipts, published view, lookup by `k_p^a` | Anything keyed by `id` |
-| 8005 | **checker** | Yes | The three independent checks of §3.7 | Any script loaded from 8003 or 8004 |
+| 8005 | **checker** | Yes | The three independent checks of §3.7, and the full recount of a published election | Any script loaded from 8003 or 8004 |
 | 8009 | **setup console** | No — build-time | Authoring UI; writes `election.json` into 8000's document root, then has no role | Any endpoint the poll depends on at runtime |
 
 **The config origin is inert. The setup console is build-time.** The poll must

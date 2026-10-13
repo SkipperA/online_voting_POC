@@ -845,13 +845,20 @@ class VerificationBody(BaseModel):
     releases: str
 
 
-def verifier_app(deployment: Deployment, base) -> FastAPI:
-    """8007 — cross-checks an election somebody downloaded.
+def verification_endpoints(app: FastAPI, deployment: Deployment) -> FastAPI:
+    """The cross-check, on the checker origin.
 
-    It holds no election state and reads nothing from the deployment: the
-    three files come from the caller and every key is taken from the
-    configuration among them. Running the same election this deployment is
-    serving is a coincidence of convenience, not a dependency.
+    It held an origin of its own for a while, and should not have: a
+    browser origin is a boundary between parties who must not read each
+    other's data, and there is no such boundary between a visitor checking
+    the published artefacts and a visitor checking files they were given.
+    Same reader, same privileges -- none -- and neither holds election
+    state. The distinction that is real is between asking the parties and
+    asking nothing, which is a section on a page.
+
+    What that merge costs is a sentence that used to be true of the
+    origin: that it reads nothing from the deployment. It stays true of
+    the verification, which reads only its arguments.
 
     It runs `tools/verify_election.py`, the same code the command line
     runs, loaded rather than reimplemented. A second implementation in the
@@ -863,8 +870,6 @@ def verifier_app(deployment: Deployment, base) -> FastAPI:
     operator. The script is downloadable here precisely so that the real
     check can be run somewhere else.
     """
-    app = base(origins.VERIFIER)
-
     #: What each of the three files has to contain to be that file. Enough
     #: to tell them apart and to say which one is in the wrong place --
     #: not a schema, and not a substitute for the checks themselves.
