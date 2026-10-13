@@ -259,8 +259,16 @@ MUTATIONS = [
             "component under audit."
         ),
         path="src/ovpoc/ballotbox.py",
-        find='        return SubmissionResult(True, "accepted", entry.entry_hash, entry.index)',
-        replace='        return SubmissionResult(True, "accepted", entry.entry_hash)  # SABOTAGE',
+        find=(
+            "            index=entry.index,\n"
+            "            signature=self.statement_key.sign(receipt_payload(\n"
+            "                self.election_id, accepted, reason, entry.index, entry.entry_hash)),"
+        ),
+        replace=(
+            "            index=None,  # SABOTAGE: the receipt omits the position\n"
+            "            signature=self.statement_key.sign(receipt_payload(\n"
+            "                self.election_id, accepted, reason, None, entry.entry_hash)),"
+        ),
     ),
 ]
 
@@ -320,12 +328,18 @@ def main() -> int:
     print("Baseline green.\n")
 
     results: list[tuple[Mutation, list[str]]] = []
+    drifted: list[str] = []
     for mutation in MUTATIONS:
         target = ROOT / mutation.path
         original = target.read_text()
         if mutation.find not in original:
+            # Not an aside. A mutation that cannot be applied tests nothing,
+            # and recording it as caught -- which this did, by appending a
+            # non-empty list -- reports a hole in the suite as a success.
+            # The source moving out from under a mutation is exactly when
+            # the mutation stops being worth anything.
             print(f"  !! {mutation.name}: pattern not found -- source has drifted")
-            results.append((mutation, ["PATTERN NOT FOUND"]))
+            drifted.append(mutation.name)
             continue
         try:
             target.write_text(original.replace(mutation.find, mutation.replace, 1))
@@ -341,7 +355,16 @@ def main() -> int:
     print(f"\nWrote docs/sabotage.md. Undetected mutations: {len(uncaught)}")
     for name in uncaught:
         print(f"  - {name}")
-    return 0
+    if drifted:
+        print(f"Mutations that could not be applied: {len(drifted)}")
+        for name in drifted:
+            print(f"  - {name}")
+
+    # Exit status follows, so that a suite which has stopped defending
+    # something says so to whatever runs it rather than only to whoever
+    # reads the output. A mutation nobody caught and a mutation nobody
+    # applied are different failures and both are failures.
+    return 1 if (uncaught or drifted) else 0
 
 
 def write_report(results: list[tuple[Mutation, list[str]]]) -> None:

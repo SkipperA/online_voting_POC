@@ -35,7 +35,7 @@ confident the surrounding comments sound.
 | reservation_publishes_the_commitment | `test_a_reservation_publishes_nothing`<br>`test_supervision_shows_the_identifiers_and_the_refusals`<br>`test_the_release_log_records_exactly_who_took_a_token` |
 | protest_distribution_collapsed | `test_distinct_protest_codes_are_not_merged`<br>`test_the_adversarial_scenarios_all_hold` |
 | submissions_accepted_after_the_close | `test_a_ballot_arriving_after_the_close_is_not_recorded`<br>`test_the_adversarial_scenarios_all_hold` |
-| receipt_omits_the_entry_position | `PATTERN NOT FOUND` |
+| receipt_omits_the_entry_position | `test_a_tampered_receipt_does_not_verify`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_inclusion_check_works_from_the_receipt_alone` |
 
 ## Detail
 
@@ -332,9 +332,11 @@ The receipt carries the chain head but not the entry position, so the voter must
 Patched in `src/ovpoc/ballotbox.py`.
 
 Caught by:
-- `PATTERN NOT FOUND`
+- `test_a_tampered_receipt_does_not_verify`
+- `test_the_adversarial_scenarios_all_hold`
+- `test_the_inclusion_check_works_from_the_receipt_alone`
 
 ## Summary
 
-- 24 of 25 mutations were detected.
+- 25 of 25 mutations were detected.
 - 0 were not.
