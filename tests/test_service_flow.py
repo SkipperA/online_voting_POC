@@ -944,3 +944,30 @@ def test_the_certificates_say_they_are_not_an_authority(live):
     assert "certificates" in served
     assert "not" in served["_not_an_authority"].lower()
     assert "certification authority" in served["_not_an_authority"]
+
+
+def test_every_element_a_page_reaches_for_exists_on_it(live):
+    """Checked by resolving the ids, not by looking for strings.
+
+    `render()` was carried over from another page that called the same
+    element `tally` where this one calls it `recount`, so the first visitor
+    to press the button got a null dereference. The suite read the script
+    and passed, because it was looking for the presence of words.
+
+    The pages are static files and their scripts address elements by id,
+    so the two can be checked against each other without a browser -- the
+    one class of page bug this suite can catch, and it was not catching it.
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[1] / "web"
+    for name, origin in (("checker", live.checker), ("box", live.ebb),
+                         ("setup", live.setup), ("wallet", live.wallet)):
+        page = (root / name / "static" / "index.html").read_text()
+        script = next((root / name / "static").glob("*.js")).read_text()
+
+        reached = set(re.findall(r"\$\('([\w-]+)'\)", script))
+        reached |= set(re.findall(r"show\('([\w-]+)'", script))
+        reached |= set(re.findall(r"getElementById\('([\w-]+)'\)", script))
+        missing = sorted(i for i in reached if f'id="{i}"' not in page)
+        assert not missing, f"{name}: script reaches for {missing}, page has none"

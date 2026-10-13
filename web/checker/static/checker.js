@@ -175,7 +175,7 @@ function render(report) {
     .map(([k, n]) => `<div class="row"><span class="label">option ${escape(k)}</span><span class="value">${n}</span></div>`);
   const protest = Object.entries(t.outside_the_list)
     .map(([k, n]) => `<div class="row"><span class="label">outside the list: ${escape(k)}</span><span class="value">${n}</span></div>`);
-  $('tally').innerHTML = `
+  $('recount').innerHTML = `
     <div class="row"><span class="label">election</span><span class="value">${escape(t.election_id)}</span></div>
     <div class="row"><span class="label">configuration</span><span class="value">${escape(t.configuration_digest)}</span></div>
     ${options.join('')}${protest.join('')}
