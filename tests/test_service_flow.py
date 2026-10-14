@@ -1026,3 +1026,32 @@ def test_a_control_that_cannot_work_yet_says_so(live):
 
     page = live.http.get(f"{live.checker}/").text
     assert 'id="when"' in page, "and the page must say why, not just refuse"
+
+
+def test_supervision_turns_on_the_signed_statement_not_the_box_s_memory(live):
+    """What the office acts on when it releases the register.
+
+    Both components run in one process here, so reading the box object
+    was correct and proved nothing -- a separate deployment would have had
+    to ask, and a signed statement is what it would have asked for. The
+    register now carries that statement, so a supervisor can see on whose
+    word it was released and check it under the published key.
+    """
+    from ovpoc.ballotbox import verify_phase
+
+    config = live.http.get(f"{live.config}/election.json").json()
+    if "records" not in live.http.get(f"{live.ebb}/published").json():
+        live.http.post(f"{live.ebb}/close")
+
+    dump = live.http.get(f"{live.url(8006)}/data").json()
+    assert verify_phase(unb64(config["ebb_statement_key"]),
+                        config["election_id"], "closed",
+                        dump["closed_at"], unb64(dump["closing_statement"]))
+
+
+def test_the_published_view_carries_the_acts_that_set_the_phase(live):
+    """The box says what it did; the configuration says what was planned."""
+    view = live.http.get(f"{live.ebb}/published").json()
+    phases = [a["phase"] for a in view["acts"]]
+    assert phases[0] == "opened", "the deployment's opening act is recorded"
+    assert all(a["signature"] for a in view["acts"])

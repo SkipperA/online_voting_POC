@@ -22,7 +22,7 @@ from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
 from ovpoc import keys, rsabssa
-from ovpoc.ballotbox import BoxStillOpen
+from ovpoc.ballotbox import BoxStillOpen, verify_phase
 from ovpoc.messages import AuthRequest, Ballot, b64, canonical_bytes, unb64
 from ovpoc.vro import release_query_payload
 
@@ -769,8 +769,21 @@ def supervisor_app(deployment: Deployment, base) -> FastAPI:
     app = base(origins.SUPERVISOR)
 
     def _dump() -> dict:
-        if "records" not in deployment.ebb.published_view():
+        # The office opens supervision on the box's *signed statement* that
+        # it closed, verified under the key pinned in the published
+        # configuration -- not on the box's memory, which is what reading
+        # `published_view()` from here amounted to. Both run in one process,
+        # so the old check was correct and proved nothing: a separate
+        # deployment would have had to ask, and this is what it would ask
+        # for. The statement is also what a supervisor can be shown, if
+        # they want to know on whose word the register was released.
+        closed = deployment.ebb.closed_at()
+        if closed is None or not verify_phase(
+            deployment.config.ebb_statement_key, deployment.config.election_id,
+            "closed", closed[0], closed[1],
+        ):
             raise HTTPException(409, "supervision opens when the ballot box closes")
+        closed_at, closing_statement = closed
         return {
             "format": SUPERVISION_FORMAT,
             "election_id": deployment.config.election_id,
@@ -778,6 +791,10 @@ def supervisor_app(deployment: Deployment, base) -> FastAPI:
             "genesis_hash": deployment.config.genesis_hash.hex(),
             **deployment.vro.supervision_dump(),
             "supervisor_downloads": deployment.vro.supervisor_downloads,
+            # On whose word this was released. A supervisor can check it
+            # under the same key, and so can anyone they show it to.
+            "closed_at": closed_at,
+            "closing_statement": b64(closing_statement),
         }
 
     @app.get("/certificates")

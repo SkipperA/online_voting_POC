@@ -49,6 +49,7 @@ def election(vro_keypair):
         voters.append(Voter(voter_id, wallet, pub, fingerprint))
 
     box = BallotBox(vro_public_key=pub, num_choices=3)
+    box.open()          # an election is a poll that is running
     return vro, voters, box
 
 

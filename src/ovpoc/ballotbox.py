@@ -100,6 +100,35 @@ def receipt_payload(election_id: str, accepted: bool, reason: str,
     })
 
 
+def phase_payload(election_id: str, phase: str, at: float) -> bytes:
+    """The bytes the box signs when it opens or closes the poll.
+
+    Opening and closing are acts, and until now they left nothing behind.
+    The closing *time* sits in the published configuration as a
+    declaration -- recorded, not enforced -- which says what was planned
+    rather than what happened.
+
+    A signed statement is what lets another component act on the phase
+    without reading the box's memory. The office must know the poll has
+    closed before it releases the supervision register, and it was
+    reaching into the box object to find out: true in one process, and
+    not a boundary at all.
+    """
+    return digest({
+        "statement": "poll-phase",
+        "election_id": election_id,
+        "phase": phase,
+        "at": at,
+    })
+
+
+def verify_phase(statement_public_key: bytes, election_id: str, phase: str,
+                 at: float, signature: bytes) -> bool:
+    """Check a phase statement against the box's *published* statement key."""
+    return keys.verify_signature(
+        statement_public_key, signature, phase_payload(election_id, phase, at))
+
+
 def head_payload(election_id: str, ledger: str, head: bytes) -> bytes:
     """The bytes the box signs over a published head.
 
@@ -164,6 +193,10 @@ class BallotBox:
     accepted: Ledger = field(default_factory=Ledger)
     rejected: Ledger = field(default_factory=Ledger)
     _closed: bool = False
+    #: (phase, instant, signature) per act, in order. The box's own record
+    #: of what it did, which is a different object from the times the
+    #: configuration declares it would.
+    _acts: list[tuple[str, float, bytes]] = field(default_factory=list)
     _snapshots: list[dict] = field(default_factory=list)
 
     # The box's statement key, on the VRO's pattern (§3.3): it signs what the
@@ -212,6 +245,37 @@ class BallotBox:
     def closed(self) -> bool:
         return self._closed
 
+    def _declare(self, phase: str) -> float:
+        """Perform one act and leave a signed statement that it happened.
+
+        Floored to the second, like a publication boundary: the instant a
+        poll opened is a time people are told, not the microsecond an
+        operator's click landed on.
+        """
+        at = float(int(self.now()))
+        self._acts.append(
+            (phase, at, self.statement_key.sign(
+                phase_payload(self.election_id, phase, at))))
+        return at
+
+    def opened_at(self) -> tuple[float, bytes] | None:
+        return next(((at, sig) for p, at, sig in self._acts if p == "opened"), None)
+
+    def closed_at(self) -> tuple[float, bytes] | None:
+        return next(((at, sig) for p, at, sig in self._acts if p == "closed"), None)
+
+    def open(self) -> None:
+        """A9. Open the poll, and say so under the box's own key.
+
+        The cadence counts from here rather than from the moment the
+        process started, which is what it counted from while there was no
+        opening act to count from.
+        """
+        if any(p == "opened" for p, _, _ in self._acts):
+            raise RuntimeError("this box has already been opened")
+        self._anchor = self._declare("opened")
+        self._next_boundary = self._anchor + (self.tally_interval_seconds or 0)
+
     def close(self) -> None:
         """Close the poll: submissions stop, records are released in clear.
 
@@ -228,10 +292,7 @@ class BallotBox:
         means the close is the only point in the series.
         """
         self._catch_up()
-        # Floored like every other boundary: the close is a publication point
-        # and its label should look like one, not carry the microsecond the
-        # operator's click happened to land on.
-        self._publish(float(int(self.now())))
+        self._publish(self._declare("closed"))
         self._closed = True
 
     # ------------------------------------------------------------------
@@ -406,6 +467,14 @@ class BallotBox:
                 for name, head in heads.items()
             },
             "statement_key": b64(self.statement_key.public_bytes),
+            # Beside the plain `phase` above, which says what the box is
+            # now: the acts that got it there, each signed, so a reader --
+            # or another component -- learns the phase from the box's own
+            # statement rather than from a time the configuration declared.
+            "acts": [
+                {"phase": phase, "at": at, "signature": b64(signature)}
+                for phase, at, signature in self._acts
+            ],
             "counts": {
                 "accepted": len(self.accepted),
                 "rejected": len(self.rejected),

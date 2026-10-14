@@ -16,6 +16,7 @@ import pytest
 from conftest import query, register
 from ovpoc import keys, rsabssa
 from ovpoc.ballotbox import (ALREADY_ACCEPTED, BOX_CLOSED, BallotBox, BoxStillOpen,
+                             verify_phase,
                              head_payload, verify_head, verify_receipt)
 from ovpoc.messages import Ballot, b64, unb64
 from ovpoc.vro import (
@@ -1127,3 +1128,49 @@ def test_a_minted_release_has_no_request_behind_it(election):
     assert "request_signature" in found[voters[0].voter_id]
     assert "request_signature" not in found[minted], (
         "a fabricated release has nothing to show")
+
+
+def test_opening_and_closing_leave_signed_statements(election):
+    """An act that leaves nothing behind cannot be acted on by anybody else.
+
+    The configuration declares when the poll was to open and close --
+    recorded, not enforced, which is a statement about the plan. These are
+    statements about what happened, under the box's own key.
+    """
+    vro, voters, box = election
+    opened = box.opened_at()
+    assert opened is not None, "the deployment's opening act"
+
+    at, signature = opened
+    assert verify_phase(box.statement_key.public_bytes, box.election_id,
+                        "opened", at, signature)
+    assert at == float(int(at)), "a time people are told, not a microsecond"
+
+    box.close()
+    closed_at, closing = box.closed_at()
+    assert verify_phase(box.statement_key.public_bytes, box.election_id,
+                        "closed", closed_at, closing)
+
+    # Domain-separated from each other and bound to the election, like
+    # every other statement this box makes.
+    assert not verify_phase(box.statement_key.public_bytes, box.election_id,
+                            "opened", closed_at, closing)
+    assert not verify_phase(box.statement_key.public_bytes, "another-poll",
+                            "closed", closed_at, closing)
+
+
+def test_the_published_view_carries_the_acts(election):
+    """So a reader learns the phase from the box rather than from a plan."""
+    vro, voters, box = election
+    box.close()
+
+    acts = box.published_view()["acts"]
+    assert [a["phase"] for a in acts] == ["opened", "closed"]
+    assert all(a["signature"] for a in acts)
+
+
+def test_a_box_cannot_be_opened_twice(election):
+    """The cadence counts from the opening, so there is one of them."""
+    vro, voters, box = election
+    with pytest.raises(RuntimeError):
+        box.open()
