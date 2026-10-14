@@ -548,6 +548,26 @@ async function doCast(ballot: any, canonical: string) {
 
 /** The receipt, and the reopening of the marking step for a re-vote. */
 function showReceipt(receipt: any) {
+  // A refusal is not a receipt. The box answers every submission, and
+  // `accepted` is the answer; rendering the commitment regardless turned
+  // "the poll is not open" and "voting has closed" into something that
+  // read like a confirmation, which is the one thing a ballot page must
+  // never do.
+  if (!receipt.accepted) {
+    complete(`cast-${ROUND}`);
+    render({
+      id: `refused-${ROUND}`, fig: '10', title: 'The box did not take it',
+      where: 'ballot box',
+      why: `The ballot box answered: ${receipt.reason}. Nothing was `
+         + 'recorded and nothing was counted. Your token is unspent, so '
+         + 'you may submit again when the box will accept it.',
+    });
+    payload(`refused-${ROUND}`, 'the answer, signed by the box', receipt,
+            `refusal-${ROUND}.json`);
+    complete(`refused-${ROUND}`);
+    status(`Not accepted: ${receipt.reason}.`, 'warn');
+    return;
+  }
   complete(`cast-${ROUND}`);
 
   render({

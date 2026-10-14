@@ -158,6 +158,8 @@ def require_service(http: httpx.Client) -> None:
 def main() -> int:
     http = httpx.Client(timeout=30.0)
     require_service(http)
+    # A9. The box starts shut; a driver that runs a poll opens it.
+    http.post(f"{EBB}/open")
 
     rule("SETUP  ·  the configuration is fetched and pinned, not asked for")
     config = http.get(f"{CONFIG}/election.json").json()

@@ -71,6 +71,10 @@ class Deployment:
                 raise RuntimeError(f"service exited: {self.proc.stdout.read()[-2000:]}")
             try:
                 self.http.get(f"{self.config}/health", timeout=1.0)
+                # A9. The deployment no longer opens its own box, so the
+                # harness performs the act a demonstrator would: almost
+                # every test below is about a poll that is running.
+                self.http.post(f"{self.ebb}/open", timeout=2.0)
                 return self
             except httpx.TransportError:
                 time.sleep(0.2)

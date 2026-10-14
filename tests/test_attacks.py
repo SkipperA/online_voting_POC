@@ -648,6 +648,7 @@ def test_a_running_tally_is_published_only_when_configured(election, vro_keypair
     clock = [1000.0]
     running = BallotBox(vro_public_key=pub, num_choices=3,
                         tally_interval_seconds=900, now=lambda: clock[0])
+    running.open()
     for voter in voters:
         if voter.token is None:
             register(vro, voter)
@@ -676,6 +677,7 @@ def test_the_cadence_publishes_a_boundary_that_nothing_happened_in(vro_keypair):
     clock = [1000.0]
     box = BallotBox(vro_public_key=pub, num_choices=3,
                     tally_interval_seconds=900, now=lambda: clock[0])
+    box.open()
 
     clock[0] += 2700
     snapshots = box.published_view()["running_tally"]
@@ -700,6 +702,7 @@ def test_a_boundary_is_labelled_with_itself_not_with_the_ballot_that_filled_it(
     clock = [1000.0]
     box = BallotBox(vro_public_key=pub, num_choices=3,
                     tally_interval_seconds=900, now=lambda: clock[0])
+    box.open()
 
     register(vro, voters[0])
     box.submit(voters[0].cast(1))
@@ -738,6 +741,7 @@ def test_the_tally_endpoint_cannot_read_around_the_cadence(election, vro_keypair
     clock = [1000.0]
     box = BallotBox(vro_public_key=pub, num_choices=3,
                     tally_interval_seconds=900, now=lambda: clock[0])
+    box.open()
 
     register(vro, voters[0])
     box.submit(voters[0].cast(1))
@@ -976,6 +980,7 @@ def test_a_receipt_is_evidence_about_one_election_only(vro_keypair):
     key = keys.SigningKeyPair.generate()
     first = BallotBox(vro_public_key=pub, num_choices=3,
                       statement_key=key, election_id="council-2026")
+    first.open()
     receipt = first.submit(Ballot(selection=1, adhoc_public_key=b"k",
                                   token=b"t", vote_signature=b"s"))
 

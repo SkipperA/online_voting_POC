@@ -42,13 +42,21 @@ async function refresh() {
   const rejected = open ? view.commitments.rejected : view.records.rejected;
   const reports = view.running_tally || [];
 
-  $('state').innerHTML = open
-    ? '<span class="ok">open</span> — records withheld, commitments published'
-    : '<span class="warn">closed</span> — every record released in clear';
+  const acts = (view.acts || []).map((a) =>
+    `${a.phase} at ${new Date(a.at * 1000).toLocaleTimeString()}`).join(', ');
+  $('state').innerHTML = (view.phase === 'not opened'
+    ? '<span class="warn">not opened</span> — submissions are refused; nothing is recorded'
+    : open
+      ? '<span class="ok">open</span> — records withheld, commitments published'
+      : '<span class="warn">closed</span> — every record released in clear')
+    + (acts ? ` <span style="color:var(--dim)">(${acts})</span>` : '');
   $('accepted').textContent = accepted.length;
   $('rejected').textContent = rejected.length;
   $('head').textContent = view.heads.accepted;
-  $('close').disabled = !open;
+  // Three states: a box nobody opened is not a box that has shut.
+  const notYet = view.phase === 'not opened';
+  $('open').disabled = !notYet;
+  $('close').disabled = notYet || !open;
   $('get-ledger').disabled = open;
   $('ledger-note').textContent = open
     ? 'the registry is released in clear at the close'
@@ -70,6 +78,12 @@ async function refresh() {
   }
   $('asof').textContent = `as of ${new Date().toLocaleTimeString()}`;
 }
+
+$('open').onclick = async () => {
+  const response = await fetch('/open', { method: 'POST' });
+  if (!response.ok) { $('close-note').textContent = (await response.json()).detail; return; }
+  refresh();
+};
 
 $('close').onclick = async () => {
   if (!confirm('Close the poll? Submissions stop and every record is '

@@ -242,6 +242,8 @@ $('check-live').onclick = async () => {
   }
 };
 
+$('recheck-state').onclick = () => { refresh(); showPollState(EBB); };
+
 $('get-script').onclick = () => { window.location = '/verify_election.py'; };
 
 $('get-ledger').onclick = () => { window.location = `${EBB}/ledger`; };
@@ -264,7 +266,41 @@ $('get-config').onclick = async () => {
   URL.revokeObjectURL(url);
 };
 
-$('refresh').onclick = () => refresh();
+
+/**
+ * The ballot box's phase, from its own published acts rather than from a
+ * time the configuration declared. Every party's page shows it, because
+ * every party's page means something different depending on it.
+ */
+async function showPollState(ebbOrigin) {
+  const target = document.getElementById('poll-state');
+  if (!target) return;
+  try {
+    const view = await (await fetch(`${ebbOrigin}/published`)).json();
+    const when = (phase) => {
+      const act = (view.acts || []).find((a) => a.phase === phase);
+      return act ? new Date(act.at * 1000).toLocaleString() : null;
+    };
+    const opened = when('opened');
+    const closed = when('closed');
+    if (view.phase === 'not opened') {
+      target.innerHTML = '<b>Ballot box: not opened.</b> Submissions are '
+        + 'refused and nothing is recorded.';
+    } else if (view.phase === 'open') {
+      target.innerHTML = `<b>Ballot box: open</b> since ${opened}. `
+        + 'Ballot contents are withheld until the close.';
+    } else {
+      target.innerHTML = `<b>Ballot box: closed</b> at ${closed} `
+        + `(opened ${opened}). Every record is released in clear.`;
+    }
+  } catch (err) {
+    target.textContent = `Ballot box: could not be read (${err}).`;
+  }
+}
+
+showPollState(EBB);
+
+$('refresh').onclick = () => { refresh(); showPollState(EBB); };
 $('d1-again').onclick = () => CREDENTIALS && ask(CREDENTIALS);
 
 $('query').onchange = async (e) => {

@@ -708,10 +708,29 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
             raise HTTPException(404, "no ballot filed under that key")
         return record
 
+    @app.post("/open")
+    async def open_poll() -> dict:
+        """A9. The other act, and the one that had no interface.
+
+        Creating the deployment used to be the opening, which meant a
+        demonstration could never show the state before it: a box that is
+        not yet open refuses submissions for a different reason than one
+        that has shut, and neither could be shown.
+        """
+        try:
+            box.open()
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc))
+        at, _ = box.opened_at()
+        return {"open": True, "at": at}
+
     @app.post("/close")
     async def close() -> dict:
         """E1. An act of the box, performed by an operator, not a clock."""
-        box.close()
+        try:
+            box.close()
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc))
         return {"closed": True, "head": b64(box.accepted.head())}
 
     @app.get("/tally")

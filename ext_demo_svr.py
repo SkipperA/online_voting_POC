@@ -486,6 +486,8 @@ def main() -> int:
         raise SystemExit(
             f"no service on {CONFIG} — run `python -m service` in another terminal."
         )
+    # A9. The box starts shut; a driver that runs a poll opens it.
+    http.post(f"{EBB}/open")
     token_key = serialization.load_der_public_key(unb64(config["vro_token_key_spki"]))
     ctx = Ctx(http=http, token_key=token_key,
               options={i: i for i in range(1, config["num_choices"] + 1)})

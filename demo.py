@@ -50,6 +50,7 @@ def main():
         vro_public_key=vro.public_key, num_choices=len(OPTIONS),
         tally_interval_seconds=900, now=lambda: clock[0],
     )
+    box.open()
 
     names = ["Anna", "Béla", "Csilla"]
     voters = []

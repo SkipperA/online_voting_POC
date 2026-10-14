@@ -101,10 +101,6 @@ class Deployment:
             closes="2026-09-25T20:00:00Z",
         )
         config.write(document_root)
-        # A9. Until a console control exists for it, creating the
-        # deployment is the opening act -- which is what it was before,
-        # except that the box now says so under its own key.
-        ebb.open()
         return cls(
             vro=vro,
             ebb=ebb,
@@ -190,7 +186,6 @@ class Deployment:
             closes="2026-09-25T20:00:00Z",
         )
         config.write(document_root)
-        ebb.open()
         return cls(
             data_dir=path,
             vro=vro,

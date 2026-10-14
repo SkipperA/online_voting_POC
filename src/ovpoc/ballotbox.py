@@ -70,6 +70,7 @@ BLANK = 0  # the plain, unaffiliated abstention default -- see tally() for
 
 BOX_CLOSED = "voting has closed"
 ALREADY_ACCEPTED = "already accepted"
+NOT_OPEN = "the poll has not opened"
 
 
 class BoxStillOpen(RuntimeError):
@@ -245,6 +246,10 @@ class BallotBox:
     def closed(self) -> bool:
         return self._closed
 
+    @property
+    def opened(self) -> bool:
+        return any(phase == "opened" for phase, _, _ in self._acts)
+
     def _declare(self, phase: str) -> float:
         """Perform one act and leave a signed statement that it happened.
 
@@ -299,6 +304,15 @@ class BallotBox:
     def submit(self, ballot: Ballot) -> SubmissionResult:
         """Steps 10/1 and 10/2."""
         self._catch_up()      # before the append: see _catch_up
+        if not any(p == "opened" for p, _, _ in self._acts):
+            # Distinct from the close, and not a rejected ballot either:
+            # there is no box to put this in yet. Nothing is recorded,
+            # because there is nowhere for a record to go.
+            return SubmissionResult(
+                False, NOT_OPEN, b"", None,
+                self.statement_key.sign(receipt_payload(
+                    self.election_id, False, NOT_OPEN, None, b"")),
+            )
         if self._closed:
             # Not recorded at all: a submission after the close is not a
             # rejected ballot, it is not a ballot.
@@ -443,7 +457,11 @@ class BallotBox:
         self._catch_up()
         heads = {"accepted": self.accepted.head(), "rejected": self.rejected.head()}
         view = {
-            "phase": "closed" if self._closed else "open",
+            # Three states, not two. A box nobody has opened is not a box
+            # that has shut, and a reader told "open" about one would be
+            # told something false.
+            "phase": ("closed" if self._closed
+                      else "open" if self.opened else "not opened"),
             "commitments": {
                 "accepted": [
                     {"index": e.index, "commitment": e.entry_hash.hex()}

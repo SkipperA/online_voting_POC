@@ -71,6 +71,7 @@ def closed_election(tmp_path):
                                    document_root=tmp_path / "published")
     clients = {o: TestClient(app) for o, app in build_all(deployment).items()}
 
+    clients[origins.EBB].post("/open")          # A9: the box starts shut
     for voter_id in ("HU-1", "HU-2", "HU-3"):
         deployment.enrol(voter_id)
 
@@ -294,6 +295,7 @@ def test_the_supervision_register_is_refused_with_its_name(closed_election, tmp_
     deployment = Deployment.create(bits=2048, num_choices=3,
                                    document_root=tmp_path / "published")
     clients = {o: TestClient(app) for o, app in build_all(deployment).items()}
+    clients[origins.EBB].post("/open")
     clients[origins.EBB].post("/close")
     supervision = clients[origins.SUPERVISOR].get("/supervision").text
 

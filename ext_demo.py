@@ -211,6 +211,7 @@ def new_election(keypair, names=NAMES) -> Election:
         vro_public_key=pub, num_choices=len(OPTIONS),
         tally_interval_seconds=900, now=lambda: clock[0],
     )
+    box.open()
     return Election(vro, fingerprint, box, voters, population, clock)
 
 

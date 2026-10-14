@@ -32,6 +32,7 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
   page and reach the same conclusions.
 </div>
 
+<p id="poll-state" style="border:1px solid #8884;border-radius:6px;padding:.5rem .8rem;margin:0 0 1rem;font-size:13.5px">…</p>
 <section>
   <h2>Anyone · the office's release register</h2>
   <div class="row"><span class="label">tokens released</span><span class="value" id="released">…</span></div>
@@ -90,7 +91,11 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
   <p style="margin:.8rem 0 0"><button id="check-files" disabled>Check these files</button>
     <button id="get-ledger">Download the ledger</button>
     <button id="get-releases">Download the register</button>
-    <button id="get-config">Download the configuration</button></p>
+    <button id="get-config">Download the configuration</button>
+    <button id="recheck-state">Re-read the box's state</button></p>
+  <p style="color:#666;font-size:13.5px;margin:.4rem 0 0">The downloads are
+  off until the box closes, and this page does not learn that it has by
+  itself — press this after closing rather than reloading.</p>
   <p style="color:#666;font-size:13.5px;margin:.7rem 0 0">Each file is
   recognised by what is in it, so a file in the wrong place is named rather
   than discovered halfway through. <code>VRO_supervision_….json</code> is a
