@@ -51,6 +51,19 @@ interface Step {
 
 const stepsEl = document.getElementById('steps')!;
 
+// Honoured in the script and not only in the stylesheet. The reduced-motion
+// rule in `tokens.css` reaches CSS animations; it does not reach
+// `Element.animate`, which is the Web Animations API, and an explicit
+// `behavior: 'smooth'` overrides the CSS `scroll-behavior` it would
+// otherwise obey. Both have to be asked here.
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+/** The step's own colour, which is the trust domain's. Read rather than
+ *  written, so the page and the band cannot disagree about what teal is. */
+const accent = (): string =>
+  getComputedStyle(document.documentElement).getPropertyValue('--domain').trim()
+  || 'currentColor';
+
 function render(step: Step): void {
   const el = document.createElement('div');
   el.className = 'step todo';
@@ -58,6 +71,7 @@ function render(step: Step): void {
   el.innerHTML =
     `<div class="head"><span class="fig">${step.fig}</span>` +
     `<span class="title">${step.title}</span>` +
+    `<span class="state">not yet</span>` +
     `<span class="where">${step.where}</span></div>` +
     `<div class="body"><p class="why">${step.why}</p><div class="content"></div></div>`;
   stepsEl.append(el);
@@ -65,11 +79,13 @@ function render(step: Step): void {
   // step the voter does not know exists -- which is how "the button is
   // disabled" happens when the enabled one is simply off-screen.
   if (stepsEl.children.length > 1) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.animate(
-      [{ outline: '2px solid #0d9488' }, { outline: '2px solid transparent' }],
-      { duration: 1600, easing: 'ease-out' },
-    );
+    el.scrollIntoView({ behavior: REDUCED.matches ? 'auto' : 'smooth', block: 'center' });
+    if (!REDUCED.matches) {
+      el.animate(
+        [{ outline: `2px solid ${accent()}` }, { outline: '2px solid transparent' }],
+        { duration: 1600, easing: 'ease-out' },
+      );
+    }
   }
   if (step.action) {
     const button = document.createElement('button');
@@ -84,13 +100,26 @@ function render(step: Step): void {
 }
 
 const body = (id: string) => document.querySelector(`#step-${id} .content`)!;
-const enable = (id: string) =>
-  document.getElementById(`step-${id}`)!.classList.remove('todo');
-const complete = (id: string) => {
+
+/** Three states, each said in words as well as shown in colour.
+ *
+ *  The marked step used to be the finished one -- `done` took a green
+ *  border and the live step took nothing at all, so a page of completed
+ *  work was outlined and the one thing an audience had to look at was the
+ *  only plain box on it. `current` is what carries the marking now.
+ *
+ *  Nothing is dimmed. The payloads in a finished step are the exhibit and
+ *  stay as readable as they were when it was live; what recedes is the
+ *  chrome around them, not the content.
+ */
+const state = (id: string, was: string, now: string, text: string) => {
   const el = document.getElementById(`step-${id}`)!;
-  el.classList.remove('todo');
-  el.classList.add('done');
+  el.classList.remove('todo', was);
+  el.classList.add(now);
+  el.querySelector('.state')!.textContent = text;
 };
+const enable = (id: string) => state(id, 'done', 'current', 'awaiting you');
+const complete = (id: string) => state(id, 'current', 'done', 'done');
 
 function payload(id: string, caption: string, value: unknown, savable?: string) {
   const wrap = document.createElement('div');

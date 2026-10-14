@@ -301,6 +301,15 @@ def test_no_page_declares_a_colour_of_its_own():
         literals = set(re.findall(r"(?:color|background|border[\w-]*)\s*:\s*[^;\"}]*?(#[0-9a-fA-F]{3,8})", page.read_text()))
         assert not literals, f"{page.parent.parent.name}: {sorted(literals)}"
 
+    # The scripts build markup too, and the step highlight in `main.ts` was
+    # a hard-coded teal that outlived the sweep because nothing read the
+    # TypeScript. It reads the band's own colour now; this keeps it that way.
+    scripts = sorted(root.glob("*/static/*.js")) + sorted(root.glob("voter-app/src/*.ts"))
+    for script in scripts:
+        literals = set(re.findall(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3}(?:[0-9a-fA-F]{2})?)?\b",
+                                  script.read_text()))
+        assert not literals, f"{script.name}: {sorted(literals)}"
+
 
 def test_nothing_sets_a_size_of_its_own():
     """The floor is in the tokens, and only in the tokens.

@@ -170,6 +170,18 @@ register is `VRO.register` — a set of ids, and nothing else.
   colour. Red and green are left free to go on meaning danger and verified
   inside the pages; amber is spoken for by the authority family and is
   therefore no longer available to mark a scope limit.
+- **The voter app marks the live step, not the finished ones.** `done` used
+  to take a green border while the step awaiting the voter took nothing, so a
+  page of completed work was outlined and the one box an audience had to look
+  at was the only plain one. `current` carries the marking now, and each of
+  the three states says itself in words — NOT YET / AWAITING YOU / DONE —
+  rather than in colour alone. Nothing is dimmed: the payloads in a finished
+  step are the exhibit and stay as readable as they were when it was live.
+- **Reduced motion is honoured in the script, not only the stylesheet.** The
+  `@media` rule in `tokens.css` reaches CSS animations; it does not reach
+  `Element.animate`, and an explicit `behavior: 'smooth'` overrides the CSS
+  `scroll-behavior` it would otherwise obey. `main.ts` asks
+  `matchMedia` for both.
 - **Four kinds of scope clause, four treatments on screen.**
   `docs/Demo_Scope_Limits.md` is the single list; the pages derive their
   labels from it and `test_every_scope_note_names_a_kind_and_a_real_clause`
