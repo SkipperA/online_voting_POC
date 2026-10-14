@@ -12,10 +12,10 @@ Coercion-Resistant Online Voting System*. Row references (B4, C3, …) are to
 
 ## 1. Origins
 
-Eight origins. **Five trust domains.** The count differs on purpose and the
+Eight origins. **Six trust domains.** The count differs on purpose and the
 difference is stated here so that nobody adds them up wrong.
 
-An origin is scheme + host + port, so eight ports on `127.0.0.1` are seven
+An origin is scheme + host + port, so eight ports on `127.0.0.1` are eight
 distinct origins with fully separate storage, `postMessage` targets, and
 service workers. Named hosts in `/etc/hosts` read better in a demonstration
 but buy nothing technically.
@@ -28,6 +28,7 @@ but buy nothing technically.
 | 8003 | **VRO** | Yes | Token endpoints, release query, back-office console | The voter app's bundle; `k_p^{(R)}` as a pin source |
 | 8004 | **EBB** | Yes | Ballot submission, receipts, published view, lookup by `k_p^a` | Anything keyed by `id` |
 | 8005 | **checker** | Yes | The three independent checks of §3.7, and the full recount of a published election | Any script loaded from 8003 or 8004 |
+| 8006 | **supervisor** | Yes | The office's release register with the identifiers in it, and the citizen's signed request behind each release | Any link from a citizen to a ballot — nothing it holds can supply one |
 | 8009 | **setup console** | No — build-time | Authoring UI; writes `election.json` into 8000's document root, then has no role | Any endpoint the poll depends on at runtime |
 
 **The config origin is inert. The setup console is build-time.** The poll must
@@ -296,6 +297,7 @@ and the presenter say the same thing.
 | VRO | S2 (fixture certificate lookup), S3 (fixture register), A1 (single issuing office), O1 (one operator for several bodies) |
 | EBB | A4 (times recorded, not enforced), O2 (no complaint process) |
 | checker | A2, O2 |
+| supervisor | S3 (fixture register), O1 (one operator for several bodies) |
 | setup console | S4 (no authoring body, no signature), O1 |
 | config origin | Nothing — it is a file |
 

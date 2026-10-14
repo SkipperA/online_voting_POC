@@ -66,7 +66,7 @@ python demo.py             # narrated end-to-end run, in one process
 
 ### Running it as a service
 
-Stage 1 puts the protocol behind HTTP: one process, seven ports, seven
+Stage 1 puts the protocol behind HTTP: one process, eight ports, eight
 separate browser origins. The separation is the point — a browser origin is
 scheme, host *and* port, so paths under one origin would share a JavaScript
 context and the isolation would be a diagram rather than a fact.
@@ -96,6 +96,7 @@ at every restart would be nothing anyone could have pinned.
 | 8003 | VRO | token endpoints, release query |
 | 8004 | EBB | submission, receipts, published view |
 | 8005 | checker | the independent checks of §3.7 |
+| 8006 | supervisor | the release register, with the identifiers in it |
 | 8009 | setup | build-time authoring; the poll runs with this stopped |
 
 **Use `127.0.0.1`, not `localhost`.** The service binds IPv4 only, and on
