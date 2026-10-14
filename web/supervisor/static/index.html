@@ -2,19 +2,23 @@
 <html lang="en"><head><meta charset="utf-8"><title>Supervision — release register</title>
 <style>
  :root{--measure:56rem;--label-col:16rem}
- .note{--note-bg:var(--secret-bg);--note-rule:var(--danger);--warn:var(--danger)}
 </style></head>
 <body data-config-origin="">
 <h1>Supervision — release register</h1>
 <p class="sub">The office's own record of who was issued a token, with the
 identifiers in it.</p>
 
-<p class="note"><b>This page names citizens</b>
+<p class="note note--exposed"><span class="kind">Exposed here · <code>X3</code></span><b>This page names citizens</b>
 Everything below is participation data. It says who asked for a ballot and
 who was refused one — never how anyone voted, which nothing the office holds
-can reveal. There is no login: whoever can reach this origin is a supervisor,
-so the control is the perimeter it is served behind, and anything taken off
-this page carries no protection with it.</p>
+can reveal.</p>
+
+<p class="note note--substituted"><span class="kind">Substituted · <code>S5</code></span><b>There is no login on this origin</b>
+Whoever can reach it is a supervisor, so the control is the perimeter it is
+served behind, and anything taken off this page carries no protection with
+it. A deployment appoints a supervisor and records who read the register
+when; the read counter below is published, but it establishes how often,
+never by whom.</p>
 
 <p style="margin:-.4rem 0 1.3rem"><button id="refresh">Re-read</button>
 <button id="download">Download the file</button>

@@ -656,12 +656,20 @@ class VRO:
             of Section 5.4. Still not preventable and still invisible to the
             public, but demonstrable afterwards to somebody.
 
-        What it does not catch is a single well-formed release recorded for
-        an eligible citizen who abstained and never checked. Only the
-        voter's signed request would separate that from a genuine one, and
-        the office does not keep it: retaining what authenticates a request
-        turns a transient credential into a durable record of who asked.
-        That residual is distributed issuance's to carry.
+          * a release with no signed request behind it. The register
+            retains the citizen's own signature over `hash([id, c])`, which
+            is the one object in the exchange the office cannot
+            manufacture, so a release nobody asked for can be exhibited as
+            such -- for every citizen at once, and whether or not any of
+            them performs the check of Section 3.7.
+
+        What it does not catch is a release a citizen genuinely asked for
+        and then handed on. The request is real, the signature is real, the
+        commitment is real, and nothing that inspects records will find a
+        transaction the records faithfully describe. That residual is a
+        vote sale rather than a dishonest office, it does not require the
+        office at all, and no scheme certifying eligibility before the
+        ballot exists is free of it.
 
         The electoral register is not in here. A supervisor comparing these
         identifiers against a roll this office supplied would be comparing

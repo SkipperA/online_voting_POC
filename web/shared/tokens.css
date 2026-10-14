@@ -321,24 +321,59 @@ input[type=text], input[type=number] { width: 20rem; max-width: 100%; }
 
 #status { margin-top: 1.2rem; font-weight: 650; }
 
-/* A scope limit: what this build substitutes, omits, or does not claim.
- * One treatment for three kinds that `Demo_Scope_Limits.md` keeps apart,
- * which is a later step. */
+/* A scope clause, shown where it bites. `Demo_Scope_Limits.md` keeps four
+ * kinds apart because the honest answer to "so it doesn't do X?" differs in
+ * each; one amber box for all four made them one kind on screen, and an
+ * aside that appears on every page saying four different sorts of thing
+ * stops being read at all.
+ *
+ * The kind is carried by its name and by the border, not by hue: amber now
+ * belongs to the authority family, and a reader who cannot separate two
+ * colours must still be able to separate two claims. Solid for a stand-in
+ * that is there, dashed for something missing, dotted for something never
+ * claimed.
+ *
+ * Exposed is the exception and keeps the danger colour, because it is the
+ * one an audience misreads as a flaw when it is a deliberate disclosure,
+ * and the one that must not become chrome. Nothing else on these pages is
+ * red-framed except a secret itself. */
 .note {
-  background: var(--note-bg);
-  border-left: 3px solid var(--note-rule);
+  background: var(--sunk);
+  border-left: 3px solid var(--rule-strong);
   padding: .8rem 1rem;
   margin: 0 0 1.3rem;
   font-size: var(--t-sm);
+  max-width: calc(var(--measure-prose) + 2rem);
 }
 .note b {
   display: block;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  font-size: var(--t-xs);
-  color: var(--warn);
+  font-size: var(--t-base);
+  font-weight: 650;
+  color: var(--ink);
   margin-bottom: .35rem;
 }
+.note .kind {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+  margin-bottom: .2rem;
+}
+.note .kind code {
+  font-size: inherit;
+  letter-spacing: .04em;
+}
+
+.note--substituted { border-left-style: solid; }
+.note--absent      { border-left-style: dashed; }
+.note--scope       { border-left-style: dotted; }
+
+.note--exposed {
+  background: var(--secret-bg);
+  border-left: 3px solid var(--danger);
+}
+.note--exposed .kind { color: var(--danger); }
 
 /* A value a deployment would never put on a screen. */
 .secret {

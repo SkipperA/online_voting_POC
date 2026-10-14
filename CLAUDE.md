@@ -32,10 +32,11 @@ It is not, and must never be presented as, election-ready software.
 ## Architecture
 
 Protocol logic is **pure** and lives in `src/ovpoc/`. It has no HTTP, no
-database, and no framework dependency. HTTP wrappers (FastAPI) will live in a
-separate `src/ovpoc_api/` layer and must contain no protocol decisions. Any
-rule about what makes a ballot valid belongs in `ballotbox.py`, never in a
-route handler.
+database, and no framework dependency. The HTTP layer is `service/` — FastAPI,
+one app per origin — and it must contain no protocol decisions. Any rule about
+what makes a ballot valid belongs in `ballotbox.py`, never in a route handler.
+The test of that claim is that `tools/sabotage.py` still detects every mutation
+with the service layer in place.
 
 | Module | Role | Diagram steps |
 |---|---|---|
@@ -43,6 +44,7 @@ route handler.
 | `keys.py` | Wallet and ad-hoc Ed25519 keys | 1/A, 3 |
 | `messages.py` | Wire objects, canonical serialisation | 4, 9 |
 | `ledger.py` | Hash-chained append-only log | 7, 11/A, 11/B |
+| `handles.py` | The verification handle — where the coercion trade-off is set | 13 |
 | `vro.py` | Eligibility, token issue, release log | 5, 6, 7, 12 |
 | `ballotbox.py` | Acceptance, storage, publication, tally | 10, 11 |
 | `voter.py` | The voter's whole flow in one file | 1–4, 8, 9, 13 |
@@ -168,6 +170,16 @@ register is `VRO.register` — a set of ids, and nothing else.
   colour. Red and green are left free to go on meaning danger and verified
   inside the pages; amber is spoken for by the authority family and is
   therefore no longer available to mark a scope limit.
+- **Four kinds of scope clause, four treatments on screen.**
+  `docs/Demo_Scope_Limits.md` is the single list; the pages derive their
+  labels from it and `test_every_scope_note_names_a_kind_and_a_real_clause`
+  is what stops the two drifting. Substituted, Absent and Out of scope share
+  a neutral frame and differ by name and by border style — solid, dashed,
+  dotted — because amber now belongs to the authority family and a reader who
+  cannot separate two colours must still separate two claims. Exposed keeps
+  the danger colour: it is the kind an audience misreads as a flaw when it is
+  a deliberate disclosure. One aside states one kind; an aside citing clauses
+  from two sections is the conflation the document exists to prevent.
 - **Three measures, not one.** `--measure` is the page and differs per
   surface because the widest table does. `--measure-prose` holds the running
   text to about sixty-eight characters: the explanatory prose is the
@@ -278,8 +290,11 @@ GitHub should be compiled, not reformatted.
 
 ```
 pip install -e ".[dev]"
-python -m pytest -q          # full suite (46 tests)
+python -m pytest -q          # full suite
 python demo.py               # narrated end-to-end run
 python ext_demo.py           # narrated end-to-end run with all tests
 python tools/sabotage.py     # regenerate docs/sabotage.md
+python demo_svr.py           # happy path against a live service
+python ext_demo_svr.py       # adversarial scenarios against a live service
+cd web/voter-app && npm install && npm run build   # the voter app's bundle.js
 ```

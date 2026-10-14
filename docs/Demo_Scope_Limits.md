@@ -4,15 +4,25 @@ The single list from which two things are derived: the labels shown in the
 stage 1 UI, and the scope clauses spoken during a demonstration. They are
 written once here so that the screen and the presenter cannot drift apart.
 
-Three kinds of clause, deliberately kept separate. Conflating them is what
+Four kinds of clause, deliberately kept separate. Conflating them is what
 makes an audience stop trusting a demonstration, because the honest answer to
 "so it doesn't do X?" is different in each case.
 
-| Kind | What it means | The honest answer |
-|---|---|---|
-| **Substituted** | Deployment has the real thing; the demo stands a stub in its place | "It does, and this is a stand-in for it." |
-| **Absent** | The design specifies it; this build omits it | "The design does, this build doesn't, and here is what it would take." |
-| **Out of scope** | The proposal does not claim it | "The proposal doesn't settle that, deliberately." |
+| Kind | Prefix | What it means | The honest answer |
+|---|---|---|---|
+| **Substituted** | `S` | Deployment has the real thing; the demo stands a stub in its place | "It does, and this is a stand-in for it." |
+| **Absent** | `A` | The design specifies it; this build omits it | "The design does, this build doesn't, and here is what it would take." |
+| **Out of scope** | `O` | The proposal does not claim it | "The proposal doesn't settle that, deliberately." |
+| **Exposed** | `X` | The demo shows what a deployment keeps hidden, so that it can be seen rather than taken on trust | "Yes, on purpose. A deployment never shows it, and here is where it would live instead." |
+
+The fourth kind is not a limitation of fidelity and is the one an audience is
+most likely to misread, which is why it is named rather than left to the
+surrounding prose. Its prefix is `X` and not `E`: the action table's phase E
+is the close of the poll, and `E1` is already that row.
+
+The screen shows the kind and the clause together. A clause that reaches no
+surface is either a clause nobody needs or a label somebody forgot, and
+`test_every_scope_note_names_a_kind_and_a_real_clause` is what decides which.
 
 Section references are to *Proposal for a Secure, Private, and
 Coercion-Resistant Online Voting System*. Phase references are to
@@ -75,6 +85,32 @@ which body.*
 
 ---
 
+### S5 — Supervisor authentication
+
+Covers action-table rows E11 and E12.
+
+Supervision of the release register is the measure that catches a lone
+dishonest office for every citizen at once, whether or not any of them
+performs the check of §3.7 — and the price of it is that the supervisor reads
+a list of who asked for a ballot. That price is only worth paying to an
+appointed person, which means a deployment authenticates the supervisor and
+records who read the register when.
+
+This build does neither. There is no login on 8006: whoever can reach the
+origin is a supervisor, and the control is the perimeter it is served behind.
+The read counter is published, so the office cannot hand the register out
+quietly, but nothing establishes *who* read it.
+
+The substitution is the perimeter standing in for an appointment. It is the
+same shape as S1 and S2 — a real control replaced by one that demonstrates the
+boundary without enforcing it — and it is stated here because the surface
+asserts it on the page while the single list did not carry it.
+
+**Label:** *No login: whoever can reach this origin is a supervisor. A
+deployment appoints one and records who read the register.*
+
+---
+
 ## Absent
 
 ### A1 — Distributed token issuance
@@ -124,8 +160,10 @@ same code arrives as a signed binary independent of every election server.*
 ### A4 — Scheduled opening and closing
 
 The configuration carries opening and closing times (Table 1, footnote a) that
-the implementation does not consume: `close()` is called by an operator, not
-scheduled. `election.json` will therefore contain two fields nothing reads.
+the implementation does not consume: `open()` and `close()` are both called by
+an operator, not scheduled — the box starts shut and refuses every submission
+until somebody opens it. `election.json` therefore contains two fields nothing
+reads.
 
 This touches gap #3 of the action table — the close is treated as a moment,
 and the article does not say whether acceptance turns on arrival at the box or
@@ -133,7 +171,7 @@ on a published cut, nor who attests that the box stopped. Leave the fields in
 the file and label them; removing them would hide the gap.
 
 **Label:** *Opening and closing times are recorded but not enforced. The poll
-is closed by an operator action.*
+is opened and closed by operator actions.*
 
 ---
 
@@ -200,28 +238,6 @@ keeps the election.*
 
 ---
 
-### A8 — Published wallet seeds
-
-`election-data/election.store.json` is committed with every wallet private
-seed in the clear, and `vro_token_key.pem` beside it. This is deliberate: one
-machine plays a whole electorate, and a reader should be able to open the file
-and see exactly what the demo holds on each voter's behalf rather than take
-the substitution on trust. `tests/vectors/keys.json` already publishes a
-private key on the same reasoning.
-
-A deployment keeps `k_s^(v)` in hardware it never leaves — under eIDAS that is
-a regulatory requirement, not a preference — and keeps `k_s^(R)` nowhere a
-file can reach. Both files say so about themselves, so neither can be
-mistaken for a deployment artefact by anyone who opens it.
-
-The register ships populated with four invented names so that a clone can be
-voted in at once. Two carry non-ASCII characters, which exercises the
-canonical-JSON agreement the whole wire contract rests on.
-
-**Label:** *Every voter's wallet key is published in this repository. The
-voters are fictional; a deployment's keys never leave hardware.*
-
----
 
 ## Out of scope
 
@@ -262,6 +278,96 @@ the result with a standard library.
 
 **Label:** *This build implements the provable variant. The coercion-resistant
 variant is a different system, not a setting.*
+
+---
+
+## Exposed
+
+### X1 — The voter's own secrets on screen
+
+Covers action-table rows B2, B3 and B17.
+
+The voting application displays `k_s^a`, the blinding factor `r` and the
+unblinding inverse `r^-1`. Every one of them is a value whose whole security
+argument is that nobody but the voter's device ever holds it: `r` in
+particular is what makes the two verifications of §5.5 impossible to join, so
+a reader who sees it could link the citizen to the ballot.
+
+They are on screen because the blinding is the part of the design an audience
+is least willing to take on trust, and the only way to show that unblinding
+yields an ordinary signature is to show the factor it was removed with. A
+deployment generates these inside the device and never renders them.
+
+**Label:** *Keys in red never leave the device in a deployment. They are
+shown here so the blinding can be followed.*
+
+---
+
+### X2 — The office's participation log
+
+Covers action-table rows B15 and D1.
+
+The back office shows which identifiers asked for a token and when. That is a
+participation list — the object §3.7 spends a page keeping out of everyone's
+hands, because its *absence* of an entry is conclusive evidence that a citizen
+did not take part, which is exactly what an enforcer of a boycott needs.
+
+It is shown because the whole argument for publishing commitments rather than
+identifiers is only legible beside what the office actually holds. No
+deployment exposes this surface to anyone but the office itself, and the
+published register carries commitments and a count instead.
+
+**Label:** *This is what the office holds, not what it publishes. The
+published register carries commitments and a count, and nothing else.*
+
+---
+
+### X3 — The release register with identifiers
+
+Covers action-table rows E11 and E12.
+
+Supervision names citizens. That is the cost of the measure rather than a
+defect in it, and §4 of the companion note argues it is parity with the
+scrutineers who already watch a marked register on paper. The surface exists
+so that the cost can be looked at rather than described.
+
+It says nothing about how anyone voted, and nothing the office holds could.
+What it says is who asked for a ballot, which is close to but not the same as
+who voted: absence is conclusive, presence is not, and that asymmetry runs the
+wrong way for privacy.
+
+See S5 for the control that is missing on this origin, and O1 for why one
+operator holds both this and the office it supervises.
+
+**Label:** *Everything here is participation data. Who asked for a ballot —
+never how anyone voted, which nothing the office holds can reveal.*
+
+---
+
+### X4 — Published wallet seeds
+
+Formerly A8, moved here when the fourth kind was named: it was always an
+exposure rather than an absence, and nothing referenced it under the old
+identifier.
+
+`election-data/election.store.json` is committed with every wallet private
+seed in the clear, and `vro_token_key.pem` beside it. This is deliberate: one
+machine plays a whole electorate, and a reader should be able to open the file
+and see exactly what the demo holds on each voter's behalf rather than take
+the substitution on trust. `tests/vectors/keys.json` already publishes a
+private key on the same reasoning.
+
+A deployment keeps `k_s^(v)` in hardware it never leaves — under eIDAS that is
+a regulatory requirement, not a preference — and keeps `k_s^(R)` nowhere a
+file can reach. Both files say so about themselves, so neither can be
+mistaken for a deployment artefact by anyone who opens it.
+
+The register ships populated with four invented names so that a clone can be
+voted in at once. Two carry non-ASCII characters, which exercises the
+canonical-JSON agreement the whole wire contract rests on.
+
+**Label:** *Every voter's wallet key is published in this repository. The
+voters are fictional; a deployment's keys never leave hardware.*
 
 ---
 

@@ -112,7 +112,9 @@ cd web/voter-app && npm install && npm run build
 
 Then `http://127.0.0.1:8000` — the index: every origin, the election's
 fingerprint and digest, the order a run goes in, and what is published when.
-From there, `8009` to enrol voters and `8001` to vote. The demos also run against a live service:
+From there, `8009` to enrol voters, `8004` to open the poll — the box starts
+shut and refuses every submission until an operator opens it — and `8001` to
+vote. The demos also run against a live service:
 
 ```bash
 python demo_svr.py        # the happy path, across five origins
@@ -149,7 +151,10 @@ src/ovpoc/
   voter.py      the voter's whole flow — read this first
 driver/         infrastructure the design *depends on*, not part of it
 service/        the HTTP layer: one app per origin, deciding nothing
-web/            browser pages — voter app, wallet consent, setup console
+web/            one directory per origin, each its own browser page:
+                index, voter app, wallet consent, VRO back office, ballot box
+                operator, checker, supervision, setup console
+  shared/       the design tokens, injected into each page by its own origin
 interop/        a TypeScript consumer of the golden vectors
 tests/          including the adversarial suite and tests/vectors/
 election-data/  a demonstration election: fictional voters, key material

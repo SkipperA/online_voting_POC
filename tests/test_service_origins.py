@@ -326,6 +326,54 @@ def test_nothing_sets_a_size_of_its_own():
         assert not literals, f"{source.name}: {sorted(set(literals))}"
 
 
+def test_every_scope_note_names_a_kind_and_a_real_clause():
+    """`Demo_Scope_Limits.md` is the single list the screen derives from.
+
+    Its opening sentence says the labels shown in the UI and the clauses
+    spoken during a demonstration are written once so that the screen and
+    the presenter cannot drift apart. Nothing enforced that: the pages
+    carried one amber box saying four different sorts of thing, and A8 --
+    every wallet key in the repository, published on purpose -- reached no
+    surface at all.
+
+    So: every aside declares one of the four kinds, every clause it cites
+    exists in the list, and the kind it declares is the section that clause
+    actually sits under. A clause moved between sections and not relabelled
+    on screen is exactly the conflation the document exists to prevent.
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[1]
+    doc = (root / "docs" / "Demo_Scope_Limits.md").read_text()
+
+    section_of = {"Substituted": "substituted", "Absent": "absent",
+                  "Out of scope": "scope", "Exposed": "exposed"}
+    kind_of_clause, section = {}, None
+    for line in doc.splitlines():
+        head = re.match(r"## (.+)$", line)
+        if head and head.group(1) in section_of:
+            section = section_of[head.group(1)]
+        clause = re.match(r"### ([SAOX]\d+) — ", line)
+        if clause and section:
+            kind_of_clause[clause.group(1)] = section
+    assert len(kind_of_clause) > 10, "the clause list did not parse"
+
+    for page in sorted((root / "web").glob("*/static/index.html")):
+        name = page.parent.parent.name
+        html = page.read_text()
+        for note in re.finditer(r'class="note note--(\w+)"(.*?)(?:</div>|</p>)', html, re.S):
+            kind, body = note.group(1), note.group(2)
+            assert kind in section_of.values(), f"{name}: unknown kind {kind!r}"
+            cited = re.findall(r"<code>([SAOX]\d+)</code>", body)
+            assert cited, f"{name}: a {kind} note citing no clause"
+            for clause in cited:
+                assert clause in kind_of_clause, (
+                    f"{name} cites {clause}, which is not in Demo_Scope_Limits.md")
+                assert kind_of_clause[clause] == kind, (
+                    f"{name} shows {clause} as {kind!r}, but the list files it "
+                    f"under {kind_of_clause[clause]!r}")
+
+
 def test_the_index_does_not_disclose_an_identifier(clients, deployment):
     """It is served by an origin that holds no identifiers, and must stay so."""
     for voter_id in TEST_VOTER_IDS:

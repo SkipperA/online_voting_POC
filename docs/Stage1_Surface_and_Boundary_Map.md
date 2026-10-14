@@ -292,14 +292,14 @@ and the presenter say the same thing.
 
 | Surface | Clauses |
 |---|---|
-| voter app | A2 (no anonymising channel), A3 (browser-delivered code), O3 (provable variant only) |
+| voter app | A2 (no anonymising channel), A3 (browser-delivered code), O3 (provable variant only), X1 (the voter's own secrets on screen) |
 | wallet | S1 (software stub, hardware in deployment) |
-| VRO | S2 (fixture certificate lookup), S3 (fixture register), A1 (single issuing office), O1 (one operator for several bodies) |
+| VRO | S2 (fixture certificate lookup), S3 (fixture register), A1 (single issuing office), O1 (one operator for several bodies), X2 (the participation log on screen) |
 | EBB | A4 (times recorded, not enforced), O2 (no complaint process) |
-| checker | A2, O2 |
-| supervisor | S3 (fixture register), O1 (one operator for several bodies) |
+| checker | A2, O2, O1 (one operator runs the checker and the parties it audits) |
+| supervisor | S3 (fixture register), S5 (no supervisor authentication), O1 (one operator for several bodies), X3 (the register with identifiers) |
 | setup console | S4 (no authoring body, no signature), O1 |
-| config origin | Nothing — it is a file |
+| config origin | X4 (every wallet key published in this repository), shown on the index it serves |
 
 ---
 
@@ -318,7 +318,7 @@ must be tested across the two implementations:
   worth more than it looks: `emsa_pss_encode` in `rsabssa.py` is hand-written
   from RFC 8017 §9.1.1 and the existing suite can only check it against
   itself. An independently written, RFC-test-vector-validated implementation
-  on the other side of the wire is a check the 47 tests structurally cannot
+  on the other side of the wire is a check the suite structurally cannot
   perform.
 - **Fingerprint agreement.** `public_key_fingerprint` is SHA-256 over the DER
   SubjectPublicKeyInfo; the TS client must compute the same string from the

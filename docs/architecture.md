@@ -42,7 +42,7 @@ classDiagram
         +cast(selection: int) Ballot
         +handle() VerificationHandle
         +verify_recorded_ballot(box, expected) bool
-        +record_head(head: bytes)
+        +record_receipt(entry_hash: bytes)
     }
 
     class SigningKeyPair {
@@ -221,6 +221,7 @@ classDiagram
         +public_key_fingerprint(public_key) str
         +blind(public_key, msg) tuple
         +blind_sign(private_key, blinded_msg) bytes
+        +check_blind_signature(public_key, blinded_msg, blind_sig)
         +finalize(public_key, msg, blind_sig, state) bytes
         +verify(public_key, msg, signature) bool
     }

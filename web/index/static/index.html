@@ -4,6 +4,13 @@
 <style>
  :root{--measure:56rem}
  .dom,.nodom,.who{font-size:var(--t-xs);letter-spacing:.05em;text-transform:uppercase}
+ .kind-key{display:inline-block;padding:.1rem 0 .1rem .5rem;white-space:nowrap;
+           border-left:3px solid var(--rule-strong);font-size:var(--t-xs);
+           letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint)}
+ .kind-key--substituted{border-left-style:solid}
+ .kind-key--absent{border-left-style:dashed}
+ .kind-key--scope{border-left-style:dotted}
+ .kind-key--exposed{border-left-color:var(--danger);color:var(--danger)}
  .who{color:var(--ink-faint)}
  .dom{color:var(--ok)} .nodom{color:var(--ink-faint)}
  ol{padding-left:1.3rem} li{margin:.35rem 0}
@@ -14,13 +21,35 @@
 Private, and Coercion-Resistant Online Voting System</em>. Eight origins, one
 process — for now.</p>
 
-<div class="note">
+<div class="note note--exposed">
+  <span class="kind">Exposed here · <code>X4</code></span>
   <b>This is a demonstration, not an election</b>
   The voters are fictional and every key in this repository is published on
   purpose. Several parts of the design are substituted or absent here, and
   each is labelled where it occurs rather than only in a document. Read
   <code>docs/Demo_Scope_Limits.md</code> before drawing conclusions from a run.
 </div>
+
+<h2>What the labels mean</h2>
+<p class="prose" style="margin-top:-.3rem">Every surface carries its own scope
+clauses, in one of four kinds. The kinds are kept apart because the honest
+answer to “so it doesn't do that?” is different in each, and an audience that
+hears one answer for all four stops believing any of them.</p>
+<table><thead><tr><th>Kind</th><th>What it means</th><th>The honest answer</th></tr></thead>
+<tbody>
+<tr><td><span class="kind-key kind-key--substituted">Substituted</span></td>
+    <td>Deployment has the real thing; this stands a stub in its place</td>
+    <td>It does, and this is a stand-in for it.</td></tr>
+<tr><td><span class="kind-key kind-key--absent">Absent</span></td>
+    <td>The design specifies it; this build omits it</td>
+    <td>The design does, this build doesn't, and here is what it would take.</td></tr>
+<tr><td><span class="kind-key kind-key--scope">Out of scope</span></td>
+    <td>The proposal does not claim it</td>
+    <td>The proposal doesn't settle that, deliberately.</td></tr>
+<tr><td><span class="kind-key kind-key--exposed">Exposed here</span></td>
+    <td>The demo shows what a deployment keeps hidden</td>
+    <td>Yes, on purpose — so it can be seen rather than taken on trust.</td></tr>
+</tbody></table>
 
 <h2>This election</h2>
 <p style="margin:0 0 .4rem" class="prose">Hash of the VRO's token signing

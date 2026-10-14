@@ -625,7 +625,9 @@ def test_the_box_serves_an_operator_console_and_close_stays_same_origin(live):
     page = live.http.get(f"{live.ebb}/").text
     assert 'src="box.js"' in page
     assert "act of the box performed by an operator" in page
-    assert "Clause A7" in page, "the in-memory registry must be stated here"
+    assert 'note--absent' in page and "<code>A7</code>" in page, (
+        "the in-memory registry must be stated here, and stated as an "
+        "absence rather than as a substitution or a disclosure")
     assert live.http.get(f"{live.ebb}/box.js").status_code == 200
 
     closed = live.http.request(

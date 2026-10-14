@@ -475,7 +475,7 @@ only on 2.2 above, which is now decided in outline.
   exactly the access §3.7 withholds. `/token-replies/…`, `/ballots` and
   `/published` open to `*`, because there is nothing in them to withhold from
   anyone. `/close` opens to nobody.
-- **The config origin serves an index of the whole deployment.** Seven
+- **The config origin serves an index of the whole deployment.** Eight
   origins with their trust-domain status, the election's fingerprint and
   digest, the order a run goes in, and what is published when. The origin
   table is injected from `service/origins.py`, so a port that moves in code

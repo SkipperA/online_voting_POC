@@ -1,7 +1,7 @@
 # Protocol mapping
 
 Each numbered step below corresponds to a label in the system diagram
-(*Anonymous Authenticated Ballot System*, 26 July 2026), to the formal
+(*Anonymous Authenticated Ballot System*, October 2026), to the formal
 description in Section 5 of the technical paper, and to
 [`blind-signature.md`](blind-signature.md) where that document specifies the
 step in full.
@@ -28,7 +28,7 @@ padded encoding, as in the paper's §4.1 — `sig(m) = S(enc(m))`.
 | 7 | register the token release | `VRO.release_log`, `vro.commit` | §4 (2) |
 | 8 | `s_{k_p^a} = s_c · r^{-1} mod n_R` | `rsabssa.finalize` | §4 (4) |
 | 8 | check the token before casting | `rsabssa.verify` | §4 (4) |
-| 9 | `[i, k_p^a, s_{k_p^a}, s_vote]` | `Voter.cast`, `messages.Ballot` | §4 (5) |
+| 9 | `[i, k_p^a, s_{k_p^a}, n, s_vote]` | `Voter.cast`, `messages.Ballot` | §4 (5) |
 | 10/1, 10/2 | validate ballot | `BallotBox.submit` | §4 (5) |
 | 11/A, 11/B | accepted / rejected registries | `BallotBox.accepted`, `BallotBox.rejected` | §4 (5) |
 | — | what is published, and when | `BallotBox.published_view`, `BallotBox.close` | — |

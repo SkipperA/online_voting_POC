@@ -93,6 +93,8 @@ give a reason (§3.2).
 | E8 | Compute and publish the tally: a deterministic function of the released records, preserving the distribution over distinct out-of-range values | EBB | EBB → public (Table 1, tally row) | tally : EBB → anyone |
 | E9 | Post-close verification of one's own ballot; under the provable variant, prove authorship by demonstrating control of `k_s^a` | voter | any device | voter → any third party |
 | E10 | Declare the official result | administering body | outside the three components | official body → anyone |
+| E11 | Read the release register: the identifiers, their commitments and openings, and the citizen's signed request behind each release | supervisor | VRO supervision surface, from the close (§6, companion note) | register : VRO → supervisor |
+| E12 | Publish the number of times the register has been read, so the office cannot hand it out quietly | VRO | VRO → public | read count : VRO → anyone |
 
 **E7, E8 and E10 are three different acts.** E7 and E8 apply the same rule to
 the same records and differ only in who runs it; that is the point, and the
