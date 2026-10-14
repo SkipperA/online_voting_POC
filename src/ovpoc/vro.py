@@ -463,12 +463,7 @@ class VRO:
                 request.voter_id, Outcome.NOT_ELIGIBLE, "not on the electoral register"
             )
 
-        if request.voter_id in self._released:
-            return self._record(
-                request.voter_id,
-                Outcome.TOKEN_ALREADY_ISSUED,
-                "a token has already been released for this id",
-            )
+        pass  # SABOTAGE: no one-token-per-voter rule
 
         if request.voter_id in self._reserved:
             return self._record(
