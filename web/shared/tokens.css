@@ -98,6 +98,75 @@
   }
 }
 
+/* -- the origin band ---------------------------------------------------
+ * The one element every surface carries in the same place, served by
+ * `service/apps.py:_band` rather than written into the pages. Eight pages
+ * that look alike make the separation between trust domains a claim in a
+ * document; this is what makes it something a reader can see.
+ *
+ * Sticky, because the payload blocks are long and the question "which
+ * origin am I looking at" is asked halfway down a page as often as at the
+ * top of one. Spanning the content column rather than the viewport: the
+ * `100vw` that would reach the edges counts the scrollbar and overflows
+ * sideways on the machines most likely to be driving a projector.
+ *
+ * No opacity anywhere in here. The band colours are chosen so that their
+ * ink clears 5.4:1, and that margin is not there to be spent on a
+ * secondary-text effect.
+ */
+
+.origin {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .3rem 1.1rem;
+  margin: -2rem -1.25rem 1.6rem;
+  padding: .65rem 1.25rem;
+  background: var(--domain);
+  color: var(--domain-ink);
+  line-height: 1.4;
+}
+.origin b { font-size: var(--t-base); font-weight: 650; }
+.origin span {
+  font-size: var(--t-xs);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.origin .origin-at {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* The two origins that are not trust domains. "Not a domain" reads as the
+ * absence of colour rather than as a seventh colour, so the band keeps its
+ * shape and loses its fill. */
+.origin--plain {
+  background: transparent;
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule-strong);
+}
+.origin--plain .origin-family,
+.origin--plain .origin-standing { color: var(--ink-faint); }
+
+/* The legend on the config origin: one swatch per trust domain, in that
+ * domain's own hue, so the three families are visible together once. */
+.swatch {
+  display: inline-block;
+  width: .75rem;
+  height: .75rem;
+  border-radius: 2px;
+  margin-right: .45rem;
+  vertical-align: -1px;
+  background: var(--row-hue, transparent);
+  border: 1px solid var(--rule-strong);
+}
+
 /* -- base ------------------------------------------------------------- */
 
 *, *::before, *::after { box-sizing: border-box; }

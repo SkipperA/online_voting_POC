@@ -14,6 +14,7 @@ middleware and the assembly.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from fastapi import FastAPI, Response
@@ -64,22 +65,64 @@ def _page(path: Path, origin: origins.Origin, **substitutions: str) -> str:
         assert attribute in html, f"{path.name} has no {attribute} to fill"
         html = html.replace(attribute, f'data-{key.replace("_", "-")}="{value}"')
 
-    identity = ""
-    if origin.hue is not None:
-        light, dark = origin.hue
-        identity = (
-            f":root{{--domain:{light};--domain-ink:#ffffff}}"
-            f"@media(prefers-color-scheme:dark){{"
-            f":root{{--domain:{dark};--domain-ink:#101317}}}}"
-        )
-
     head = (
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f"<style>{TOKENS.read_text(encoding='utf-8')}{identity}</style>"
+        f"<style>{TOKENS.read_text(encoding='utf-8')}{_palette(origin)}</style>"
     )
     anchor = '<meta charset="utf-8">'
     assert html.count(anchor) == 1, f"{path.name}: no single place to inject into"
-    return html.replace(anchor, anchor + head, 1)
+    html = html.replace(anchor, anchor + head, 1)
+
+    opening = re.match(r"(?s).*?(<body[^>]*>)", html)
+    assert opening is not None, f"{path.name}: no body tag to put the band in"
+    return html.replace(opening.group(1), opening.group(1) + _band(origin), 1)
+
+
+def _palette(origin: origins.Origin) -> str:
+    """Every trust domain's hue, and which one this page is.
+
+    The whole palette on every page, not just the serving origin's own
+    colour, because the config origin draws the legend and a legend assembled
+    from a second copy of the table would be a second copy of the table. The
+    hues live on `Origin` beside the port; nothing here knows a colour.
+    """
+    named = [o for o in origins.ALL if o.hue is not None]
+    light = "".join(f"--hue-{o.name}:{o.hue[0]};" for o in named)
+    dark = "".join(f"--hue-{o.name}:{o.hue[1]};" for o in named)
+    mine = (
+        f"--domain:var(--hue-{origin.name});--domain-ink:#ffffff;"
+        if origin.hue is not None else ""
+    )
+    mine_dark = "--domain-ink:#101317;" if origin.hue is not None else ""
+    return (
+        f":root{{{light}{mine}}}"
+        f"@media(prefers-color-scheme:dark){{:root{{{dark}{mine_dark}}}}}"
+    )
+
+
+def _band(origin: origins.Origin) -> str:
+    """The one element every surface carries in the same place.
+
+    Eight pages that look alike make the separation between them a claim in
+    a document rather than something a reader can see, and the separation is
+    a security property. The band says which trust domain you are standing
+    in, which family it belongs to, and at what address -- in that domain's
+    own colour, so a glance does the work the text confirms.
+
+    Served, not written into the pages, so a surface added later cannot be
+    added without one.
+    """
+    standing = "trust domain" if origin.trust_domain else "not a trust domain"
+    where = origin.family or "infrastructure"
+    plain = "" if origin.hue is not None else " origin--plain"
+    return (
+        f'<header class="origin{plain}">'
+        f"<b>{origin.title}</b>"
+        f'<span class="origin-family">{where}</span>'
+        f'<span class="origin-standing">{standing}</span>'
+        f'<span class="origin-at">{origin.url}</span>'
+        "</header>"
+    )
 
 
 def _base(origin: origins.Origin) -> FastAPI:
@@ -143,7 +186,8 @@ def config_app(deployment: Deployment) -> FastAPI:
     # a page that merely describes the deployment has no business on an origin
     # that holds a part of it.
     origin_table = json.dumps([
-        {"url": o.url, "trust": o.trust_domain, "serves": o.serves}
+        {"url": o.url, "trust": o.trust_domain, "serves": o.serves,
+         "name": o.name, "title": o.title, "family": o.family}
         for o in origins.ALL
     ])
 

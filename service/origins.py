@@ -48,6 +48,14 @@ class Origin:
     #: `None` for the two origins that are not trust domains, so that "not a
     #: domain" reads as the absence of colour rather than as a seventh one.
     hue: tuple[str, str] | None = None
+    #: What to call this surface in the band every page carries.  Not the
+    #: page's own `<h1>`, which says what the page does; this says which
+    #: trust domain the reader is standing in.
+    title: str = ""
+    #: Which of the three families the hue belongs to, or None for the two
+    #: origins that are not trust domains.  Named on screen because a colour
+    #: grouping nobody explains teaches nothing.
+    family: str | None = None
 
     @property
     def port(self) -> int:
@@ -74,21 +82,29 @@ class Origin:
         return bool(sent) and sent.rsplit(":", 1)[-1] == str(self.port)
 
 
-CONFIG = Origin("config", 8000, False, "election.json and its digest, as static files")
+CONFIG = Origin("config", 8000, False, "election.json and its digest, as static files",
+                title="Election configuration")
 VOTER_APP = Origin("voter-app", 8001, True, "Voter App – the voting client; never reads id",
-                   hue=("#115e59", "#5eead4"))
+                   hue=("#115e59", "#5eead4"),
+                   title="Voter application", family="voter side")
 WALLET = Origin("wallet", 8002, True, "Identity Wallet – consent page and signing daemon",
-                hue=("#0f766e", "#2dd4bf"))
+                hue=("#0f766e", "#2dd4bf"),
+                title="Identity Wallet", family="voter side")
 VRO = Origin("vro", 8003, True, "VRO: token endpoints, release query, back office",
-             hue=("#7c2d12", "#fdba74"))
+             hue=("#7c2d12", "#fdba74"),
+             title="Voter Registration Office", family="authority side")
 EBB = Origin("ebb", 8004, True, "EBB: submission, receipts, published view",
-             hue=("#9a3412", "#fb923c"))
+             hue=("#9a3412", "#fb923c"),
+             title="Electronic Ballot Box", family="authority side")
 CHECKER = Origin("checker", 8005, True, "Checker: the three independent checks of §3.7",
-                 hue=("#4c1d95", "#c4b5fd"))
+                 hue=("#4c1d95", "#c4b5fd"),
+                 title="Independent checker", family="oversight")
 SUPERVISOR = Origin("supervisor", 8006, True,
                     "Supervisor of VRO – the release register with identifiers; perimeter-protected",
-                    hue=("#5b21b6", "#a78bfa"))
-SETUP = Origin("setup", 8009, False, "build-time authoring of election.json")
+                    hue=("#5b21b6", "#a78bfa"),
+                    title="Supervision of the office", family="oversight")
+SETUP = Origin("setup", 8009, False, "build-time authoring of election.json",
+               title="Setup console")
 
 ALL = (CONFIG, VOTER_APP, WALLET, VRO, EBB, CHECKER, SUPERVISOR, SETUP)
 RUNTIME = tuple(o for o in ALL if o is not SETUP)

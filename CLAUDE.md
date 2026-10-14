@@ -168,6 +168,15 @@ register is `VRO.register` — a set of ids, and nothing else.
   colour. Red and green are left free to go on meaning danger and verified
   inside the pages; amber is spoken for by the authority family and is
   therefore no longer available to mark a scope limit.
+- **Every surface carries an origin band, served rather than written.**
+  `service/apps.py:_band` puts the same element at the top of every page:
+  the trust domain's name, its family, whether it is a trust domain, and its
+  address, in that domain's own colour. It is injected, so a surface added
+  later cannot be added without one. The two origins that are not trust
+  domains get the same band with no fill. `_palette` emits every domain's hue
+  on every page, not just the serving one, because the config origin draws
+  the legend and a legend built from a second copy of the table would be a
+  second copy of the table.
 - **Every colour has a light value and a dark value.** All eight pages
   declared `color-scheme: light dark` and then set literals, so in dark mode
   the secret-red sat at 2.90:1, the verified-green at 3.74:1 and the

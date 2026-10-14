@@ -240,32 +240,49 @@ def test_the_config_origin_serves_an_index_of_the_whole_deployment(clients):
 
 # -- the shared look, and the separation it must not blur ------------------
 
-def test_every_page_carries_the_tokens_and_its_own_hue(clients):
-    """One stylesheet, eight copies, injected by each origin for itself.
+def test_every_page_carries_the_tokens_and_its_own_band(clients):
+    """One stylesheet and one band, eight copies, each origin for itself.
 
     The pages were eight hand-written `<style>` blocks that had drifted
     apart, and the drift was invisible to this suite: it reads page source
-    and had nothing to say about what the source declared. This says that
-    each surface serves the shared tokens and that the band colour it
-    serves is its own.
+    and had nothing to say about what the source declared.
 
-    Hue carries trust-domain identity, so a page serving another domain's
-    hue would assert a relationship that is not there -- and the two
-    origins that are not trust domains must serve no hue at all.
+    The band is the separation made visible. Eight surfaces that look alike
+    turn a security property into a claim in a document, so every page says
+    which trust domain it is, which family that domain belongs to, and at
+    what address -- in that domain's own colour. It is served rather than
+    written into the pages, so a surface added later cannot be added
+    without one, and this says so.
     """
     for origin in origins.ALL:
         if origin is origins.VOTER_APP:
             continue  # its page is a 503 until someone runs the build
         page = clients[origin.name].get("/").text
+
         assert "--ink-dim" in page, f"{origin.name}: no shared tokens"
         assert 'name="viewport"' in page, origin.name
+
+        # the whole palette, so the config origin can draw the legend
+        for other in origins.ALL:
+            if other.hue is None:
+                assert f"--hue-{other.name}:" not in page, (
+                    f"{other.name} is not a trust domain and has no hue")
+                continue
+            light, dark = other.hue
+            assert f"--hue-{other.name}:{light}" in page, origin.name
+            assert f"--hue-{other.name}:{dark}" in page, f"{origin.name}: no dark value"
+
+        assert origin.title in page and origin.url in page, origin.name
         if origin.hue is None:
-            assert "--domain:#" not in page, (
-                f"{origin.name} is not a trust domain and must carry no hue")
+            assert '<header class="origin origin--plain">' in page, (
+                f"{origin.name} is not a trust domain and must carry no colour")
+            assert "--domain:var(" not in page, origin.name
+            assert "infrastructure" in page, origin.name
         else:
-            light, dark = origin.hue
-            assert f"--domain:{light}" in page, origin.name
-            assert f"--domain:{dark}" in page, f"{origin.name}: no dark value"
+            assert '<header class="origin">' in page, f"{origin.name}: no band"
+            assert f"--domain:var(--hue-{origin.name})" in page, (
+                f"{origin.name} serves a band that is not its own")
+            assert origin.family in page, origin.name
 
 
 def test_no_page_declares_a_colour_of_its_own():

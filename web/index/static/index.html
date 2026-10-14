@@ -3,7 +3,8 @@
 <head><meta charset="utf-8"><title>Anonymous Authenticated Ballot System — demonstration</title>
 <style>
  :root{--measure:56rem}
- .dom,.nodom{font-size:var(--t-xs);letter-spacing:.05em;text-transform:uppercase}
+ .dom,.nodom,.who{font-size:var(--t-xs);letter-spacing:.05em;text-transform:uppercase}
+ .who{color:var(--ink-faint)}
  .dom{color:var(--ok)} .nodom{color:var(--ink-faint)}
  ol{padding-left:1.3rem} li{margin:.35rem 0}
 </style></head>
@@ -47,7 +48,10 @@ not learn which key to trust from the office whose signatures it checks.</p>
 <p class="prose" style="margin-top:-.3rem">A browser origin is
 scheme, host <em>and</em> port, so separate ports make these genuinely
 separate — separate script contexts, separate fetch policies, no shared
-cookies. Six are trust domains; the other two are not.</p>
+cookies. Six are trust domains; the other two are not. Every page carries a
+band in its own colour saying which of these it is; the six colours group
+into three families, and the two that are not trust domains have no colour
+at all.</p>
 <table><thead><tr><th>Origin</th><th></th><th>Serves</th></tr></thead>
 <tbody id="origins"></tbody></table>
 
@@ -91,8 +95,10 @@ const O = JSON.parse(document.body.dataset.origins);
 const rows = document.getElementById('origins');
 for (const o of O) {
   const tr = document.createElement('tr');
-  tr.innerHTML = `<td><a href="${o.url}">${o.url}</a></td>` +
-    `<td><span class="${o.trust ? 'dom' : 'nodom'}">${o.trust ? 'trust domain' : 'not a domain'}</span></td>` +
+  tr.innerHTML = `<td><span class="swatch" style="--row-hue:var(--hue-${o.name},transparent)"></span>` +
+      `<a href="${o.url}">${o.url}</a><br><span class="who">${o.title}</span></td>` +
+    `<td><span class="${o.trust ? 'dom' : 'nodom'}">${o.trust ? 'trust domain' : 'not a domain'}</span>` +
+      `<br><span class="who">${o.family || 'infrastructure'}</span></td>` +
     `<td>${o.serves}</td>`;
   rows.append(tr);
 }
