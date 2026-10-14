@@ -168,6 +168,15 @@ register is `VRO.register` — a set of ids, and nothing else.
   colour. Red and green are left free to go on meaning danger and verified
   inside the pages; amber is spoken for by the authority family and is
   therefore no longer available to mark a scope limit.
+- **Three measures, not one.** `--measure` is the page and differs per
+  surface because the widest table does. `--measure-prose` holds the running
+  text to about sixty-eight characters: the explanatory prose is the
+  substance of the demonstration and was inheriting a column set wide for
+  base64. `--payload-cols` is 64 `ch`, uniform across every surface, because
+  the same token wrapped at 70 characters on the wallet and 95 on the voter
+  application and two screens could not be compared by eye; 64 is also what
+  base64 looks like in a PEM file. Tables, payload blocks and the
+  label/value grids keep the full column.
 - **Every surface carries an origin band, served rather than written.**
   `service/apps.py:_band` puts the same element at the top of every page:
   the trust domain's name, its family, whether it is a trust domain, and its

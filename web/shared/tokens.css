@@ -68,14 +68,30 @@
   --t-label: 0.9375rem;     /* 15px -- the uppercase section labels */
   --t-h1: 1.625rem;         /* 26px -- the page titles were 21.6px against 15px body */
   --lh: 1.55;
-  --lh-mono: 1.45;
+  --lh-mono: 1.6;   /* looser than the prose: these are scanned, not read */
 
-  /* -- measure ---------------------------------------------------------
-   * Per page, because the pages differ. One column is currently serving
-   * both prose and base64, set wide for the base64, which puts the prose
-   * past 90 characters. Splitting the two is a later step; this only moves
-   * the number into one place so that step is one line. */
+  /* -- measures ---------------------------------------------------------
+   * Three, because three kinds of content want different widths and one
+   * column was serving all of them.
+   *
+   * `--measure` is the page: it has to hold the widest table on the
+   * surface, which is why it differs from page to page.
+   *
+   * `--measure-prose` is the running text. It was inheriting the page,
+   * which put the explanatory prose -- the substance of the
+   * demonstration, not caption text around a form -- at ninety-odd
+   * characters a line. Sixty-eight at the body size.
+   *
+   * `--payload-cols` is the base64, in `ch`, which in a monospace face is
+   * exactly one character. Uniform across the surfaces: the same token
+   * wrapped at 70 characters on the wallet and 95 on the voter
+   * application, so one artefact had a different shape depending on which
+   * origin was showing it, and two screens side by side could not be
+   * compared by eye. Sixty-four because that is what base64 looks like in
+   * every PEM file anyone in the room has ever opened. */
   --measure: 56rem;
+  --measure-prose: 36rem;
+  --payload-cols: 64ch;
   --label-col: 14rem;
 }
 
@@ -196,6 +212,10 @@ h2 {
 p { margin: 0 0 .7rem; }
 p:last-child { margin-bottom: 0; }
 
+/* The running text, held to a measure rather than to the page. Tables,
+ * payload blocks and the label/value grids keep the full column. */
+p, li, .sub, .prose, .why { max-width: var(--measure-prose); }
+
 /* The explanatory prose. It is the substance of the demonstration rather
  * than caption text around a form, which is why it is only one step down
  * from body and sits at 9:1 rather than at the 3.26:1 it had in dark. */
@@ -218,10 +238,17 @@ code, .mono {
   word-break: break-all;
 }
 
+/* Long opaque values -- a blinded value, a token, an ad-hoc key. They are
+ * meant to be looked at rather than read, so they get a fixed column and a
+ * loose line, which turns a ragged block of noise into a rectangle a
+ * presenter can point into. */
+.value { max-width: var(--payload-cols); }
+
 pre {
   font-family: var(--font-mono);
   font-size: var(--t-mono);
   line-height: var(--lh-mono);
+  max-width: var(--payload-cols);
   background: var(--sunk);
   border: 1px solid var(--rule);
   border-radius: 4px;

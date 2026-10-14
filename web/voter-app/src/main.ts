@@ -96,7 +96,7 @@ function payload(id: string, caption: string, value: unknown, savable?: string) 
   const wrap = document.createElement('div');
   const pre = document.createElement('pre');
   pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-  wrap.innerHTML = `<div style="font-size:12px;color:var(--dim)">${caption}</div>`;
+  wrap.innerHTML = `<div class="stamp">${caption}</div>`;
   wrap.append(pre);
   if (savable) {
     const save = document.createElement('button');

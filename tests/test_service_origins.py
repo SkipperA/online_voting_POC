@@ -302,6 +302,30 @@ def test_no_page_declares_a_colour_of_its_own():
         assert not literals, f"{page.parent.parent.name}: {sorted(literals)}"
 
 
+def test_nothing_sets_a_size_of_its_own():
+    """The floor is in the tokens, and only in the tokens.
+
+    These pages are read projected and from the back of a room. The scale
+    starts at 13px equivalent and is expressed in `rem`, so that a reader
+    who raises their browser's font size raises all of it -- the pages
+    previously mixed `px` and `rem` in the same rule sets, which moved half
+    the type and left the rest.
+
+    The scripts are scanned too, not just the pages: the caption on every
+    payload in the voter application was a 12px literal in `main.ts`,
+    below the floor and invisible to a check that only read HTML.
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[1] / "web"
+    sources = sorted(root.glob("*/static/index.html"))
+    sources += sorted(root.glob("*/static/*.js"))
+    sources += sorted(root.glob("voter-app/src/*.ts"))
+    for source in sources:
+        literals = re.findall(r"font-size\s*:\s*([\d.]+(?:px|pt|em))", source.read_text())
+        assert not literals, f"{source.name}: {sorted(set(literals))}"
+
+
 def test_the_index_does_not_disclose_an_identifier(clients, deployment):
     """It is served by an origin that holds no identifiers, and must stay so."""
     for voter_id in TEST_VOTER_IDS:
