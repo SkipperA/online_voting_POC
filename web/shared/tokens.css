@@ -161,9 +161,16 @@
 
 /* The two origins that are not trust domains. "Not a domain" reads as the
  * absence of colour rather than as a seventh colour, so the band keeps its
- * shape and loses its fill. */
+ * shape and loses its hue.
+ *
+ * It does not lose its background. The band is sticky, and `transparent`
+ * let the page scroll through it: on 8000 and 8009 the heading you had just
+ * scrolled to appeared through the band's own text. The canvas is the
+ * page's own colour, so the band still reads as uncoloured while being
+ * something the content cannot pass behind. Nothing sticky on these pages
+ * may be transparent, which is what the test below holds. */
 .origin--plain {
-  background: transparent;
+  background: var(--canvas);
   color: var(--ink);
   border-bottom: 1px solid var(--rule-strong);
 }

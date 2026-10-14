@@ -311,6 +311,37 @@ def test_no_page_declares_a_colour_of_its_own():
         assert not literals, f"{script.name}: {sorted(literals)}"
 
 
+def test_nothing_sticky_is_transparent():
+    """A sticky element with nothing behind it is a rendering fault.
+
+    The origin band sticks to the top so that "which trust domain is this"
+    can be asked halfway down a page of base64. The two origins that are
+    not trust domains carry the band without a hue -- and carried it
+    without a background too, so on 8000 and 8009 the page scrolled
+    straight through it and the band's own text sat on top of whatever had
+    just gone under it.
+
+    "No colour" has to mean the canvas, not nothing. This is the one layout
+    property the suite can check: it cannot see the overlap, but it can see
+    the declaration that causes it.
+    """
+    import re
+
+    css = (Path(__file__).resolve().parents[1]
+           / "web" / "shared" / "tokens.css").read_text()
+    for rule in re.finditer(r"([.#][\w-]+(?:[^{};]*?))\{([^}]*)\}", css):
+        selector, body = rule.group(1).strip(), rule.group(2)
+        if "position: sticky" not in body and "position:sticky" not in body:
+            continue
+        assert re.search(r"background:\s*(?!transparent|none)\S", body), (
+            f"{selector} is sticky with no opaque background")
+
+    plain = re.search(r"\.origin--plain\s*\{([^}]*)\}", css)
+    assert plain, "the uncoloured band variant is gone"
+    assert "transparent" not in plain.group(1), (
+        "the uncoloured band shares the sticky container and must stay opaque")
+
+
 def test_nothing_sets_a_size_of_its_own():
     """The floor is in the tokens, and only in the tokens.
 
