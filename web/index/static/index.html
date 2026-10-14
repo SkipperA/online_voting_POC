@@ -2,20 +2,10 @@
 <html lang="en">
 <head><meta charset="utf-8"><title>Anonymous Authenticated Ballot System — demonstration</title>
 <style>
- :root{color-scheme:light dark}
- body{font:15px/1.6 ui-sans-serif,system-ui,sans-serif;margin:0 auto;max-width:56rem;padding:2rem 1.25rem 4rem}
- h1{font-size:1.4rem;margin:0 0 .2rem} .sub{color:#666;margin:0 0 1.6rem}
- h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:#777;margin:1.8rem 0 .7rem}
- table{border-collapse:collapse;width:100%;font-size:14px}
- td,th{text-align:left;padding:.42rem .6rem;border-bottom:1px solid #8883;vertical-align:top}
- th{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:#777;font-weight:600}
- a{color:inherit} code,.mono{font-family:ui-monospace,SFMono-Regular,monospace;font-size:13px;word-break:break-all}
- .dom{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#15803d}
- .nodom{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#888}
- .fp{font-family:ui-monospace,monospace;font-size:14px;background:#8881;padding:.55rem .7rem;border-radius:4px;word-break:break-all}
- .note{background:#f59e0b18;border-left:3px solid #f59e0b;padding:.75rem .95rem;margin:1.2rem 0;font-size:13.5px}
- .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b45309;margin-bottom:.3rem}
- ol{padding-left:1.2rem} li{margin:.3rem 0}
+ :root{--measure:56rem}
+ .dom,.nodom{font-size:var(--t-xs);letter-spacing:.05em;text-transform:uppercase}
+ .dom{color:var(--ok)} .nodom{color:var(--ink-faint)}
+ ol{padding-left:1.3rem} li{margin:.35rem 0}
 </style></head>
 <body data-origins="">
 <h1>Anonymous Authenticated Ballot System</h1>
@@ -32,7 +22,7 @@ process — for now.</p>
 </div>
 
 <h2>This election</h2>
-<p style="margin:0 0 .4rem;font-size:13.5px">Hash of the VRO's token signing
+<p style="margin:0 0 .4rem" class="prose">Hash of the VRO's token signing
 key (<code>k<sub>p</sub><sup>(R)</sup></code>):</p>
 <div class="fp" id="fingerprint">…</div>
 <table style="margin-top:.6rem"><tbody>
@@ -41,20 +31,20 @@ key (<code>k<sub>p</sub><sup>(R)</sup></code>):</p>
 <tr><td>configuration digest</td><td class="mono" id="digest">…</td></tr>
 <tr><td>VRO's statement key <code>k<sub>p</sub><sup>(O)</sup></code></td><td class="mono" id="statement">…</td></tr>
 </tbody></table>
-<p style="color:#666;font-size:13.5px">The configuration digest is SHA-256
+<p class="prose">The configuration digest is SHA-256
 over the exact bytes served at <code>election.json</code> — the file as
 written, including its indentation and trailing newline, not over a canonical
 form or a subset. Download the file and run
 <code>shasum -a 256 election.json</code> and you get the value above: it
 covers what you actually received.</p>
-<p style="color:#666;font-size:13.5px">The fingerprint is of
+<p class="prose">The fingerprint is of
 <code>k<sub>p</sub><sup>(R)</sup></code>, the key every token must verify
 under. The setup console
 shows the same value. Two surfaces, two glances: the voting application must
 not learn which key to trust from the office whose signatures it checks.</p>
 
 <h2>Origins</h2>
-<p style="color:#666;font-size:13.5px;margin-top:-.3rem">A browser origin is
+<p class="prose" style="margin-top:-.3rem">A browser origin is
 scheme, host <em>and</em> port, so separate ports make these genuinely
 separate — separate script contexts, separate fetch policies, no shared
 cookies. Six are trust domains; the other two are not.</p>
@@ -82,7 +72,7 @@ cookies. Six are trust domains; the other two are not.</p>
       accepted and rejected alike, and the checker's recount and its downloads
       become available.</li>
 </ol>
-<p style="color:#666;font-size:13.5px;margin-top:-.2rem">Two surfaces are not
+<p class="prose" style="margin-top:-.2rem">Two surfaces are not
 steps in a run. The office's back office shows what the office records beside
 what it discloses; supervision shows the release register with the identifiers
 in it. Both exist to be read rather than driven, and a voter reaches

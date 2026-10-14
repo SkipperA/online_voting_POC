@@ -91,7 +91,8 @@ function dump(target, caption, value, filename) {
   const pre = document.createElement('pre');
   pre.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
   const cap = document.createElement('div');
-  cap.style.cssText = 'font-size:12px;color:#777;margin-top:.5rem';
+  cap.className = 'stamp';
+  cap.style.marginTop = '.5rem';
   cap.textContent = caption;
   el.append(cap, pre);
   if (filename) {

@@ -29,6 +29,25 @@ class Origin:
     base_port: int
     trust_domain: bool
     serves: str
+    #: (light, dark) band colour identifying this trust domain, or None.
+    #:
+    #: Hue carries trust-domain identity and nothing else -- never a verdict,
+    #: never decoration.  The six domains group into three families of two:
+    #: voter side (teal), authority side (orange-brown), oversight (violet),
+    #: with a lightness step between the two members of each family.  The
+    #: families, rather than six independent hues, because an audience holds
+    #: three mappings and not six, and because the three are distinctions the
+    #: papers already argue about.
+    #:
+    #: Teal, orange-brown and violet rather than anything nearer the
+    #: primaries: that leaves red and green free to go on meaning danger and
+    #: verified *inside* the pages.  Were the supervisor's band crimson, the
+    #: crimson that means "this page names citizens" would stop being a
+    #: warning and become the page's own colour.
+    #:
+    #: `None` for the two origins that are not trust domains, so that "not a
+    #: domain" reads as the absence of colour rather than as a seventh one.
+    hue: tuple[str, str] | None = None
 
     @property
     def port(self) -> int:
@@ -56,13 +75,19 @@ class Origin:
 
 
 CONFIG = Origin("config", 8000, False, "election.json and its digest, as static files")
-VOTER_APP = Origin("voter-app", 8001, True, "Voter App – the voting client; never reads id")
-WALLET = Origin("wallet", 8002, True, "Identity Wallet – consent page and signing daemon")
-VRO = Origin("vro", 8003, True, "VRO: token endpoints, release query, back office")
-EBB = Origin("ebb", 8004, True, "EBB: submission, receipts, published view")
-CHECKER = Origin("checker", 8005, True, "Checker: the three independent checks of §3.7")
+VOTER_APP = Origin("voter-app", 8001, True, "Voter App – the voting client; never reads id",
+                   hue=("#115e59", "#5eead4"))
+WALLET = Origin("wallet", 8002, True, "Identity Wallet – consent page and signing daemon",
+                hue=("#0f766e", "#2dd4bf"))
+VRO = Origin("vro", 8003, True, "VRO: token endpoints, release query, back office",
+             hue=("#7c2d12", "#fdba74"))
+EBB = Origin("ebb", 8004, True, "EBB: submission, receipts, published view",
+             hue=("#9a3412", "#fb923c"))
+CHECKER = Origin("checker", 8005, True, "Checker: the three independent checks of §3.7",
+                 hue=("#4c1d95", "#c4b5fd"))
 SUPERVISOR = Origin("supervisor", 8006, True,
-                    "Supervisor of VRO – the release register with identifiers; perimeter-protected")
+                    "Supervisor of VRO – the release register with identifiers; perimeter-protected",
+                    hue=("#5b21b6", "#a78bfa"))
 SETUP = Origin("setup", 8009, False, "build-time authoring of election.json")
 
 ALL = (CONFIG, VOTER_APP, WALLET, VRO, EBB, CHECKER, SUPERVISOR, SETUP)

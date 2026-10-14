@@ -21,7 +21,7 @@ async function refresh() {
         `<tr><td class="mono">${r.voter_id}</td><td class="mono">${r.blinded_key}</td>` +
         `<td><button data-release="${r.voter_id}">Sign and release</button> ` +
         `<button data-cancel="${r.voter_id}">Cancel</button></td></tr>`).join('')
-    : `<tr><td colspan="3" style="color:#888">${held.manual_release
+    : `<tr><td colspan="3" class="muted">${held.manual_release
         ? 'nothing held' : 'signing at once — nothing is held'}</td></tr>`;
   for (const b of document.querySelectorAll('[data-release]')) {
     b.onclick = async () => {
@@ -49,7 +49,7 @@ async function refresh() {
         `<td class="${e.reason_withheld ? 'held' : ''}">${e.recorded}</td>` +
         `<td class="${e.reason_withheld ? 'held' : 'same'}">${e.disclosed}` +
         `${e.reason_withheld ? ' — reason withheld' : ''}</td></tr>`).join('')
-    : '<tr><td colspan="3" style="color:#888">no requests yet</td></tr>';
+    : '<tr><td colspan="3" class="muted">no requests yet</td></tr>';
 
   const log = await (await fetch('/release-log')).json();
   $('register').innerHTML =

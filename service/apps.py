@@ -38,6 +38,48 @@ INDEX_STATIC = WEB / "index" / "static"
 CHECKER_STATIC = WEB / "checker" / "static"
 OFFICE_STATIC = WEB / "office" / "static"
 BOX_STATIC = WEB / "box" / "static"
+TOKENS = WEB / "shared" / "tokens.css"
+
+
+def _page(path: Path, origin: origins.Origin, **substitutions: str) -> str:
+    """One page, with the shared tokens and this origin's own hue in it.
+
+    The tokens are injected rather than linked. A `<link>` to a stylesheet on
+    8000 would make six trust domains share a runtime dependency and add a
+    fourth allowance to the three the surface map permits; the separation is
+    the property being demonstrated, so it is not spent on a stylesheet. One
+    file in the repository, eight copies on the wire.
+
+    Read per request, like every other static artefact here, so editing the
+    tokens needs no restart.
+
+    `substitutions` are the literal `data-*=""` attributes the pages carry for
+    their neighbours' addresses. They stay literal and stay on `<body>`: the
+    tests assert the exact serialisation, and a page that learned its
+    neighbours any other way would have to be told them by one of them.
+    """
+    html = path.read_text(encoding="utf-8")
+    for key, value in substitutions.items():
+        attribute = f'data-{key.replace("_", "-")}=""'
+        assert attribute in html, f"{path.name} has no {attribute} to fill"
+        html = html.replace(attribute, f'data-{key.replace("_", "-")}="{value}"')
+
+    identity = ""
+    if origin.hue is not None:
+        light, dark = origin.hue
+        identity = (
+            f":root{{--domain:{light};--domain-ink:#ffffff}}"
+            f"@media(prefers-color-scheme:dark){{"
+            f":root{{--domain:{dark};--domain-ink:#101317}}}}"
+        )
+
+    head = (
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        f"<style>{TOKENS.read_text(encoding='utf-8')}{identity}</style>"
+    )
+    anchor = '<meta charset="utf-8">'
+    assert html.count(anchor) == 1, f"{path.name}: no single place to inject into"
+    return html.replace(anchor, anchor + head, 1)
 
 
 def _base(origin: origins.Origin) -> FastAPI:
@@ -108,7 +150,7 @@ def config_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def index() -> HTMLResponse:
         return HTMLResponse(
-            (INDEX_STATIC / "index.html").read_text(encoding="utf-8").replace(
+            _page(INDEX_STATIC / "index.html", origins.CONFIG).replace(
                 'data-origins=""', f"data-origins='{origin_table}'"
             )
         )
@@ -160,13 +202,12 @@ def voter_app(deployment: Deployment) -> FastAPI:
                 "and need not be restarted.</p>",
                 status_code=503,
             )
-        html = (
-            index.read_text(encoding="utf-8")
-            .replace('data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"')
-            .replace('data-vro-origin=""', f'data-vro-origin="{origins.VRO.url}"')
-            .replace('data-ebb-origin=""', f'data-ebb-origin="{origins.EBB.url}"')
-        )
-        return HTMLResponse(html)
+        return HTMLResponse(_page(
+            index, origins.VOTER_APP,
+            config_origin=origins.CONFIG.url,
+            vro_origin=origins.VRO.url,
+            ebb_origin=origins.EBB.url,
+        ))
 
     if VOTER_APP_STATIC.exists():
         app.mount("/", StaticFiles(directory=VOTER_APP_STATIC), name="static")
@@ -188,9 +229,7 @@ def wallet_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(
-            index.read_text(encoding="utf-8").replace(
-                'data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"'
-            )
+            _page(index, origins.WALLET, config_origin=origins.CONFIG.url)
         )
 
     @app.get("/wallet.js")
@@ -210,8 +249,8 @@ def supervisor_console(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(
-            (SUPERVISOR_STATIC / "index.html").read_text(encoding="utf-8")
-            .replace('data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"')
+            _page(SUPERVISOR_STATIC / "index.html", origins.SUPERVISOR,
+                  config_origin=origins.CONFIG.url)
         )
 
     @app.get("/supervisor.js")
@@ -228,7 +267,7 @@ def setup_console(deployment: Deployment) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
-        return HTMLResponse((SETUP_STATIC / "index.html").read_text(encoding="utf-8"))
+        return HTMLResponse(_page(SETUP_STATIC / "index.html", origins.SETUP))
 
     @app.get("/setup.js")
     async def script() -> Response:
@@ -249,7 +288,7 @@ def ebb_app(deployment: Deployment) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
-        return HTMLResponse((BOX_STATIC / "index.html").read_text(encoding="utf-8"))
+        return HTMLResponse(_page(BOX_STATIC / "index.html", origins.EBB))
 
     @app.get("/box.js")
     async def script() -> Response:
@@ -272,7 +311,7 @@ def vro_app(deployment: Deployment) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
-        return HTMLResponse((OFFICE_STATIC / "index.html").read_text(encoding="utf-8"))
+        return HTMLResponse(_page(OFFICE_STATIC / "index.html", origins.VRO))
 
     @app.get("/office.js")
     async def script() -> Response:
@@ -296,10 +335,10 @@ def checker_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(
-            (CHECKER_STATIC / "index.html").read_text(encoding="utf-8")
-            .replace('data-vro-origin=""', f'data-vro-origin="{origins.VRO.url}"')
-            .replace('data-ebb-origin=""', f'data-ebb-origin="{origins.EBB.url}"')
-            .replace('data-config-origin=""', f'data-config-origin="{origins.CONFIG.url}"')
+            _page(CHECKER_STATIC / "index.html", origins.CHECKER,
+                  vro_origin=origins.VRO.url,
+                  ebb_origin=origins.EBB.url,
+                  config_origin=origins.CONFIG.url)
         )
 
     @app.get("/checker.js")

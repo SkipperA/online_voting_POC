@@ -49,7 +49,7 @@ async function refresh() {
     : open
       ? '<span class="ok">open</span> — records withheld, commitments published'
       : '<span class="warn">closed</span> — every record released in clear')
-    + (acts ? ` <span style="color:var(--dim)">(${acts})</span>` : '');
+    + (acts ? ` <span class="muted">(${acts})</span>` : '');
   $('accepted').textContent = accepted.length;
   $('rejected').textContent = rejected.length;
   $('head').textContent = view.heads.accepted;

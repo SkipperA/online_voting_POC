@@ -1,24 +1,8 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Supervision — release register</title>
 <style>
- :root{color-scheme:light dark}
- body{font:15px/1.6 ui-sans-serif,system-ui,sans-serif;margin:0 auto;max-width:56rem;padding:2rem 1.25rem 4rem}
- h1{font-size:1.35rem;margin:0 0 .2rem} .sub{color:#666;margin:0 0 1.4rem}
- section{border:1px solid #8884;border-radius:6px;padding:.9rem 1.1rem;margin:0 0 1rem}
- h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:#777;margin:0 0 .7rem}
- .row{display:grid;grid-template-columns:16rem 1fr;gap:.35rem 1rem;padding:.15rem 0}
- .label{color:#666}
- .value{font-family:ui-monospace,monospace;font-size:13px;word-break:break-all}
- .ok{color:#15803d} .warn{color:#b91c1c;font-weight:600} .muted{color:#888}
- button{font:inherit;padding:.4rem .85rem}
- table{border-collapse:collapse;width:100%;font-size:13.5px}
- th{text-align:left;color:#777;font-weight:600;font-size:.72rem;letter-spacing:.06em;
-    text-transform:uppercase;border-bottom:1px solid #8884;padding:.3rem .5rem .3rem 0}
- td{padding:.25rem .5rem .25rem 0;border-bottom:1px solid #8882;vertical-align:top}
- td.mono{font-family:ui-monospace,monospace;font-size:12.5px;word-break:break-all}
- .note{background:#dc262618;border-left:3px solid #dc2626;padding:.7rem .9rem;margin:0 0 1.2rem;font-size:13.5px}
- .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b91c1c;margin-bottom:.3rem}
- #status{margin-top:1rem;font-weight:600}
+ :root{--measure:56rem;--label-col:16rem}
+ .note{--note-bg:var(--secret-bg);--note-rule:var(--danger);--warn:var(--danger)}
 </style></head>
 <body data-config-origin="">
 <h1>Supervision — release register</h1>
@@ -34,7 +18,7 @@ this page carries no protection with it.</p>
 
 <p style="margin:-.4rem 0 1.3rem"><button id="refresh">Re-read</button>
 <button id="download">Download the file</button>
-<span id="asof" style="color:#888;font-size:13px">—</span></p>
+<span id="asof" class="stamp">—</span></p>
 
 <section>
   <h2>Does the office's own record hold together?</h2>
@@ -45,7 +29,7 @@ this page carries no protection with it.</p>
   <div class="row"><span class="label">one release per identifier</span><span class="value" id="dupes">—</span></div>
   <div class="row"><span class="label">every release was asked for</span><span class="value" id="unasked">—</span></div>
   <div class="row"><span class="label">times this register was read</span><span class="value" id="downloads">—</span></div>
-  <p style="margin:.7rem 0 0;color:#666;font-size:13.5px">
+  <p class="prose" style="margin:.7rem 0 0">
   Each commitment is recomputed here from its identifier and opening value,
   and the chain from the genesis hash — so the register is checked rather
   than read. The signatures are verified against the keys published in the
@@ -54,11 +38,11 @@ this page carries no protection with it.</p>
 
 <section>
   <h2>Releases</h2>
-  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
+  <p class="prose" style="margin:0 0 .6rem">
   Compare these identifiers against the electoral roll from the citizen
   registry, with current eligibility. Not against any list this office
   supplied: that would be comparing the office against its own copy.</p>
-  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">Each release
+  <p class="prose" style="margin:0 0 .6rem">Each release
   carries the citizen's own signature over their token request — the one
   object in the exchange this office could not have manufactured. A release
   with no signature behind it was not asked for. Verify the signatures
@@ -66,12 +50,12 @@ this page carries no protection with it.</p>
   as the roll.</p>
   <table><thead><tr><th>#</th><th>identifier</th><th>commitment</th><th>rebuilt</th>
     <th>signed request</th></tr></thead>
-  <tbody id="releases"><tr><td colspan="4">…</td></tr></tbody></table>
+  <tbody id="releases"><tr><td colspan="5">…</td></tr></tbody></table>
 </section>
 
 <section>
   <h2>Was every token actually asked for?</h2>
-  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">Each release
+  <p class="prose" style="margin:0 0 .6rem">Each release
   carries the citizen's own signature over their token request —
   <code>s = sig(hash([id, c]))</code> — which is the one object in the
   exchange this office could not have manufactured. Checking it, rather
@@ -80,11 +64,11 @@ this page carries no protection with it.</p>
   characters in the right column.</p>
   <p style="margin:0 0 .7rem"><button id="verify">Verify every request
   signature</button>
-  <span id="verify-asof" style="margin-left:.6rem;color:#888;font-size:13px">—</span></p>
+  <span id="verify-asof" class="stamp" style="margin-left:.6rem">—</span></p>
   <div class="row"><span class="label">verdict</span><span class="value" id="verdict">not checked</span></div>
   <table><thead><tr><th>identifier</th><th>signature</th><th>verifies under</th></tr></thead>
   <tbody id="requests"><tr><td colspan="3">—</td></tr></tbody></table>
-  <p style="margin:.7rem 0 0;color:#666;font-size:13.5px">The keys come from
+  <p class="prose" style="margin:.7rem 0 0">The keys come from
   <code>/certificates</code> on this origin, which is the demonstration
   standing in for a certification authority. A supervisor checking an office
   against keys that office supplied is checking it against itself: in a real
@@ -94,7 +78,7 @@ this page carries no protection with it.</p>
 
 <section>
   <h2>Refusals and other outcomes</h2>
-  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
+  <p class="prose" style="margin:0 0 .6rem">
   The office's audit log, including the true reason behind refusals the
   requester saw as one indistinguishable answer (§3.2). A run of probes
   against named citizens is visible here and nowhere else.</p>
@@ -104,7 +88,7 @@ this page carries no protection with it.</p>
 
 <section>
   <h2>What this cannot show you</h2>
-  <p style="margin:0;color:#666;font-size:13.5px">
+  <p class="prose" style="margin:0">
   Whether a token that was released was ever used. The blinding is what
   makes that unknowable: nothing here, and nothing in the ballot box, joins
   a citizen to a ballot. Absence from this register is conclusive evidence

@@ -150,6 +150,30 @@ register is `VRO.register` — a set of ids, and nothing else.
 - **Ed25519 for the ad-hoc and wallet keys.** A real wallet would use ECDSA
   P-256 in a secure element; `keys.py` keeps the interface narrow so it can be
   swapped.
+- **The browser surfaces share `web/shared/tokens.css`, injected rather than
+  linked.** Each origin's own application reads the file and inlines it into
+  its own pages (`service/apps.py:_page`). A `<link>` to a stylesheet on 8000
+  would make six trust domains share a runtime dependency and would be a
+  fourth cross-origin allowance where the surface map permits three. One file
+  in the repository, eight copies on the wire. A page opened straight off disk
+  is therefore unstyled, as it was already unfilled.
+- **Hue carries trust-domain identity and nothing else** — never a verdict,
+  never decoration. The band colours live on `Origin` in `service/origins.py`
+  beside the port, so a surface that moves in code moves on the page. The six
+  domains form three families of two: voter side (teal), authority side
+  (orange-brown), oversight (violet), with a lightness step between the two
+  members of a family. Families rather than six independent hues because an
+  audience holds three mappings and not six. The two origins that are not
+  trust domains carry no hue, so "not a domain" reads as the absence of
+  colour. Red and green are left free to go on meaning danger and verified
+  inside the pages; amber is spoken for by the authority family and is
+  therefore no longer available to mark a scope limit.
+- **Every colour has a light value and a dark value.** All eight pages
+  declared `color-scheme: light dark` and then set literals, so in dark mode
+  the secret-red sat at 2.90:1, the verified-green at 3.74:1 and the
+  explanatory prose at 3.26:1, and the wash behind every warning box was a 9%
+  alpha over near-black. `test_no_page_declares_a_colour_of_its_own` is what
+  keeps a literal from coming back.
 
 ## Open, deliberately not yet implemented
 

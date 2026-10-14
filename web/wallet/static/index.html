@@ -4,30 +4,7 @@
 <meta charset="utf-8">
 <title>Digital Identity Wallet</title>
 <style>
-  :root { color-scheme: light dark; }
-  body { font: 15px/1.55 ui-sans-serif, system-ui, sans-serif; margin: 0 auto;
-         max-width: 44rem; padding: 2rem 1.25rem 4rem; }
-  h1 { font-size: 1.3rem; margin: 0 0 .25rem; }
-  .sub { color: #666; margin: 0 0 1.5rem; }
-  section { border: 1px solid #8884; border-radius: 6px; padding: .9rem 1.1rem; margin: 0 0 1rem; }
-  h2 { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: #777; margin: 0 0 .7rem; }
-  .row { display: grid; grid-template-columns: 11rem 1fr; gap: .4rem 1rem; padding: .18rem 0; }
-  .label { color: #666; }
-  .value { font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; }
-  .ok { color: #15803d; } .warn { color: #b91c1c; font-weight: 600; }
-  button { font: inherit; padding: .45rem .9rem; }
-  button:disabled { opacity: .45; }
-  pre{font-family:ui-monospace,monospace;font-size:12.5px;background:#8881;border-radius:4px;
-      padding:.55rem .7rem;margin:.3rem 0;white-space:pre-wrap;word-break:break-all}
-  .secret{background:#b91c1c14;border:1px solid #b91c1c55;border-radius:4px;padding:.5rem .7rem;margin:.6rem 0}
-  .secret h4{margin:0 0 .35rem;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;color:#b91c1c}
-  .secret pre{background:transparent;padding:0;color:#b91c1c}
-  .secret p{margin:.4rem 0 0;font-size:12.5px;color:#b91c1c}
-  #status { margin-top: 1.2rem; font-weight: 600; }
-  .note { background: #f59e0b18; border-left: 3px solid #f59e0b; padding: .7rem .9rem;
-          margin: 0 0 1.2rem; font-size: 13.5px; }
-  .note b { display:block; text-transform: uppercase; letter-spacing:.06em;
-            font-size:.72rem; color:#b45309; margin-bottom:.3rem; }
+ :root{--measure:44rem;--label-col:11rem}
 </style>
 </head>
 <body data-config-origin="">
@@ -46,7 +23,7 @@ transmits it to the Registration Office itself.</p>
 
 <section>
   <h2>1 · Whose wallet is this</h2>
-  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">
+  <p class="prose" style="margin:0 0 .6rem">
     A wallet belongs to one citizen. Choose first: everything after this is
     done on their behalf, and the page says whose it is from then on. A real
     wallet has no such control — it has an owner.
@@ -65,7 +42,7 @@ transmits it to the Registration Office itself.</p>
 
 <section>
   <h2>3 · Consent, sign and transmit</h2>
-  <p style="margin:0 0 .7rem;color:#666;font-size:13.5px">
+  <p class="prose" style="margin:0 0 .7rem">
     The wallet signs <code>hash([id, c])</code> and posts <code>[id, c, s]</code>
     to the office from this origin, where <code>s</code> is the wallet's
     signature. Nothing returns to the voting application:
@@ -79,7 +56,7 @@ transmits it to the Registration Office itself.</p>
 
 <section>
   <h2>4 · Ask the office whether a token was released</h2>
-  <p style="margin:0 0 .7rem;color:#666;font-size:13.5px">
+  <p class="prose" style="margin:0 0 .7rem">
     D1, for <b id="query-whose">whoever this wallet belongs to</b>. The query
     carries a signature of <code>id</code> made here, so only this voter can
     ask. Save it and load it into the checker — the check

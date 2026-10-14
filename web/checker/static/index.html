@@ -1,26 +1,16 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Independent checker</title>
 <style>
- :root{color-scheme:light dark}
- body{font:15px/1.6 ui-sans-serif,system-ui,sans-serif;margin:0 auto;max-width:52rem;padding:2rem 1.25rem 4rem}
- h1{font-size:1.35rem;margin:0 0 .2rem} .sub{color:#666;margin:0 0 1.4rem}
- section{border:1px solid #8884;border-radius:6px;padding:.9rem 1.1rem;margin:0 0 1rem}
- h2{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:#777;margin:0 0 .7rem}
- .row{display:grid;grid-template-columns:14rem 1fr;gap:.35rem 1rem;padding:.15rem 0}
- .label{color:#666}
- .value{font-family:ui-monospace,monospace;font-size:13px;word-break:break-all}
- .ok{color:#15803d} .warn{color:#b91c1c;font-weight:600} .muted{color:#888}
- button{font:inherit;padding:.4rem .85rem}
- .note{background:#f59e0b18;border-left:3px solid #f59e0b;padding:.7rem .9rem;margin:0 0 1.2rem;font-size:13.5px}
- .note b{display:block;text-transform:uppercase;letter-spacing:.06em;font-size:.72rem;color:#b45309;margin-bottom:.3rem}
- #status{margin-top:1rem;font-weight:600}
+ :root{--measure:52rem;--label-col:14rem}
+ #poll-state{border:1px solid var(--rule);border-radius:6px;padding:.6rem .85rem;
+             margin:0 0 1rem;font-size:var(--t-sm)}
 </style></head>
 <body data-vro-origin="" data-ebb-origin="" data-config-origin="">
 <h1>Independent checker</h1>
 <p class="sub">The checks of §3.7, from an origin neither the voting
 application nor the wallet controls.</p>
 <p style="margin:-.8rem 0 1.3rem"><button id="refresh">Re-read the published
-artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span></p>
+artefacts</button> <span id="asof" class="stamp">—</span></p>
 
 <div class="note">
   <b>Independence is a property, not an address</b>
@@ -32,12 +22,12 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
   page and reach the same conclusions.
 </div>
 
-<p id="poll-state" style="border:1px solid #8884;border-radius:6px;padding:.5rem .8rem;margin:0 0 1rem;font-size:13.5px">…</p>
+<p id="poll-state">…</p>
 <section>
   <h2>Anyone · the office's release register</h2>
   <div class="row"><span class="label">tokens released</span><span class="value" id="released">…</span></div>
   <div class="row"><span class="label">register head</span><span class="value" id="vro-head">…</span></div>
-  <p style="color:#666;font-size:13.5px;margin:.6rem 0 0">Commitments only. The
+  <p class="prose" style="margin:.6rem 0 0">Commitments only. The
   register never opens publicly: its harm is not a running result but a list
   of who did and did not take part.</p>
 </section>
@@ -53,19 +43,19 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
 
 <section>
   <h2>Anyone · every check, from the published artefacts</h2>
-  <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">Every token verified
+  <p class="prose" style="margin:0 0 .7rem">Every token verified
   against the office's published key, every selection against the ad-hoc key
   that token certifies, the chain rebuilt from the genesis hash, supersession
   applied, the tally recomputed, and the count audit across both components.
   Not a summary of what the box announced — the result, worked out again.</p>
   <p style="margin:0 0 .7rem">
     <button id="check-live">Fetch the three artefacts and check them</button>
-    <span id="check-asof" style="color:#888;font-size:13px">—</span></p>
+    <span id="check-asof" class="stamp">—</span></p>
   <div class="row"><span class="label">available</span><span class="value" id="when">…</span></div>
   <div class="row"><span class="label">verdict</span><span class="value" id="verdict">not checked</span></div>
   <div id="checks" style="margin-top:.6rem"></div>
   <div id="recount" style="margin-top:.6rem"></div>
-  <p style="color:#666;font-size:13.5px;margin:.7rem 0 0">This fetches the
+  <p class="prose" style="margin:.7rem 0 0">This fetches the
   artefacts from the parties that published them, which is the convenient
   way and the weaker one: a verdict computed from files those parties handed
   over a moment ago, on a page they serve. Below is the same check on files
@@ -74,7 +64,7 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
 
 <section>
   <h2>Anyone · the same check, on files published elsewhere</h2>
-  <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">After the close the
+  <p class="prose" style="margin:0 0 .7rem">After the close the
   office, the ballot box and the administering body publish these three. Take
   them from an archive, a mirror, or anywhere that is not this deployment, and
   check them here — or better, with the program below on a machine none of
@@ -93,10 +83,10 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
     <button id="get-releases">Download the register</button>
     <button id="get-config">Download the configuration</button>
     <button id="recheck-state">Re-read the box's state</button></p>
-  <p style="color:#666;font-size:13.5px;margin:.4rem 0 0">The downloads are
+  <p class="prose" style="margin:.4rem 0 0">The downloads are
   off until the box closes, and this page does not learn that it has by
   itself — press this after closing rather than reloading.</p>
-  <p style="color:#666;font-size:13.5px;margin:.7rem 0 0">Each file is
+  <p class="prose" style="margin:.7rem 0 0">Each file is
   recognised by what is in it, so a file in the wrong place is named rather
   than discovered halfway through. <code>VRO_supervision_….json</code> is a
   different artefact — it names citizens and is not part of this check.</p>
@@ -104,17 +94,17 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
 
 <section>
   <h2>Anyone · run it where nobody involved can reach it</h2>
-  <p style="margin:0 0 .6rem;color:#666;font-size:13.5px">The same program,
+  <p class="prose" style="margin:0 0 .6rem">The same program,
   importing nothing from the election: the standard library and
   <code>cryptography</code>. It exits non-zero if any check fails.</p>
   <p style="margin:0 0 .7rem"><button id="get-script">Download the verifier</button></p>
-  <pre style="font-size:12.5px;background:#8881;padding:.6rem .8rem;border-radius:4px;overflow-x:auto"
+  <pre
 >python verify_election.py Election_config_….json EBB_dump_….json VRO_dump_….json</pre>
 </section>
 
 <section>
   <h2>One voter · was a token released in my name?</h2>
-  <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">D1. The query must
+  <p class="prose" style="margin:0 0 .7rem">D1. The query must
   carry a signature of <code>id</code> made in the wallet, so only that voter
   can ask: an unauthenticated lookup would turn the register into a public
   record of who took part. Save the query from the wallet page and load it
@@ -124,7 +114,7 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
   <div class="row" style="margin-top:.7rem"><span class="label">answer</span><span class="value" id="d1">—</span></div>
   <div class="row"><span class="label">evidence</span><span class="value" id="d1-evidence">—</span></div>
   <div class="row"><span class="label">asked at</span><span class="value" id="d1-asof">—</span></div>
-  <p style="color:#666;font-size:13.5px;margin:.6rem 0 0">An answer is true of
+  <p class="prose" style="margin:.6rem 0 0">An answer is true of
   the moment it was asked and of no other. A token released after you asked
   will not appear above until you ask again.</p>
   <button id="d1-again" disabled style="margin-top:.5rem">Ask again</button>
@@ -132,7 +122,7 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
 
 <section>
   <h2>One voter · is my ballot still where the box said it was?</h2>
-  <p style="color:#666;font-size:13.5px;margin:0 0 .7rem">D2. The box returns
+  <p class="prose" style="margin:0 0 .7rem">D2. The box returns
   a receipt for every submission, signed under its statement key
   <code>k_s^(B)</code>. Load it here and two separate things are checked: that
   the box really said it, against the key pinned in the published
@@ -144,7 +134,7 @@ artefacts</button> <span id="asof" style="color:#888;font-size:13px">—</span><
   <div class="row" style="margin-top:.7rem"><span class="label">signature</span><span class="value" id="d2-signature">—</span></div>
   <div class="row"><span class="label">still in the registry</span><span class="value" id="d2-inclusion">—</span></div>
   <div class="row"><span class="label">checked at</span><span class="value" id="d2-asof">—</span></div>
-  <p style="color:#666;font-size:13.5px;margin:.6rem 0 0">A signature proves
+  <p class="prose" style="margin:.6rem 0 0">A signature proves
   the box committed to this, not that it behaved. It makes a discrepancy
   demonstrable rather than merely alleged — which is the whole of what
   §3.5 claims for the receipt.</p>

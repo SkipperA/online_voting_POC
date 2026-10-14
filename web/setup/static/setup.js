@@ -13,7 +13,7 @@ async function refresh() {
   const voters = (await (await fetch('/voters')).json()).voters;
   $('register').innerHTML = voters.length
     ? voters.map((v) => `<li>${v}</li>`).join('')
-    : '<li style="color:#888">nobody yet — the wallet will offer no personas</li>';
+    : '<li class="muted">nobody yet — the wallet will offer no personas</li>';
   $('status').textContent = `${voters.length} on the register.`;
 }
 

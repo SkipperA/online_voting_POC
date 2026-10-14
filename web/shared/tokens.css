@@ -1,0 +1,284 @@
+/* Shared design tokens for the stage-1 browser surfaces.
+ *
+ * ONE source, EIGHT copies at serve time. This file is not linked from a
+ * single origin: each origin's own application injects it into its own
+ * pages (`service/apps.py`). A `<link>` to a stylesheet on 8000 would be a
+ * fourth cross-origin allowance in a design that argues at length for
+ * having exactly three, and would make six trust domains share a runtime
+ * dependency. The separation stays a fact; only the maintenance is shared.
+ *
+ * A consequence worth knowing: a page opened straight off disk is unstyled.
+ * Two of them already were, for the same reason -- the origin addresses are
+ * injected too.
+ *
+ * Every colour has a light value and a dark value. `color-scheme: light
+ * dark` was declared on all eight pages before this file existed and every
+ * colour was a literal, so in dark mode the secret-red sat at 2.90:1, the
+ * verified-green at 3.74:1, the prose at 3.26:1, and the amber wash behind
+ * every warning box was a 9% alpha over near-black -- invisible. The pairs
+ * below clear 5.4:1 against their own background in both themes.
+ *
+ * Sizes are rem throughout. The pages mixed px and rem in the same rule
+ * sets, so the root font size moved half the type and left the rest. The
+ * floor is 13px equivalent, raised from 11px, because these are projected.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* -- canvas and ink ------------------------------------------------- */
+  --canvas: #ffffff;
+  --sunk: #f1f3f5;          /* payload blocks, buttons, inset figures */
+  --ink: #16181c;
+  --ink-dim: #45494f;       /* explanatory prose: the substance, so 9:1 */
+  --ink-faint: #5a5f66;     /* column labels, timestamps */
+  --rule: #d4d7dc;
+  --rule-strong: #aeb4bc;
+
+  /* -- verdicts -------------------------------------------------------
+   * These say what happened, never which surface you are on. Hue carries
+   * trust-domain identity and nothing else, so identity never uses these
+   * three and these three never carry identity. */
+  --ok: #0e7a37;            /* verified, accepted, matches */
+  --warn: #8a5206;          /* a scope limit: substituted, absent, out of scope */
+  --danger: #b4161b;        /* a secret on screen, a failure, a page that names citizens */
+
+  --note-bg: #fdf4e3;
+  --note-rule: var(--warn);
+  --secret-bg: #fdeeee;
+  --secret-rule: var(--danger);
+
+  /* -- trust-domain identity ------------------------------------------
+   * Overridden per origin by the injected block. The six trust domains
+   * group into three families of two -- voter side, authority side,
+   * oversight -- with a lightness step between the members of a family.
+   * The two origins that are not trust domains stay neutral: "not a
+   * domain" reads as the absence of colour rather than as a seventh one.
+   * The band that renders this is not in this patch. */
+  --domain: #5a5f66;
+  --domain-ink: #ffffff;
+
+  /* -- type ------------------------------------------------------------ */
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --t-xs: 0.8125rem;        /* 13px -- the floor */
+  --t-sm: 0.9375rem;        /* 15px -- secondary prose, table cells */
+  --t-base: 1.0625rem;      /* 17px */
+  --t-mono: 0.9375rem;      /* 15px -- payloads were 12.5px */
+  --t-label: 0.9375rem;     /* 15px -- the uppercase section labels */
+  --t-h1: 1.625rem;         /* 26px -- the page titles were 21.6px against 15px body */
+  --lh: 1.55;
+  --lh-mono: 1.45;
+
+  /* -- measure ---------------------------------------------------------
+   * Per page, because the pages differ. One column is currently serving
+   * both prose and base64, set wide for the base64, which puts the prose
+   * past 90 characters. Splitting the two is a later step; this only moves
+   * the number into one place so that step is one line. */
+  --measure: 56rem;
+  --label-col: 14rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #101317;
+    --sunk: #1a1e24;
+    --ink: #e9ecef;
+    --ink-dim: #b2b8bf;
+    --ink-faint: #9aa1a9;
+    --rule: #2c323a;
+    --rule-strong: #434b56;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --danger: #fca5a5;
+    --note-bg: #2b2112;
+    --secret-bg: #2d1518;
+    --domain: #9aa1a9;
+    --domain-ink: #101317;
+  }
+}
+
+/* -- base ------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { font-size: 100%; }
+
+body {
+  font: var(--t-base)/var(--lh) var(--font);
+  color: var(--ink);
+  background: var(--canvas);
+  margin: 0 auto;
+  max-width: var(--measure);
+  padding: 2rem 1.25rem 5rem;
+}
+
+h1 { font-size: var(--t-h1); line-height: 1.2; font-weight: 650; margin: 0 0 .25rem; }
+
+h2 {
+  font-size: var(--t-label);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-weight: 650;
+  color: var(--ink-dim);
+  margin: 0 0 .7rem;
+}
+
+p { margin: 0 0 .7rem; }
+p:last-child { margin-bottom: 0; }
+
+/* The explanatory prose. It is the substance of the demonstration rather
+ * than caption text around a form, which is why it is only one step down
+ * from body and sits at 9:1 rather than at the 3.26:1 it had in dark. */
+.prose { color: var(--ink-dim); font-size: var(--t-sm); }
+
+.sub { color: var(--ink-dim); margin: 0 0 1.5rem; }
+
+section {
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1rem 1.15rem;
+  margin: 0 0 1rem;
+}
+
+a { color: inherit; }
+
+code, .mono {
+  font-family: var(--font-mono);
+  font-size: var(--t-mono);
+  word-break: break-all;
+}
+
+pre {
+  font-family: var(--font-mono);
+  font-size: var(--t-mono);
+  line-height: var(--lh-mono);
+  background: var(--sunk);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: .6rem .75rem;
+  margin: .4rem 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+table { border-collapse: collapse; width: 100%; font-size: var(--t-sm); }
+
+td, th {
+  text-align: left;
+  padding: .42rem .6rem .42rem 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+
+th {
+  font-size: var(--t-xs);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  font-weight: 650;
+  color: var(--ink-faint);
+}
+
+button {
+  font: inherit;
+  font-size: var(--t-sm);
+  padding: .45rem .9rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  background: var(--sunk);
+  color: var(--ink);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--ink-faint); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+input[type=text], input[type=number], input[type=file], select {
+  font: inherit;
+  font-size: var(--t-sm);
+  padding: .4rem .5rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  background: var(--canvas);
+  color: var(--ink);
+}
+input[type=text], input[type=number] { width: 20rem; max-width: 100%; }
+
+/* Label/value pairs. `--label-col` is per page: the identifiers in the
+ * left column are of very different lengths from one surface to another. */
+.row {
+  display: grid;
+  grid-template-columns: var(--label-col) 1fr;
+  gap: .35rem 1rem;
+  padding: .18rem 0;
+}
+.label { color: var(--ink-dim); }
+.value { font-family: var(--font-mono); font-size: var(--t-mono); word-break: break-all; }
+
+.ok { color: var(--ok); }
+.warn { color: var(--danger); font-weight: 650; }   /* a failed check, not a scope limit */
+.muted { color: var(--ink-faint); }
+
+/* "as of 10:42", "not checked yet" -- a timestamp or an aside beside a
+ * control, which wants to be smaller than the control it sits next to. */
+.stamp { color: var(--ink-faint); font-size: var(--t-xs); }
+
+#status { margin-top: 1.2rem; font-weight: 650; }
+
+/* A scope limit: what this build substitutes, omits, or does not claim.
+ * One treatment for three kinds that `Demo_Scope_Limits.md` keeps apart,
+ * which is a later step. */
+.note {
+  background: var(--note-bg);
+  border-left: 3px solid var(--note-rule);
+  padding: .8rem 1rem;
+  margin: 0 0 1.3rem;
+  font-size: var(--t-sm);
+}
+.note b {
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-size: var(--t-xs);
+  color: var(--warn);
+  margin-bottom: .35rem;
+}
+
+/* A value a deployment would never put on a screen. */
+.secret {
+  background: var(--secret-bg);
+  border: 1px solid var(--secret-rule);
+  border-radius: 4px;
+  padding: .6rem .8rem;
+  margin: .6rem 0;
+}
+.secret h4 {
+  margin: 0 0 .35rem;
+  font-size: var(--t-xs);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+.secret pre { background: transparent; border: 0; padding: 0; margin: .2rem 0; color: var(--danger); }
+.secret p { margin: .4rem 0 0; font-size: var(--t-xs); color: var(--danger); }
+
+/* A fingerprint meant to be compared by eye against another screen. */
+.fp {
+  font-family: var(--font-mono);
+  font-size: var(--t-base);
+  line-height: 1.7;
+  background: var(--sunk);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: .6rem .75rem;
+  word-break: break-all;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

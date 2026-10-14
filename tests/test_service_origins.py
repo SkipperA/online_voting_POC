@@ -19,6 +19,7 @@ produced under compulsion.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -235,6 +236,53 @@ def test_the_config_origin_serves_an_index_of_the_whole_deployment(clients):
         assert origin.url in response.text, origin.name
     assert "demonstration, not an election" in response.text
     assert "Demo_Scope_Limits" in response.text
+
+
+# -- the shared look, and the separation it must not blur ------------------
+
+def test_every_page_carries_the_tokens_and_its_own_hue(clients):
+    """One stylesheet, eight copies, injected by each origin for itself.
+
+    The pages were eight hand-written `<style>` blocks that had drifted
+    apart, and the drift was invisible to this suite: it reads page source
+    and had nothing to say about what the source declared. This says that
+    each surface serves the shared tokens and that the band colour it
+    serves is its own.
+
+    Hue carries trust-domain identity, so a page serving another domain's
+    hue would assert a relationship that is not there -- and the two
+    origins that are not trust domains must serve no hue at all.
+    """
+    for origin in origins.ALL:
+        if origin is origins.VOTER_APP:
+            continue  # its page is a 503 until someone runs the build
+        page = clients[origin.name].get("/").text
+        assert "--ink-dim" in page, f"{origin.name}: no shared tokens"
+        assert 'name="viewport"' in page, origin.name
+        if origin.hue is None:
+            assert "--domain:#" not in page, (
+                f"{origin.name} is not a trust domain and must carry no hue")
+        else:
+            light, dark = origin.hue
+            assert f"--domain:{light}" in page, origin.name
+            assert f"--domain:{dark}" in page, f"{origin.name}: no dark value"
+
+
+def test_no_page_declares_a_colour_of_its_own():
+    """Where the drift came back last time, it came back as a literal.
+
+    Every colour has a light value and a dark value, and both live in
+    `web/shared/tokens.css`. A hex code typed into a page is a colour with
+    one value, which in practice means a colour that fails in one of the
+    two themes -- which is how the secret-red came to sit at 2.90:1 against
+    the dark canvas while the page declared `color-scheme: light dark`.
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[1] / "web"
+    for page in sorted(root.glob("*/static/index.html")):
+        literals = set(re.findall(r"(?:color|background|border[\w-]*)\s*:\s*[^;\"}]*?(#[0-9a-fA-F]{3,8})", page.read_text()))
+        assert not literals, f"{page.parent.parent.name}: {sorted(literals)}"
 
 
 def test_the_index_does_not_disclose_an_identifier(clients, deployment):
