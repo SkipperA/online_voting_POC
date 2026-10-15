@@ -13,6 +13,13 @@ async function refresh() {
   $('choices-now').textContent = `${c.num_choices} options`;
   $('bits-now').textContent = `${c.token_key_bits} bits`;
   $('released-now').textContent = `${c.tokens_released} tokens released`;
+  // The cadence is Phase A. Once the box is open the endpoint refuses it,
+  // so the control says so rather than letting the operator find out from
+  // a 409.
+  $('interval').disabled = c.box_opened;
+  $('set-interval').disabled = c.box_opened;
+  $('interval-fixed').textContent = c.box_opened
+    ? 'fixed — the ballot box is open' : '';
   $('phase-now').textContent = c.box_closed ? 'closed'
     : c.box_opened ? 'open — minting now discards this poll' : 'not yet opened';
   if (!$('opens').value) $('opens').value = c.opens;

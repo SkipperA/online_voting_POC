@@ -3,7 +3,7 @@
   "warning": "DEMONSTRATION KEY MATERIAL, PUBLISHED DELIBERATELY. Every wallet seed below is in the clear so that a reader can see what this demo holds on each voter's behalf. The voters are fictional and this election is not one. A deployment keeps k_s^(v) in hardware it never leaves, and keeps k_s^(R) nowhere a file can reach.",
   "election_id": "demo2 – 2026",
   "num_choices": 4,
-  "tally_interval_seconds": 10,
+  "tally_interval_seconds": 11,
   "opens": "2026-09-25T08:00:00Z",
   "closes": "2026-09-25T20:00:00Z",
   "vro_statement_seed": "-RX7NtJ4VJiUxJn00w3GrcJ9Gfe049hKqeclfMbjARk",

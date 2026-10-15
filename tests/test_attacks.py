@@ -754,15 +754,36 @@ def test_the_tally_endpoint_cannot_read_around_the_cadence(election, vro_keypair
     assert len(box.accepted) == 2                  # though the box holds two
 
 
-def test_the_cadence_is_fixed_once_a_submission_is_processed(election):
-    """A poll that can be re-timed while it runs has no cadence."""
+def test_the_cadence_is_fixed_once_the_box_is_open(election):
+    """A poll that can be re-timed while it runs has no cadence.
+
+    The `election` fixture hands back an opened box, which is the case
+    this guards: an interval is a promise about a running poll, so the
+    quiet minutes before the first voter are not a window for revising
+    it either.
+    """
     vro, voters, box = election
-    box.set_publication_interval(900)              # before anything arrives
+
+    with pytest.raises(RuntimeError, match="once the ballot box is open"):
+        box.set_publication_interval(60)
+
+    # And a submission does not make it changeable again.
     register(vro, voters[0])
     box.submit(voters[0].cast(1))
-
     with pytest.raises(RuntimeError):
-        box.set_publication_interval(60)
+        box.set_publication_interval(900)
+
+
+def test_the_cadence_can_be_set_before_the_box_opens(election):
+    """Which is where it belongs: the setup console, in Phase A."""
+    _, _, box = election
+    shut = BallotBox(vro_public_key=box.vro_public_key, num_choices=3)
+
+    shut.set_publication_interval(900)
+    assert shut.tally_interval_seconds == 900
+    shut.open()
+    # The cadence counts from the opening act, not from when it was chosen.
+    assert shut._next_boundary == shut.opened_at()[0] + 900
 
 
 def test_a_ballot_arriving_after_the_close_is_not_recorded(election):

@@ -370,18 +370,25 @@ class BallotBox:
     # The publication cadence
     # ------------------------------------------------------------------
     def set_publication_interval(self, seconds: int | None) -> None:
-        """Choose the cadence.  Build-time only.
+        """Choose the cadence.  Before the poll opens, and not after.
 
-        Refused once anything has been submitted: the interval decides what
-        the public is shown and when, so a poll that can be re-timed while
-        it runs is one whose operator chooses how much of the result to
-        reveal and to whom.  An explicit opening act would make this a
-        consequence of the box being open rather than of the ledger being
-        non-empty.
+        The interval decides what the public is shown and when, so a poll
+        that can be re-timed while it runs is one whose operator chooses
+        how much of the result to reveal and to whom.
+
+        The test is the opening act, not an empty ledger.  It was the
+        ledger while there was no opening act to test, and that left a
+        window: between `open()` and the first submission the cadence
+        could still be changed, and changing it re-anchors the series on
+        the moment of the change rather than on the act the box published.
+        The boundaries then stop lining up with the time the box says it
+        opened, for no reason a reader of the record could reconstruct.
+        An interval is a promise about a running poll; it has to be made
+        before the poll runs.
         """
-        if len(self.accepted) or len(self.rejected):
+        if self.opened:
             raise RuntimeError(
-                "the publication interval is fixed once a submission has been processed"
+                "the publication interval is fixed once the ballot box is open"
             )
         self.tally_interval_seconds = seconds
         self._anchor = float(int(self.now()))

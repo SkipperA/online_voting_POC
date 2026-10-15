@@ -187,3 +187,32 @@ def test_an_election_named_in_hungarian_can_be_downloaded(tmp_path):
         assert 'filename="' in disposition and "idokozi-2027" in disposition
     # And the identifier itself is untouched in the file the browser gets.
     assert clients["ebb"].get("/ledger").json()["election_id"] == "időközi-2027"
+
+
+def test_the_console_refuses_the_cadence_once_the_box_is_open(tmp_path):
+    """And says so on the control rather than only in a 409."""
+    from fastapi.testclient import TestClient
+
+    from service.apps import build_all
+
+    deployment = Deployment.create(
+        election_id="first", bits=2048, num_choices=3,
+        document_root=tmp_path / "docs",
+    )
+    clients = {o.name: TestClient(app) for o, app in build_all(deployment).items()}
+
+    assert clients["setup"].post("/tally-interval", json={"seconds": 10}).status_code == 200
+    assert clients["setup"].get("/configuration").json()["box_opened"] is False
+
+    clients["ebb"].post("/open")
+    refused = clients["setup"].post("/tally-interval", json={"seconds": 11})
+    assert refused.status_code == 409
+    assert "open" in refused.json()["detail"]
+    assert deployment.ebb.tally_interval_seconds == 10
+    # The page reads this to disable the control.
+    assert clients["setup"].get("/configuration").json()["box_opened"] is True
+
+    # Minting gives a new, shut box, so the cadence is choosable again.
+    deployment.mint(election_id="second", num_choices=3, bits=2048,
+                    opens="2027-05-05T07:00:00Z", closes="2027-05-05T19:00:00Z")
+    assert clients["setup"].post("/tally-interval", json={"seconds": 11}).status_code == 200

@@ -51,10 +51,11 @@ no part in the poll itself — the service runs with it stopped.</p>
     a publication point, so an interval longer than the poll means the close
     is the only one — which is what a small electorate wants, since what
     matters is how many voters stand behind each published number. Fixed
-    once a submission has been processed.
+    once the ballot box is open: an interval is a promise about a running
+    poll, so it has to be made before the poll runs.
   </p>
   <input type="number" id="interval" min="1" placeholder="seconds, e.g. 900 — blank for close-only">
-  <button id="set-interval">Set</button>
+  <button id="set-interval">Set</button> <span id="interval-fixed" class="stamp"></span>
   <div class="row" style="margin-top:.6rem"><span class="label">interval</span><span class="value" id="interval-now">…</span></div>
   <div class="row"><span class="label">on the register</span><span class="value" id="register-size">…</span></div>
 </section>
