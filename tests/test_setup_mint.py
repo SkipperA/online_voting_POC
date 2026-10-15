@@ -113,3 +113,76 @@ def test_a_store_predating_the_schedule_still_loads(deployment, tmp_path):
 
     restored = Deployment.load(tmp_path / "data", document_root=tmp_path / "docs-b")
     assert restored.config.opens == "2026-09-25T08:00:00Z"
+
+
+def test_minting_reaches_every_origin_without_a_restart(tmp_path):
+    """The reason this test exists.
+
+    `vro_app` and `ebb_app` each bound the office and the box to a local
+    name when the application was built. Minting replaces both objects, so
+    those two origins went on serving the previous election -- the old token
+    key on 8003, the discarded registry on 8004 -- while 8000 and 8009
+    showed the new one. Nothing failed; the deployment simply disagreed with
+    itself, which is the worst shape for a demonstration to fail in.
+    """
+    from fastapi.testclient import TestClient
+
+    from service import origins
+    from service.apps import build_all
+
+    deployment = Deployment.create(
+        election_id="first", bits=2048, num_choices=3,
+        document_root=tmp_path / "docs",
+    )
+    clients = {o.name: TestClient(app) for o, app in build_all(deployment).items()}
+    clients["ebb"].post("/open")
+
+    before = clients["vro"].get("/back-office/keys").json()["k_p^(R) fingerprint"]
+    assert clients["ebb"].get("/published").json()["phase"] == "open"
+
+    deployment.mint(election_id="second", num_choices=5, bits=2048,
+                    opens="2027-05-05T07:00:00Z", closes="2027-05-05T19:00:00Z")
+
+    assert clients["vro"].get("/back-office/keys").json()["k_p^(R) fingerprint"] != before
+    published = clients["ebb"].get("/published").json()
+    # A new box, which starts shut as every box does (A9) -- not the opened
+    # one this origin was holding a moment ago.
+    assert published["phase"] != "open"
+    assert published["statement_key"] != "" and published["acts"] == []
+    # And the config origin serves the minted election, not a snapshot.
+    served = clients["config"].get("/election.json").json()
+    assert served["election_id"] == "second" and served["num_choices"] == 5
+
+
+def test_an_election_named_in_hungarian_can_be_downloaded(tmp_path):
+    """Header values are latin-1; `ő` and `ű` are not in it.
+
+    Until the console could set the identifier it was always `demo-2026`
+    and this could not be reached. The first election named in Hungarian
+    turned both dumps into a 500 raised while the response was being
+    built -- so no CORS header was ever attached, and the checker on 8005
+    could only say it had failed to read anything.
+    """
+    from fastapi.testclient import TestClient
+
+    from service.apps import build_all
+
+    deployment = Deployment.create(
+        election_id="időközi-2027", bits=2048, num_choices=3,
+        document_root=tmp_path / "docs",
+    )
+    clients = {o.name: TestClient(app) for o, app in build_all(deployment).items()}
+    clients["ebb"].post("/open")
+    clients["ebb"].post("/close")
+
+    for origin, path in (("ebb", "/ledger"), ("vro", "/releases")):
+        response = clients[origin].get(path)
+        assert response.status_code == 200, f"{path}: {response.text}"
+        disposition = response.headers["content-disposition"]
+        # The real name travels percent-encoded; the fallback is ASCII and
+        # still recognisable rather than a hash or a generic "dump".
+        assert "filename*=UTF-8''" in disposition
+        assert "id%C5%91k%C3%B6zi-2027" in disposition
+        assert 'filename="' in disposition and "idokozi-2027" in disposition
+    # And the identifier itself is untouched in the file the browser gets.
+    assert clients["ebb"].get("/ledger").json()["election_id"] == "időközi-2027"

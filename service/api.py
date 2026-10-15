@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import unicodedata
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 from cryptography.hazmat.primitives import serialization
@@ -49,6 +51,29 @@ _spec = importlib.util.spec_from_file_location("ovpoc_verifier", VERIFIER_SOURCE
 _verifier = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_verifier)
 run_checks = _verifier.run_checks
+
+def _attachment(name: str) -> dict[str, str]:
+    """A download filename that survives being put in a header.
+
+    Header values are latin-1 by the HTTP specification and an election
+    identifier is UTF-8 by ours. The two overlap for most of Europe and
+    part company at exactly the characters this project is most likely to
+    meet: `ő` and `ű` are outside latin-1, so an election named in
+    Hungarian raised inside the server rather than reaching the browser --
+    a 500 with no CORS headers on it, which the checker could only report
+    as a failure to read anything at all.
+
+    RFC 6266 answers it: an ASCII `filename` for whatever cannot read the
+    extended form, and `filename*` carrying the real name percent-encoded.
+    The identifier is never flattened in the file's *contents*, only in
+    the fallback name a browser may use to save it.
+    """
+    stripped = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+    fallback = "".join(c for c in stripped if c.isalnum() or c in "._-") or "dump.json"
+    return {"content-disposition":
+            f'attachment; filename="{fallback}"; '
+            f"filename*=UTF-8''{quote(name, safe='')}"}
+
 
 #: The dump's own version, independent of the wire contract and the
 #: store: a verifier written against one shape should refuse another
@@ -235,7 +260,10 @@ class ReleaseQueryBody(BaseModel):
 
 def vro_app(deployment: Deployment, base) -> FastAPI:
     app = base(origins.VRO)
-    vro = deployment.vro
+    # Resolved per call and never bound to a name here: the setup console
+    # may mint a new election while this process runs, which replaces the
+    # office object. A name captured when this app was built would go on serving
+    # the previous office's token key after the election it belonged to had gone.
 
     @app.middleware("http")
     async def reply_is_readable_cross_origin(request, call_next):
@@ -302,7 +330,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             # operator. The voter's application sees no difference except
             # that its reply is not there yet, which is the state B16 was
             # built to tolerate.
-            reserved = vro.reserve(request)
+            reserved = deployment.vro.reserve(request)
             if reserved.outcome.name == "RESERVED":
                 deployment.held_requests[request.voter_id] = request
                 # What the requester is actually told. The office records
@@ -312,7 +340,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
                 return {"outcome": "AWAITING_RELEASE"}
             return {"outcome": reserved.outcome.name}
 
-        response = vro.issue_token(request)
+        response = deployment.vro.issue_token(request)
         if response.issued:
             # Held for collection at B16 rather than returned here: the reply
             # belongs to the application, which is not the party that asked.
@@ -338,7 +366,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
     @app.post("/release-queries")
     async def release_query(body: ReleaseQueryBody) -> dict:
         """D1, answered by the office over its own register."""
-        answer = vro.query_token_release(body.voter_id, unb64(body.signature))
+        answer = deployment.vro.query_token_release(body.voter_id, unb64(body.signature))
         out = {"outcome": answer.outcome.name, "released": answer.released}
         if answer.opening is not None:
             out["opening"] = b64(answer.opening)
@@ -360,16 +388,16 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             "_never_exposed_in_a_deployment":
                 "k_s^(R) and k_s^(O) exist only inside the signing operations.",
             "k_p^(R)": b64(
-                vro.public_key.public_bytes(
+                deployment.vro.public_key.public_bytes(
                     serialization.Encoding.DER,
                     serialization.PublicFormat.SubjectPublicKeyInfo)),
-            "k_p^(R) fingerprint": rsabssa.public_key_fingerprint(vro.public_key),
+            "k_p^(R) fingerprint": rsabssa.public_key_fingerprint(deployment.vro.public_key),
             "k_p^(R) purpose": (
                 "signs tokens, and nothing else, for this election only. One "
                 "key for every voter: a per-voter key would let the office "
                 "re-link a ballot to the citizen who asked (§3.3)."
             ),
-            "k_p^(O)": b64(vro.office_public_key),
+            "k_p^(O)": b64(deployment.vro.office_public_key),
             "k_p^(O) purpose": (
                 "signs the office's statements — the denial of §3.7 — and "
                 "never a token. A statement signed under the token key could "
@@ -413,7 +441,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         request = deployment.held_requests.pop(voter_id, None)
         if request is None:
             raise HTTPException(404, "no held request for that id")
-        response = vro.release(request)
+        response = deployment.vro.release(request)
         if response.issued:
             deployment.token_replies[request.blinded_key] = response.blind_signature
         return {"outcome": response.outcome.name}
@@ -427,7 +455,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         """
         voter_id = body.get("voter_id", "")
         deployment.held_requests.pop(voter_id, None)
-        return {"cancelled": vro.cancel_reservation(voter_id)}
+        return {"cancelled": deployment.vro.cancel_reservation(voter_id)}
 
     @app.get("/back-office/audit")
     async def office_audit() -> dict:
@@ -471,7 +499,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
                     ),
                     "reason_withheld": entry.outcome.name == "NOT_IDENTIFIED",
                 }
-                for entry in vro.audit_log
+                for entry in deployment.vro.audit_log
             ],
         }
 
@@ -494,8 +522,8 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         this file learns how many tokens exist and nothing whatever about
         whose (Section 3.7).
         """
-        head, head_signature = vro.signed_release_head()
-        count, count_signature = vro.signed_release_count()
+        head, head_signature = deployment.vro.signed_release_head()
+        count, count_signature = deployment.vro.signed_release_count()
         dump = {
             "format": RELEASES_FORMAT,
             "election_id": deployment.config.election_id,
@@ -503,19 +531,19 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             "genesis_hash": deployment.config.genesis_hash.hex(),
             "entries": [
                 {"index": e.index, "commitment": e.payload["commitment"]}
-                for e in vro.release_log.entries
+                for e in deployment.vro.release_log.entries
             ],
             "head": head.hex(),
             "head_signature": b64(head_signature),
             "count": count,
             "count_signature": b64(count_signature),
-            "supervisor_downloads": vro.supervisor_downloads,
+            "supervisor_downloads": deployment.vro.supervisor_downloads,
         }
         name = f"VRO_dump_{deployment.config.election_id}.json"
         return Response(
             content=canonical_bytes(dump),
             media_type="application/json",
-            headers={"content-disposition": f'attachment; filename="{name}"'},
+            headers=_attachment(name),
         )
 
     @app.get("/release-log")
@@ -532,15 +560,15 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         check in the design rested on an unattributable claim made by the
         party with the motive to understate it.
         """
-        head, head_signature = vro.signed_release_head()
-        count, count_signature = vro.signed_release_count()
+        head, head_signature = deployment.vro.signed_release_head()
+        count, count_signature = deployment.vro.signed_release_count()
         return {
-            "entries": [e.payload for e in vro.release_log.entries],
+            "entries": [e.payload for e in deployment.vro.release_log.entries],
             "head": head.hex(),
             "head_signature": b64(head_signature),
             "count": count,
             "count_signature": b64(count_signature),
-            "supervisor_downloads": vro.supervisor_downloads,
+            "supervisor_downloads": deployment.vro.supervisor_downloads,
         }
 
     return app
@@ -560,7 +588,10 @@ class BallotBody(BaseModel):
 
 def ebb_app(deployment: Deployment, base) -> FastAPI:
     app = base(origins.EBB)
-    box = deployment.ebb
+    # Resolved per call and never bound to a name here: the setup console
+    # may mint a new election while this process runs, which replaces the
+    # ballot box object. A name captured when this app was built would go on serving
+    # the discarded box's registry after the election it belonged to had gone.
 
     # The voter casts from 8001 and checks from 8005, so the ballot paths and
     # the published view must be readable across origins. `POST /ballots`
@@ -623,7 +654,7 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
             vote_signature=unb64(body.vote_signature),
         )
         try:
-            result = box.submit(ballot)
+            result = deployment.ebb.submit(ballot)
         except BoxStillOpen as exc:       # pragma: no cover - defensive
             raise HTTPException(409, str(exc))
         return {
@@ -684,13 +715,13 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
         return Response(
             content=canonical_bytes(dump),
             media_type="application/json",
-            headers={"content-disposition": f'attachment; filename="{name}"'},
+            headers=_attachment(name),
         )
 
     @app.get("/published")
     async def published() -> dict:
         """C7 and E3–E4. The view changes at the close; no row moves back."""
-        return box.published_view()
+        return deployment.ebb.published_view()
 
     @app.get("/ballots/{adhoc_public_key}")
     async def find(adhoc_public_key: str) -> dict:
@@ -701,7 +732,7 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
         on a device the voting application does not control.
         """
         try:
-            record = box.find_ballot(unb64(adhoc_public_key))
+            record = deployment.ebb.find_ballot(unb64(adhoc_public_key))
         except ValueError:
             raise HTTPException(400, "malformed key")
         if record is None:
@@ -718,20 +749,20 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
         that has shut, and neither could be shown.
         """
         try:
-            box.open()
+            deployment.ebb.open()
         except RuntimeError as exc:
             raise HTTPException(409, str(exc))
-        at, _ = box.opened_at()
+        at, _ = deployment.ebb.opened_at()
         return {"open": True, "at": at}
 
     @app.post("/close")
     async def close() -> dict:
         """E1. An act of the box, performed by an operator, not a clock."""
         try:
-            box.close()
+            deployment.ebb.close()
         except RuntimeError as exc:
             raise HTTPException(409, str(exc))
-        return {"closed": True, "head": b64(box.accepted.head())}
+        return {"closed": True, "head": b64(deployment.ebb.accepted.head())}
 
     @app.get("/tally")
     async def tally() -> dict:
@@ -744,7 +775,7 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
         result.
         """
         try:
-            return box.tally()
+            return deployment.ebb.tally()
         except BoxStillOpen as exc:
             raise HTTPException(409, str(exc))
 
@@ -885,7 +916,7 @@ def supervisor_app(deployment: Deployment, base) -> FastAPI:
         return Response(
             content=canonical_bytes(dump),
             media_type="application/json",
-            headers={"content-disposition": f'attachment; filename="{name}"'},
+            headers=_attachment(name),
         )
 
     return app
