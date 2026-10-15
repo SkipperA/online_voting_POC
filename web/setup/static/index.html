@@ -26,6 +26,9 @@ no part in the poll itself — the service runs with it stopped.</p>
   to disk here and reloaded. The ballot box, the hash chain and the
   released-token register are in memory and are lost. A real ballot box does
   not forget its contents when its process stops; this one does, and says so.
+  At the close it writes the configuration, the ledger and the release
+  register into <code>closed/</code> beside the keys — the published record of
+  a finished poll, which is not the same as a registry that survives.
 </div>
 
 <section>

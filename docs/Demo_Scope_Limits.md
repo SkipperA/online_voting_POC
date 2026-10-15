@@ -233,6 +233,16 @@ its contents when its process stops, and the receipts a voter holds would then
 refer to a chain that no longer exists — which is exactly the evidence the
 design says they are. The substitution is storage, not the protocol.
 
+One narrowing, since this was written. At the close, the box writes the three
+files a verifier takes — the configuration as published, the ledger and the
+release register — into `closed/` under the election's own directory. That is
+the *published* record of a finished poll, not a durable registry: a restart
+during voting still loses everything. What it removes is a window rather than
+the clause. The artefacts used to be reachable only between the close and the
+next restart, so an election's evidence depended on somebody having downloaded
+three files in that interval, and an election whose evidence depends on that
+is not evidencing anything.
+
 **Label:** *Votes are held in memory. Restarting the service loses them and
 keeps the election.*
 

@@ -82,7 +82,9 @@ python -m service --election 001-… # serve a superseded election again
 the one being served. Minting from the setup console writes a new directory
 and moves the pointer rather than overwriting, so a superseded election keeps
 its token key — without which a ledger downloaded from it could never be
-checked again. The election shipped here predates that layout and sits
+checked again. Closing a poll writes its configuration, ledger and release
+register into `closed/` inside that directory, which is what
+`tools/verify_election.py` takes. The election shipped here predates that layout and sits
 directly in `election-data/`; it is read where it lies, and the first mint
 puts a numbered directory beside it.
 

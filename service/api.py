@@ -258,6 +258,98 @@ class ReleaseQueryBody(BaseModel):
     signature: str
 
 
+def ledger_dump(deployment: Deployment) -> dict:
+    """E3. The whole registry as one object. Raises while voting is open."""
+    view = deployment.ebb.published_view()
+    if "records" not in view:
+        raise BoxStillOpen("the registry is published in clear at the close")
+    return {
+        "format": LEDGER_FORMAT,
+        "election_id": deployment.config.election_id,
+        "configuration_digest": deployment.config.digest_hex(),
+        "genesis_hash": deployment.config.genesis_hash.hex(),
+        "accepted": [
+            {"index": c["index"], "commitment": c["commitment"], "record": r}
+            for c, r in zip(view["commitments"]["accepted"], view["records"]["accepted"])
+        ],
+        "rejected": [
+            {"index": c["index"], "commitment": c["commitment"], "record": r}
+            for c, r in zip(view["commitments"]["rejected"], view["records"]["rejected"])
+        ],
+        "heads": view["heads"],
+        "head_signatures": view["head_signatures"],
+    }
+
+
+def releases_dump(deployment: Deployment) -> dict:
+    """E5. The release register: commitments and counts, never identifiers."""
+    head, head_signature = deployment.vro.signed_release_head()
+    count, count_signature = deployment.vro.signed_release_count()
+    return {
+        "format": RELEASES_FORMAT,
+        "election_id": deployment.config.election_id,
+        "configuration_digest": deployment.config.digest_hex(),
+        "genesis_hash": deployment.config.genesis_hash.hex(),
+        "entries": [
+            {"index": e.index, "commitment": e.payload["commitment"]}
+            for e in deployment.vro.release_log.entries
+        ],
+        "head": head.hex(),
+        "head_signature": b64(head_signature),
+        "count": count,
+        "count_signature": b64(count_signature),
+        "supervisor_downloads": deployment.vro.supervisor_downloads,
+    }
+
+
+#: Where a closed poll's record is written, under the election's own directory.
+CLOSED = "closed"
+
+
+def archive_at_close(deployment: Deployment) -> Path | None:
+    """Write the three files a verifier needs, beside the election's keys.
+
+    Not a durable ballot box. The registry is still in memory and a restart
+    mid-poll still loses it (clause A7); what this writes is the *published*
+    record of a poll that has finished, which is a different object and the
+    only one a verifier ever had. The three are exactly what
+    `tools/verify_election.py` takes, in the order it takes them, and the
+    bytes are the ones the endpoints serve rather than a second rendering --
+    a configuration re-serialised here would hash to something the dumps do
+    not name.
+
+    It exists because the alternative is a race the operator cannot win: the
+    artefacts are reachable only between the close and the next restart, and
+    an election whose evidence depends on somebody having clicked three
+    download buttons in that window is not evidencing anything.
+
+    Returns the directory written, or None when there is nowhere to write
+    (an ephemeral run) or a record is already there (a previous close of
+    this election, which must not be overwritten by a later empty one).
+    """
+    if deployment.data_folder is None:
+        return None
+    folder = deployment.data_folder / CLOSED
+    if folder.exists():
+        return None
+    folder.mkdir(parents=True)
+    (folder / "election.json").write_bytes(deployment.config.to_bytes())
+    (folder / "ledger.json").write_bytes(canonical_bytes(ledger_dump(deployment)))
+    (folder / "releases.json").write_bytes(canonical_bytes(releases_dump(deployment)))
+    (folder / "README.md").write_text(
+        "# the closed poll\n\n"
+        "The three files `tools/verify_election.py` takes, in its order:\n\n"
+        "    python tools/verify_election.py election.json ledger.json releases.json\n\n"
+        "`election.json` is the configuration as it was published, byte for byte --\n"
+        "the dumps name its digest, and a configuration re-rendered later would not\n"
+        "match it. Written once, at the close, and not rewritten afterwards.\n\n"
+        "This is the published record, not a durable ballot box: the live registry\n"
+        "is in memory and a restart during a poll still loses it.\n",
+        encoding="utf-8",
+    )
+    return folder
+
+
 def vro_app(deployment: Deployment, base) -> FastAPI:
     app = base(origins.VRO)
     # Resolved per call and never bound to a name here: the setup console
@@ -522,23 +614,7 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         this file learns how many tokens exist and nothing whatever about
         whose (Section 3.7).
         """
-        head, head_signature = deployment.vro.signed_release_head()
-        count, count_signature = deployment.vro.signed_release_count()
-        dump = {
-            "format": RELEASES_FORMAT,
-            "election_id": deployment.config.election_id,
-            "configuration_digest": deployment.config.digest_hex(),
-            "genesis_hash": deployment.config.genesis_hash.hex(),
-            "entries": [
-                {"index": e.index, "commitment": e.payload["commitment"]}
-                for e in deployment.vro.release_log.entries
-            ],
-            "head": head.hex(),
-            "head_signature": b64(head_signature),
-            "count": count,
-            "count_signature": b64(count_signature),
-            "supervisor_downloads": deployment.vro.supervisor_downloads,
-        }
+        dump = releases_dump(deployment)
         name = f"VRO_dump_{deployment.config.election_id}.json"
         return Response(
             content=canonical_bytes(dump),
@@ -691,26 +767,10 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
         from two components, so the box does not vouch for the office's: a
         verifier fetches it from the office, signed under k_p^(O).
         """
-        view = deployment.ebb.published_view()
-        if "records" not in view:
+        try:
+            dump = ledger_dump(deployment)
+        except BoxStillOpen:
             raise HTTPException(409, "the registry is published in clear at the close")
-
-        dump = {
-            "format": LEDGER_FORMAT,
-            "election_id": deployment.config.election_id,
-            "configuration_digest": deployment.config.digest_hex(),
-            "genesis_hash": deployment.config.genesis_hash.hex(),
-            "accepted": [
-                {"index": c["index"], "commitment": c["commitment"], "record": r}
-                for c, r in zip(view["commitments"]["accepted"], view["records"]["accepted"])
-            ],
-            "rejected": [
-                {"index": c["index"], "commitment": c["commitment"], "record": r}
-                for c, r in zip(view["commitments"]["rejected"], view["records"]["rejected"])
-            ],
-            "heads": view["heads"],
-            "head_signatures": view["head_signatures"],
-        }
         name = f"EBB_dump_{deployment.config.election_id}.json"
         return Response(
             content=canonical_bytes(dump),
@@ -762,7 +822,16 @@ def ebb_app(deployment: Deployment, base) -> FastAPI:
             deployment.ebb.close()
         except RuntimeError as exc:
             raise HTTPException(409, str(exc))
-        return {"closed": True, "head": b64(deployment.ebb.accepted.head())}
+        # The act succeeded; the archive is a consequence of it, not a
+        # condition on it. A disk that refuses must not leave the operator
+        # unsure whether the poll is shut.
+        try:
+            written = archive_at_close(deployment)
+        except OSError as exc:
+            return {"closed": True, "head": b64(deployment.ebb.accepted.head()),
+                    "archived": None, "archive_error": str(exc)}
+        return {"closed": True, "head": b64(deployment.ebb.accepted.head()),
+                "archived": str(written) if written else None}
 
     @app.get("/tally")
     async def tally() -> dict:
