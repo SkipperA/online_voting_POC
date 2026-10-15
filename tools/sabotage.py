@@ -231,6 +231,21 @@ MUTATIONS = [
         replace="        if True:  # SABOTAGE: tally always available\n            return self._count()\n        if False:",
     ),
     Mutation(
+        name="cadence_changeable_while_open",
+        what=(
+            "The publication cadence can be re-timed after the poll has opened, letting "
+            "the operator choose mid-poll how much of the result the public is shown and "
+            "when -- and re-anchoring the series away from the opening act, so the "
+            "boundaries no longer line up with the time the box says it opened."
+        ),
+        path="src/ovpoc/ballotbox.py",
+        find=('        if self.opened:\n'
+              '            raise RuntimeError(\n'
+              '                "the publication interval is fixed once the ballot box is open"\n'
+              '            )'),
+        replace="        pass  # SABOTAGE: the cadence is a running-poll setting",
+    ),
+    Mutation(
         name="reservation_publishes_the_commitment",
         what="The office writes the release commitment when it reserves rather than when it releases, so the published count overstates the tokens that exist and a pause becomes visible to third parties.",
         path="src/ovpoc/vro.py",
