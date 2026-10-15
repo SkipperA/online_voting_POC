@@ -1,10 +1,13 @@
 {
-  "store_version": 2,
+  "store_version": 3,
   "warning": "DEMONSTRATION KEY MATERIAL, PUBLISHED DELIBERATELY. Every wallet seed below is in the clear so that a reader can see what this demo holds on each voter's behalf. The voters are fictional and this election is not one. A deployment keeps k_s^(v) in hardware it never leaves, and keeps k_s^(R) nowhere a file can reach.",
-  "election_id": "demo-2026",
-  "num_choices": 4,
+  "election_id": "Referendum – 2026",
+  "num_choices": 2,
   "tally_interval_seconds": 10,
-  "vro_statement_seed": "GqJ7wd9EHYCcGkn5WRxhP40BAOB3FJ42h8kzq6KFziE",
+  "opens": "2026-09-25T08:00:00Z",
+  "closes": "2026-09-25T20:00:00Z",
+  "vro_statement_seed": "N7yQXijHy9znLDntLt0Ow986AC0mONRmjwY6SCbR4IM",
+  "ebb_statement_seed": "2PW3vIS4E_nNq9JmRU2hBSNq1_ZRxM5WeV05boNhNj0",
   "electoral_register": [
     "András Zsolt",
     "HU-1970-0442",
