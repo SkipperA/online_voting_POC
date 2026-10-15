@@ -199,16 +199,24 @@ def config_app(deployment: Deployment) -> FastAPI:
             )
         )
 
-    payload = (deployment.document_root / "election.json").read_bytes()
-    digest_line = (deployment.document_root / "election.json.sha256").read_text()
+    # Read per request, like the tokens and every other static artefact here,
+    # and not snapshotted at startup. Inert means this origin *computes*
+    # nothing: it serves the bytes an author wrote, and re-rendering the
+    # configuration object per request would be a different claim -- the
+    # digest is over the bytes that were published, not over whatever this
+    # process would serialise today. The author is the setup console, which
+    # may mint a new election while the process runs, and a snapshot would
+    # have this origin quietly serving an election that no longer exists.
+    root = deployment.document_root
 
     @app.get("/election.json")
     async def election() -> Response:
-        return Response(content=payload, media_type="application/json")
+        return Response(content=(root / "election.json").read_bytes(),
+                        media_type="application/json")
 
     @app.get("/election.json.sha256")
     async def election_digest() -> PlainTextResponse:
-        return PlainTextResponse(digest_line)
+        return PlainTextResponse((root / "election.json.sha256").read_text())
 
     return app
 

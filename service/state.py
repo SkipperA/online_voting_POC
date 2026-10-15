@@ -20,11 +20,28 @@ from ovpoc.ballotbox import BallotBox
 from ovpoc.vro import VRO
 
 from .election import ElectionConfig
-from . import store
+from . import origins, store
 
-DOCUMENT_ROOT = Path("/tmp/ovpoc-config")
+# One config root per deployment, keyed by the same offset that gives it its
+# ports. The offset exists so a test deployment can run beside a development
+# one; sharing a document root means the second one's startup overwrites the
+# first one's published configuration. That was survivable while the config
+# origin snapshotted its bytes at startup and merely wrong afterwards, since
+# the origin now reads the file per request -- which it must, or an election
+# minted from the setup console would never reach a page.
+_SUFFIX = f"-{origins.OFFSET}" if origins.OFFSET else ""
+DOCUMENT_ROOT = Path(f"/tmp/ovpoc-config{_SUFFIX}")
 DATA_DIR = Path("election-data")
+DEFAULT_ELECTION_ID = "demo-2026"
 DEFAULT_CHOICES = 4
+DEFAULT_BITS = 3072
+
+# The declared schedule of a freshly minted election, in one place rather
+# than two. Recorded, not enforced: the close is an act of the box (E1), so
+# these are what the configuration says the poll was meant to be, which a
+# reader checks the acts against.
+DEFAULT_OPENS = "2026-09-25T08:00:00Z"
+DEFAULT_CLOSES = "2026-09-25T20:00:00Z"
 
 
 @dataclass
@@ -79,10 +96,12 @@ class Deployment:
     @classmethod
     def create(
         cls,
-        election_id: str = "demo-2026",
+        election_id: str = DEFAULT_ELECTION_ID,
         num_choices: int = DEFAULT_CHOICES,
-        bits: int = 3072,
+        bits: int = DEFAULT_BITS,
         tally_interval_seconds: int | None = None,
+        opens: str = DEFAULT_OPENS,
+        closes: str = DEFAULT_CLOSES,
         document_root: Path = DOCUMENT_ROOT,
     ) -> "Deployment":
         population = PopulationRegister()
@@ -97,8 +116,8 @@ class Deployment:
             box_statement_key=ebb.statement_key.public_bytes,
             num_choices=num_choices,
             tally_interval_seconds=tally_interval_seconds,
-            opens="2026-09-25T08:00:00Z",
-            closes="2026-09-25T20:00:00Z",
+            opens=opens,
+            closes=closes,
         )
         config.write(document_root)
         return cls(
@@ -122,6 +141,85 @@ class Deployment:
         if self.data_dir is not None:
             self.save(self.data_dir)
 
+    def set_schedule(self, opens: str, closes: str) -> None:
+        """A5. The declared opening and closing times.
+
+        The one configuration field that can be corrected without voiding
+        anything. Nothing is signed under it and no token depends on it:
+        the times are recorded, not enforced, and the close is an act of
+        the box (E1) which a reader checks *against* this declaration.
+        The digest moves, as it must -- a configuration that changed
+        without its digest changing is the thing the digest exists to
+        prevent.
+        """
+        self.config = replace(self.config, opens=opens, closes=closes)
+        self.config.write(self.document_root)
+        if self.data_dir is not None:
+            self.save(self.data_dir)
+
+    def mint(
+        self,
+        *,
+        election_id: str,
+        num_choices: int,
+        bits: int,
+        opens: str,
+        closes: str,
+        tally_interval_seconds: int | None = None,
+        keep_register: bool = True,
+    ) -> None:
+        """A4-A7 again: author a new election over this one.
+
+        Every key pair is new -- the office's token key, the office's
+        statement key, the box's statement key -- so every token already
+        issued stops verifying, every receipt already given stops being
+        evidence of anything, and the fingerprint a voter pinned is no
+        longer the fingerprint of the election they pinned it for. That is
+        not damage to be mitigated: it is what a different election *is*,
+        and it is why this belongs to an origin the poll runs without
+        rather than to any surface that stays up.
+
+        What is not reset is the electoral register, unless asked. The
+        register is Phase A material authored outside the system (3.2) and
+        its entries name citizens, not keys; carrying it over is the
+        demo's convenience and discards nothing the new keys would have
+        protected.
+
+        The object is mutated in place rather than replaced because each
+        origin's application closed over it when the process started. A
+        new `Deployment` would be served by nobody.
+        """
+        personas = dict(self.wallets) if keep_register else {}
+        register = sorted(self.vro.register) if keep_register else []
+
+        fresh = Deployment.create(
+            election_id=election_id,
+            num_choices=num_choices,
+            bits=bits,
+            tally_interval_seconds=tally_interval_seconds,
+            opens=opens,
+            closes=closes,
+            document_root=self.document_root,
+        )
+        for voter_id, wallet in personas.items():
+            fresh.wallets[voter_id] = wallet
+            fresh.population.enrol(voter_id, wallet.public_bytes)
+        for voter_id in register:
+            fresh.vro.enrol(voter_id)
+
+        self.vro = fresh.vro
+        self.ebb = fresh.ebb
+        self.config = fresh.config
+        self.population = fresh.population
+        self.wallets = fresh.wallets
+        # Nothing the old poll was in the middle of survives into the new
+        # one: a held request and an uncollected reply both name a key that
+        # no longer certifies anything.
+        self.held_requests = {}
+        self.token_replies = {}
+        if self.data_dir is not None:
+            self.save(self.data_dir)
+
     # -- persistence -------------------------------------------------------
 
     def save(self, path: Path = DATA_DIR) -> Path:
@@ -136,6 +234,8 @@ class Deployment:
             election_id=self.config.election_id,
             num_choices=self.ebb.num_choices,
             tally_interval_seconds=self.ebb.tally_interval_seconds,
+            opens=self.config.opens,
+            closes=self.config.closes,
         )
         return path
 
@@ -182,8 +282,8 @@ class Deployment:
             box_statement_key=box_statement_key.public_bytes,
             num_choices=body["num_choices"],
             tally_interval_seconds=body["tally_interval_seconds"],
-            opens="2026-09-25T08:00:00Z",
-            closes="2026-09-25T20:00:00Z",
+            opens=body["opens"],
+            closes=body["closes"],
         )
         config.write(document_root)
         return cls(

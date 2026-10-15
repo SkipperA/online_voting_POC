@@ -39,15 +39,24 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 from ovpoc import keys, rsabssa
 from ovpoc.messages import b64, unb64
 
-STORE_VERSION = 2
+STORE_VERSION = 3
 
-# Version 1 is still readable, and deliberately so. The only difference is
-# one optional key, `tally_interval_seconds`, whose absence means exactly
-# what the version-1 behaviour was: no publication interval, so the close is
-# the only publication point. Refusing an election because its file predates
-# a field that defaults to the old behaviour would lose the token key, the
-# register and every persona for nothing. The next save writes version 2.
-READABLE_STORE_VERSIONS = {1, 2}
+# Earlier versions are still readable, and deliberately so. Each difference
+# is a field whose absence means exactly what the older behaviour was:
+# `tally_interval_seconds` (version 2) absent means no publication interval,
+# so the close is the only publication point; `opens` and `closes` (version
+# 3) absent means the pair the service used to hold as literals, which is
+# what every store written before them was serving. Refusing an election
+# because its file predates a field that defaults to the old behaviour would
+# lose the token key, the register and every persona for nothing. The next
+# save writes the current version.
+READABLE_STORE_VERSIONS = {1, 2, 3}
+
+# What a store written before the schedule was authored was serving. Not a
+# sensible default for a new election -- the console asks for one -- but the
+# only honest reading of a file that predates the field.
+LEGACY_OPENS = "2026-09-25T08:00:00Z"
+LEGACY_CLOSES = "2026-09-25T20:00:00Z"
 
 
 class NoElection(RuntimeError):
@@ -72,7 +81,7 @@ def pair_from(seed: bytes) -> keys.SigningKeyPair:
 
 def write(path: Path, *, token_private, statement_key, box_statement_key,
           register, personas,
-          election_id: str, num_choices: int,
+          election_id: str, num_choices: int, opens: str, closes: str,
           tally_interval_seconds: int | None = None) -> None:
     """Write the durable half. Called by the setup console, never at runtime."""
     path.mkdir(parents=True, exist_ok=True)
@@ -115,6 +124,8 @@ def write(path: Path, *, token_private, statement_key, box_statement_key,
                 "election_id": election_id,
                 "num_choices": num_choices,
                 "tally_interval_seconds": tally_interval_seconds,
+                "opens": opens,
+                "closes": closes,
                 "vro_statement_seed": b64(seed_of(statement_key)),
                 "ebb_statement_seed": b64(seed_of(box_statement_key)),
                 "electoral_register": sorted(register),
@@ -155,6 +166,8 @@ def read(path: Path) -> dict:
         "election_id": body["election_id"],
         "num_choices": body["num_choices"],
         "tally_interval_seconds": body.get("tally_interval_seconds"),
+        "opens": body.get("opens", LEGACY_OPENS),
+        "closes": body.get("closes", LEGACY_CLOSES),
         "token_private": private,
         "token_public": private.public_key(),
         "statement_key": pair_from(unb64(body["vro_statement_seed"])),

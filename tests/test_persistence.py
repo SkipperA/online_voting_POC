@@ -14,7 +14,7 @@ from __future__ import annotations
 import pytest
 
 from service.state import Deployment
-from service.store import NoElection
+from service.store import STORE_VERSION, NoElection
 
 
 @pytest.fixture
@@ -155,7 +155,7 @@ def test_an_election_saved_before_the_cadence_existed_still_loads(tmp_path):
 
     restored.save(tmp_path / "data")
     rewritten = json.loads(store_file.read_text(encoding="utf-8"))
-    assert rewritten["store_version"] == 2
+    assert rewritten["store_version"] == STORE_VERSION
 
 
 def test_a_store_version_from_the_future_is_still_refused(tmp_path):

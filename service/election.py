@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,6 +31,13 @@ from ovpoc import ledger, rsabssa
 from ovpoc.messages import b64
 
 SCHEMA_VERSION = 2
+
+
+def _swap(path: Path, payload: bytes) -> None:
+    """Write beside the target, then rename over it. `os.replace` is atomic."""
+    scratch = path.with_suffix(path.suffix + ".new")
+    scratch.write_bytes(payload)
+    os.replace(scratch, path)
 
 
 @dataclass(frozen=True)
@@ -128,8 +136,15 @@ class ElectionConfig:
         """
         document_root.mkdir(parents=True, exist_ok=True)
         path = document_root / "election.json"
-        path.write_bytes(self.to_bytes())
-        (document_root / "election.json.sha256").write_text(
-            f"{self.digest_hex()}  election.json\n"
-        )
+        digest = document_root / "election.json.sha256"
+        # Swapped rather than rewritten in place. The config origin reads
+        # these per request, so a half-written file is a fetch that fails
+        # its own digest check -- which on these pages is the alarm state,
+        # and must mean tampering rather than timing. The two files are
+        # still swapped one after the other; a reader who fetches between
+        # the two swaps sees a mismatch. The window is microseconds on a
+        # local disk, and closing it properly means publishing both in one
+        # object, which would change what the digest is over.
+        _swap(path, self.to_bytes())
+        _swap(digest, f"{self.digest_hex()}  election.json\n".encode("utf-8"))
         return path

@@ -26,7 +26,7 @@ from ovpoc.ballotbox import BoxStillOpen, verify_phase
 from ovpoc.messages import AuthRequest, Ballot, b64, canonical_bytes, unb64
 from ovpoc.vro import release_query_payload
 
-from . import origins
+from . import origins, state
 from .state import Deployment
 
 
@@ -763,6 +763,31 @@ class TallyIntervalBody(BaseModel):
     seconds: int | None = None
 
 
+class ScheduleBody(BaseModel):
+    opens: str
+    closes: str
+
+
+class MintBody(BaseModel):
+    """A new election, authored over the one now being served.
+
+    `confirm` must repeat the identifier of the election being replaced.
+    Not a security control -- whoever can reach 8009 is the administering
+    body by construction, exactly as whoever can reach 8006 is a
+    supervisor -- but minting voids every token and every receipt, and an
+    act with that reach should take two hands rather than one click.
+    """
+
+    confirm: str
+    election_id: str
+    num_choices: int = state.DEFAULT_CHOICES
+    bits: int = state.DEFAULT_BITS
+    opens: str = state.DEFAULT_OPENS
+    closes: str = state.DEFAULT_CLOSES
+    tally_interval_seconds: int | None = None
+    keep_register: bool = True
+
+
 def supervisor_app(deployment: Deployment, base) -> FastAPI:
     """8006 — the release register with the identifiers in it.
 
@@ -1042,6 +1067,67 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
             "digest": deployment.config.digest_hex(),
         }
 
+    @app.post("/schedule")
+    async def schedule(body: ScheduleBody) -> dict:
+        """A5. The declared opening and closing times.
+
+        Amendable at any point, and alone among these in being so: the
+        times are recorded rather than enforced, so correcting them voids
+        no token and disowns no receipt. Only the digest moves.
+        """
+        opens, closes = body.opens.strip(), body.closes.strip()
+        if not opens or not closes:
+            raise HTTPException(422, "both times are required")
+        deployment.set_schedule(opens, closes)
+        return {
+            "opens": deployment.config.opens,
+            "closes": deployment.config.closes,
+            "digest": deployment.config.digest_hex(),
+        }
+
+    @app.post("/election")
+    def mint(body: MintBody) -> dict:
+        """A4-A7. Author a new election over the current one.
+
+        Declared `def` rather than `async def` deliberately: generating an
+        RSA modulus takes seconds, and on the event loop it would stall
+        every other origin in this single process while it ran. Starlette
+        gives a synchronous endpoint a thread.
+        """
+        if body.confirm != deployment.config.election_id:
+            raise HTTPException(
+                409,
+                f"to replace an election, name it: confirm must be "
+                f"{deployment.config.election_id!r}",
+            )
+        election_id = body.election_id.strip()
+        if not election_id:
+            raise HTTPException(422, "an election needs an identifier")
+        if body.num_choices < 1:
+            raise HTTPException(422, "a ballot needs at least one option")
+        if body.bits < 2048:
+            raise HTTPException(
+                422,
+                "2048 bits is the floor this demo will generate; the article's "
+                "minimum for a deployment is 3072",
+            )
+        if not body.opens.strip() or not body.closes.strip():
+            raise HTTPException(422, "both times are required")
+        deployment.mint(
+            election_id=election_id,
+            num_choices=body.num_choices,
+            bits=body.bits,
+            opens=body.opens.strip(),
+            closes=body.closes.strip(),
+            tally_interval_seconds=body.tally_interval_seconds,
+            keep_register=body.keep_register,
+        )
+        return {
+            "election_id": deployment.config.election_id,
+            "token_key_fingerprint": deployment.config.token_key_fingerprint,
+            "digest": deployment.config.digest_hex(),
+        }
+
     @app.get("/configuration")
     async def configuration() -> dict:
         return {
@@ -1049,6 +1135,13 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
             "digest": deployment.config.digest_hex(),
             "token_key_fingerprint": deployment.config.token_key_fingerprint,
             "tally_interval_seconds": deployment.config.tally_interval_seconds,
+            "num_choices": deployment.config.num_choices,
+            "opens": deployment.config.opens,
+            "closes": deployment.config.closes,
+            "token_key_bits": deployment.vro.public_key.key_size,
+            "tokens_released": deployment.vro.release_count(),
+            "box_opened": deployment.ebb.opened,
+            "box_closed": deployment.ebb.closed,
             "register_size": len(deployment.vro.register),
         }
 

@@ -10,6 +10,16 @@ async function refresh() {
     ? 'none — the close is the only publication point'
     : `${c.tally_interval_seconds} s`;
   $('register-size').textContent = `${c.register_size} voters`;
+  $('choices-now').textContent = `${c.num_choices} options`;
+  $('bits-now').textContent = `${c.token_key_bits} bits`;
+  $('released-now').textContent = `${c.tokens_released} tokens released`;
+  $('phase-now').textContent = c.box_closed ? 'closed'
+    : c.box_opened ? 'open — minting now discards this poll' : 'not yet opened';
+  if (!$('opens').value) $('opens').value = c.opens;
+  if (!$('closes').value) $('closes').value = c.closes;
+  if (!$('mint-confirm').placeholder.includes(c.election_id)) {
+    $('mint-confirm').placeholder = `type ${c.election_id} to confirm`;
+  }
   const voters = (await (await fetch('/voters')).json()).voters;
   $('register').innerHTML = voters.length
     ? voters.map((v) => `<li>${v}</li>`).join('')
@@ -43,6 +53,45 @@ $('set-interval').onclick = async () => {
   }
   await refresh();
   $('status').textContent = 'Cadence set. The configuration digest has changed.';
+};
+
+$('set-schedule').onclick = async () => {
+  const response = await fetch('/schedule', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ opens: $('opens').value, closes: $('closes').value }),
+  });
+  if (!response.ok) { $('status').textContent = (await response.json()).detail; return; }
+  await refresh();
+  $('status').textContent = 'Schedule set. The configuration digest has changed.';
+};
+
+$('mint').onclick = async () => {
+  const raw = $('mint-interval').value.trim();
+  const body = {
+    confirm: $('mint-confirm').value.trim(),
+    election_id: $('mint-id').value.trim(),
+    num_choices: Number($('mint-choices').value || 4),
+    bits: Number($('mint-bits').value),
+    opens: $('mint-opens').value.trim() || $('opens').value,
+    closes: $('mint-closes').value.trim() || $('closes').value,
+    tally_interval_seconds: raw === '' ? null : Number(raw),
+    keep_register: $('mint-keep').checked,
+  };
+  $('mint').disabled = true;
+  $('status').textContent = `Generating a ${body.bits}-bit modulus…`;
+  const response = await fetch('/election', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  $('mint').disabled = false;
+  if (!response.ok) { $('status').textContent = (await response.json()).detail; return; }
+  const minted = await response.json();
+  $('mint-confirm').value = '';
+  $('opens').value = ''; $('closes').value = '';
+  await refresh();
+  $('status').textContent = `Minted ${minted.election_id}. Every page open `
+    + 'against the old election must be reloaded, and every token already '
+    + 'issued is void.';
 };
 
 $('voter').onkeydown = (e) => { if (e.key === 'Enter') $('enrol').click(); };

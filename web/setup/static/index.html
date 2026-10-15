@@ -4,6 +4,14 @@
 <style>
  :root{--measure:46rem;--label-col:10rem}
  ul{margin:.4rem 0 0;padding-left:1.2rem}
+ /* Not a `.note`: the four note kinds are scope clauses and this is an act.
+    Not red either — the danger frame belongs to a secret on screen, and a
+    second red box would make the first one chrome. Weight instead of hue. */
+ .destructive{background:var(--sunk);border-left:3px solid var(--ink);
+   padding:.8rem 1rem;margin:0 0 1.3rem;font-size:var(--t-sm);
+   max-width:calc(var(--measure-prose) + 2rem)}
+ .destructive b{display:block;font-size:var(--t-base);font-weight:650;
+   color:var(--ink);margin-bottom:.35rem}
  li{font-family:var(--font-mono);font-size:var(--t-sm);margin:.2rem 0}
 </style></head>
 <body>
@@ -30,6 +38,10 @@ no part in the poll itself — the service runs with it stopped.</p>
   <div class="fp" id="fingerprint">…</div>
   <div class="row" style="margin-top:.7rem"><span class="label">election</span><span class="value" id="election">…</span></div>
   <div class="row"><span class="label">config digest</span><span class="value" id="digest">…</span></div>
+  <div class="row"><span class="label">token key</span><span class="value" id="bits-now">…</span></div>
+  <div class="row"><span class="label">ballot</span><span class="value" id="choices-now">…</span></div>
+  <div class="row"><span class="label">office</span><span class="value" id="released-now">…</span></div>
+  <div class="row"><span class="label">box</span><span class="value" id="phase-now">…</span></div>
 </section>
 
 <section>
@@ -48,6 +60,23 @@ no part in the poll itself — the service runs with it stopped.</p>
 </section>
 
 <section>
+  <h2>Declared schedule</h2>
+  <div class="note note--absent">
+    <span class="kind">Absent · <code>A4</code></span>
+    <b>Recorded, not enforced</b>
+    The box starts shut and is opened and closed by its operator; nothing here
+    schedules it. These are the times a reader checks those acts against, which
+    is why correcting them voids no token and disowns no receipt. Only the
+    digest moves.
+  </div>
+  <div class="row"><span class="label">opens</span>
+    <input type="text" id="opens" placeholder="2026-09-25T08:00:00Z"></div>
+  <div class="row"><span class="label">closes</span>
+    <input type="text" id="closes" placeholder="2026-09-25T20:00:00Z"></div>
+  <button id="set-schedule">Set</button>
+</section>
+
+<section>
   <h2>Electoral register</h2>
   <p class="prose" style="margin:0 0 .6rem">
     Presence in the register is the whole of the eligibility statement. The
@@ -58,6 +87,42 @@ no part in the poll itself — the service runs with it stopped.</p>
   <input type="text" id="voter" placeholder="identifier, e.g. Kovács Ágnes">
   <button id="enrol">Enrol</button>
   <ul id="register"></ul>
+</section>
+
+<section>
+  <h2>Mint a new election</h2>
+  <div class="destructive">
+    <b>This is not an amendment</b>
+    Every key pair is replaced: the office's token key, the office's statement
+    key, the box's statement key. Every token already issued stops verifying,
+    every receipt stops being evidence, and the fingerprint a voter pinned
+    stops being the fingerprint of the election they pinned it for. The ballot
+    box and the released-token register are discarded with them. That is what a
+    different election is — which is why this origin is one the poll runs
+    without.
+  </div>
+  <div class="row"><span class="label">election id</span>
+    <input type="text" id="mint-id" placeholder="demo-2026"></div>
+  <div class="row"><span class="label">options</span>
+    <input type="number" id="mint-choices" min="1" placeholder="4"></div>
+  <div class="row"><span class="label">k_p^(R) bits</span>
+    <select id="mint-bits">
+      <option value="2048">2048 — demo only, below the article's minimum</option>
+      <option value="3072" selected>3072 — the article's minimum</option>
+      <option value="4096">4096</option>
+    </select></div>
+  <div class="row"><span class="label">opens</span>
+    <input type="text" id="mint-opens" placeholder="2026-09-25T08:00:00Z"></div>
+  <div class="row"><span class="label">closes</span>
+    <input type="text" id="mint-closes" placeholder="2026-09-25T20:00:00Z"></div>
+  <div class="row"><span class="label">cadence</span>
+    <input type="number" id="mint-interval" min="1" placeholder="seconds — blank for close-only"></div>
+  <div class="row"><span class="label">register</span>
+    <label><input type="checkbox" id="mint-keep" checked> keep the enrolled
+      voters and their personas</label></div>
+  <div class="row"><span class="label">confirm</span>
+    <input type="text" id="mint-confirm" placeholder="type the election id being replaced"></div>
+  <button id="mint">Mint</button>
 </section>
 
 <p id="status">Loading…</p>
