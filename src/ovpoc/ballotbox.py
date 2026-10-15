@@ -367,6 +367,83 @@ class BallotBox:
         return self._receipt(True, "accepted", entry)
 
     # ------------------------------------------------------------------
+    # Reloading a finished poll
+    # ------------------------------------------------------------------
+    def stored_state(self) -> dict:
+        """What `restore` needs, taken without side effects.
+
+        Deliberately not assembled from the published dumps. Those carry
+        the records and the signed heads but not the opening and closing
+        acts or the publication snapshots, so a box rebuilt from them
+        could not say when it opened.
+        """
+        return {
+            "accepted": [e.payload for e in self.accepted.entries],
+            "rejected": [e.payload for e in self.rejected.entries],
+            "heads": {"accepted": b64(self.accepted.head()),
+                      "rejected": b64(self.rejected.head())},
+            "acts": [{"phase": p, "at": at, "signature": b64(sig)}
+                     for p, at, sig in self._acts],
+            "snapshots": list(self._snapshots),
+        }
+
+    @classmethod
+    def restore(
+        cls,
+        *,
+        vro_public_key,
+        num_choices: int,
+        election_id: str,
+        statement_key: keys.SigningKeyPair,
+        tally_interval_seconds: int | None,
+        accepted: list[dict],
+        rejected: list[dict],
+        acts: list[tuple[str, float, bytes]],
+        snapshots: list[dict],
+        expected_heads: dict[str, bytes],
+    ) -> "BallotBox":
+        """A closed poll, rebuilt from its own published record.
+
+        Read-only by construction: the box comes back shut, so nothing can
+        be submitted, no act can be declared and no chain continues. This
+        is the published record served through the surfaces that display
+        it, which is why it adds no claim -- in particular it is not a
+        durable ballot box, and a poll interrupted while open is still
+        lost (clause A7).
+
+        The records are replayed through `append` rather than assigned, so
+        every entry hash and every link is recomputed here and not taken
+        from the file. The heads that result must equal the heads the box
+        signed when it closed; otherwise the record has been altered and
+        this raises rather than serving it. That is the verifier's own
+        check, performed before the surfaces will show anything, so a
+        doctored ledger cannot be loaded and then displayed as though the
+        box stood behind it.
+        """
+        box = cls(
+            vro_public_key=vro_public_key,
+            num_choices=num_choices,
+            election_id=election_id,
+            statement_key=statement_key,
+            tally_interval_seconds=tally_interval_seconds,
+        )
+        for payload in accepted:
+            box.accepted.append(payload)
+            box._accepted_records.add(digest(payload))
+        for payload in rejected:
+            box.rejected.append(payload)
+        reached = {"accepted": box.accepted.head(), "rejected": box.rejected.head()}
+        if reached != expected_heads:
+            raise ValueError(
+                "the stored records do not reproduce the heads the box signed; "
+                "the registry has been altered since the close"
+            )
+        box._acts = list(acts)
+        box._snapshots = list(snapshots)
+        box._closed = True
+        return box
+
+    # ------------------------------------------------------------------
     # The publication cadence
     # ------------------------------------------------------------------
     def set_publication_interval(self, seconds: int | None) -> None:

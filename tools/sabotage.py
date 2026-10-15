@@ -231,6 +231,19 @@ MUTATIONS = [
         replace="        if True:  # SABOTAGE: tally always available\n            return self._count()\n        if False:",
     ),
     Mutation(
+        name="restored_records_not_re-derived",
+        what=(
+            "A finished poll is loaded from storage without recomputing its chain "
+            "against the heads the box signed, so an altered ledger is served through "
+            "the published surfaces as though the box stood behind it."
+        ),
+        path="src/ovpoc/ballotbox.py",
+        find=('        if reached != expected_heads:\n'
+              '            raise ValueError('),
+        replace=("        if False:  # SABOTAGE: load whatever is on disk\n"
+                 "            raise ValueError("),
+    ),
+    Mutation(
         name="cadence_changeable_while_open",
         what=(
             "The publication cadence can be re-timed after the poll has opened, letting "

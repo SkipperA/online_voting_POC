@@ -349,6 +349,65 @@ class VRO:
         )
 
     # -- the electoral register ----------------------------------------
+    def stored_state(self) -> dict:
+        """What `restore_releases` needs, taken without side effects.
+
+        Not `supervision_dump()`, which counts itself: that method
+        increments the published download figure, and an archive that
+        called it would record a supervisor who never read anything.
+        """
+        return {
+            "releases": [e.payload for e in self.release_log.entries],
+            "head": b64(self.release_log.head()),
+            "released": sorted(self._released),
+            "openings": {k: b64(v) for k, v in self._openings.items()},
+            "audit": [{"voter_id": a.voter_id, "outcome": a.outcome.value,
+                       "reason": a.reason} for a in self._audit],
+            "requests": {k: [b64(c), b64(sig)]
+                         for k, (c, sig) in self._requests.items()},
+            "supervisor_downloads": self._supervisor_downloads,
+        }
+
+    def restore_releases(
+        self,
+        *,
+        releases: list[dict],
+        released: set[str],
+        openings: dict[str, bytes],
+        audit: list[AuditEntry],
+        requests: dict[str, tuple[bytes, bytes]],
+        supervisor_downloads: int,
+        expected_head: bytes,
+    ) -> None:
+        """The office's register of a finished poll, rebuilt from storage.
+
+        The commitments are replayed through `append`, so the chain is
+        recomputed here rather than trusted, and the head that results must
+        equal the head the office signed. A register that does not
+        reproduce it is refused rather than served, for the same reason the
+        box refuses an altered ledger: a surface that displays a record the
+        signing party cannot stand behind is worse than one that displays
+        nothing.
+
+        The openings and the citizens' signed requests come back with it.
+        They are supervision material and are never published (§3.7); what
+        they make possible on a reloaded election is the voter's own
+        token-request check and the supervisor's reading of the register,
+        both of which are answers about a poll that has finished.
+        """
+        for payload in releases:
+            self.release_log.append(payload)
+        if self.release_log.head() != expected_head:
+            raise ValueError(
+                "the stored commitments do not reproduce the head the office "
+                "signed; the release register has been altered"
+            )
+        self._released = set(released)
+        self._openings = dict(openings)
+        self._audit = list(audit)
+        self._requests = dict(requests)
+        self._supervisor_downloads = supervisor_downloads
+
     def enrol(self, voter_id: str) -> None:
         """Add an id to the electoral register.
 

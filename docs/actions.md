@@ -109,6 +109,7 @@ give a reason (§3.2).
 | E8 | Compute and publish the tally: a deterministic function of the released records, preserving the distribution over distinct out-of-range values | EBB | EBB → public (Table 1, tally row) | tally : EBB → anyone |
 | E9 | Post-close verification of one's own ballot; under the provable variant, prove authorship by demonstrating control of `k_s^a` | voter | any device | voter → any third party |
 | E1b | Write the published record — the configuration as published, the ledger and the release register — into `closed/` under the election's own directory | ballot box operator | EBB → disk | three files : EBB → the election's directory |
+| E1c | Write the poll itself — records, acts, snapshots, and the office's register with its openings and signed requests — beside the keys, so the finished election can be served again read-only | ballot box operator, VRO | EBB, VRO → disk | state : components → the election's directory |
 | E10 | Declare the official result | administering body | outside the three components | official body → anyone |
 | E11 | Read the release register: the identifiers, their commitments and openings, and the citizen's signed request behind each release | supervisor | VRO supervision surface, from the close (§6, companion note) | register : VRO → supervisor |
 | E12 | Publish the number of times the register has been read, so the office cannot hand it out quietly | VRO | VRO → public | read count : VRO → anyone |

@@ -243,6 +243,16 @@ next restart, so an election's evidence depended on somebody having downloaded
 three files in that interval, and an election whose evidence depends on that
 is not evidencing anything.
 
+A second narrowing, of the same shape. The close also writes the poll itself
+— the records, the acts, the publication snapshots, and the office's register
+with the openings and the citizens' signed requests — into `poll.state.json`
+beside the keys, so a finished election can be served again and its surfaces
+shown. That is read-only: the box comes back shut, nothing resumes, and no
+chain continues. A poll interrupted *while open* is still never written and
+still lost, which is the clause. Loading re-derives the chain from the records
+and refuses anything that does not reproduce the heads the box signed, so an
+altered file is not served at all.
+
 **Label:** *Votes are held in memory. Restarting the service loses them and
 keeps the election.*
 

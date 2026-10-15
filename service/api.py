@@ -305,6 +305,24 @@ def releases_dump(deployment: Deployment) -> dict:
 #: Where a closed poll's record is written, under the election's own directory.
 CLOSED = "closed"
 
+#: The same poll in the form the surfaces need to show it again. Beside the
+#: token key rather than inside `closed/`, and deliberately: `closed/` is the
+#: public record, the three files a verifier is handed, and this one carries
+#: the office's openings and the citizens' signed requests. A privacy boundary
+#: is better drawn by which directory a file sits in than by a warning in a
+#: README nobody reads before zipping a folder.
+POLL_STATE = "poll.state.json"
+
+
+def poll_state(deployment: Deployment) -> dict:
+    """Everything a closed poll needs to be shown again, public and not."""
+    return {
+        "election_id": deployment.config.election_id,
+        "configuration_digest": deployment.config.digest_hex(),
+        "box": deployment.ebb.stored_state(),
+        "office": deployment.vro.stored_state(),
+    }
+
 
 def archive_at_close(deployment: Deployment) -> Path | None:
     """Write the three files a verifier needs, beside the election's keys.
@@ -336,6 +354,8 @@ def archive_at_close(deployment: Deployment) -> Path | None:
     (folder / "election.json").write_bytes(deployment.config.to_bytes())
     (folder / "ledger.json").write_bytes(canonical_bytes(ledger_dump(deployment)))
     (folder / "releases.json").write_bytes(canonical_bytes(releases_dump(deployment)))
+    (deployment.data_folder / POLL_STATE).write_bytes(
+        canonical_bytes(poll_state(deployment)))
     (folder / "README.md").write_text(
         "# the closed poll\n\n"
         "The three files `tools/verify_election.py` takes, in its order:\n\n"

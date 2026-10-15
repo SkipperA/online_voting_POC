@@ -11,13 +11,15 @@ service layer is allowed to do.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from driver.population_register import PopulationRegister
 from ovpoc import keys
 from ovpoc.ballotbox import BallotBox
-from ovpoc.vro import VRO
+from ovpoc.messages import unb64
+from ovpoc.vro import VRO, AuditEntry, Outcome
 
 from .election import ElectionConfig
 from . import origins, store
@@ -264,12 +266,15 @@ class Deployment:
     ) -> "Deployment":
         """Restore an election. Raises rather than inventing one.
 
-        The ballot box and the released-token register are *not* restored:
-        they are what the poll produced, not what the console authored, and
-        the demo says so rather than implying durability it does not have.
+        A *finished* poll comes back with it, if this election has one:
+        the box shut, the records and chain replayed and re-derived, the
+        office's register with its openings. That is the published record
+        served again, not a durable ballot box -- a poll interrupted while
+        open was never written and is still lost (clause A7).
         """
         folder = store.current(path)
         body = store.read(folder)
+        poll = folder / "poll.state.json"
         population = PopulationRegister()
         vro = VRO(
             private_key=body["token_private"],
@@ -306,6 +311,37 @@ class Deployment:
             closes=body["closes"],
         )
         config.write(document_root)
+        if poll.exists():
+            saved = json.loads(poll.read_text(encoding="utf-8"))
+            ebb = BallotBox.restore(
+                vro_public_key=vro.public_key,
+                num_choices=body["num_choices"],
+                election_id=body["election_id"],
+                statement_key=box_statement_key,
+                tally_interval_seconds=body["tally_interval_seconds"],
+                accepted=saved["box"]["accepted"],
+                rejected=saved["box"]["rejected"],
+                acts=[(a["phase"], a["at"], unb64(a["signature"]))
+                      for a in saved["box"]["acts"]],
+                snapshots=saved["box"]["snapshots"],
+                expected_heads={k: unb64(v)
+                                for k, v in saved["box"]["heads"].items()},
+            )
+            vro.restore_releases(
+                releases=saved["office"]["releases"],
+                released=set(saved["office"]["released"]),
+                openings={k: unb64(v)
+                          for k, v in saved["office"]["openings"].items()},
+                audit=[AuditEntry(voter_id=a["voter_id"],
+                                  outcome=Outcome(a["outcome"]),
+                                  reason=a["reason"])
+                       for a in saved["office"]["audit"]],
+                requests={k: (unb64(c), unb64(sig))
+                          for k, (c, sig) in saved["office"]["requests"].items()},
+                supervisor_downloads=saved["office"]["supervisor_downloads"],
+                expected_head=unb64(saved["office"]["head"]),
+            )
+
         return cls(
             data_dir=path,
             data_folder=folder,
