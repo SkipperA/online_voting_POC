@@ -462,7 +462,11 @@ only on 2.2 above, which is now decided in outline.
 - **The election is durable and the poll is not.** The setup console writes
   both key pairs, the electoral register and the wallet personas; the runtime
   loads them and refuses to start if they are absent. The ballot box, the hash
-  chain and the released-token register are in memory. Clause A7.
+  chain and the released-token register are in memory. Clause A7, narrowed:
+  each election holds its own directory under `election-data/`, so minting
+  never overwrites a superseded election's keys, and the close writes the
+  published record of the finished poll into `closed/` beside them. A restart
+  *during* voting still loses everything.
 - **The checker is served at 8005 and holds nothing.** Static files; every
   conclusion it draws comes from artefacts published by the party being
   audited. D1 arrives as a file the voter carries from the wallet, so the

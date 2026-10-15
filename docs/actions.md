@@ -21,13 +21,29 @@ certificate lookup service is likewise external (§3.2).
 | A1 | Electoral register exists as a set of entries `[id]`, derived from enrolment in civil registration | jurisdiction's registration process | outside the system (§3.2) | external enrolment → register |
 | A2 | Supply a register drawn for this election; entitlement differs from poll to poll | administering body | → VRO | register → VRO |
 | A3 | Administer the register: hold and read it, never populate it | VRO operator | VRO back-office | register → VRO (read-only) |
-| A4 | Generate the token signing key pair `k_s^(R)`, `k_p^(R)`, reserved to this election and to no other protocol | VRO operator | VRO back-office (§3.3) | internal to VRO |
-| A4b | Generate the office **statement** key pair `k_s^(O)`, `k_p^(O)`, under which denials and refusals are signed — never the token key, which is a blind-signing oracle any voter can drive (§3.3) | VRO operator | VRO back-office | internal to VRO |
+| A4 | Generate the token signing key pair `k_s^(R)`, `k_p^(R)`, reserved to this election and to no other protocol | VRO operator | setup console, at mint (§3.3) | internal to VRO |
+| A4b | Generate the office **statement** key pair `k_s^(O)`, `k_p^(O)`, under which denials and refusals are signed — never the token key, which is a blind-signing oracle any voter can drive (§3.3) | VRO operator | setup console, at mint | internal to VRO |
 | A5 | Fix the election configuration: identifier, `k_p^(R)`, **`k_p^(O)`**, choice list `1..N`, publication interval `tally_interval_seconds`, opening and closing times, registry genesis hash | Voting Administrator | setup console | configuration → public |
 | A6 | Publish and pin the configuration before opening | administering body / VRO | published artefact, pinned in the voter app (Table 1, row 1) | publisher → voter app, and → anyone |
 | A7 | Initialise the registry at the genesis hash | ballot box operator | EBB | internal to EBB |
 | A8 | If the interval exceeds the poll, so that the close is the only publication point: generate the election encryption key, distribute the private half in Shamir shares | several independent public bodies | outside the three components (§3.5) | key generator → share-holders |
 | A9 | Open the poll | administering body | EBB, VRO | — |
+
+**A4–A7 are one act, and may be repeated.** Minting from the setup console
+authors a whole election: three new key pairs, a new registry at a new genesis
+hash, a new configuration. It does not amend the running one — every token
+already issued stops verifying — so it writes a new directory under
+`election-data/` and moves the pointer, leaving the superseded election's keys
+where a ledger downloaded from it can still be checked against them. The
+electoral register (A2) carries over unless the request says otherwise, since
+its entries name citizens rather than keys.
+
+**Which parts of A5 may be corrected afterwards.** The schedule, at any time:
+the times are recorded, not enforced, and the close is an act of the box (E1).
+The cadence, only until the box is opened: an interval is a promise about a
+running poll, and changing it mid-poll would also re-anchor the series away
+from the opening act. Everything else requires a new election. Each correction
+moves the configuration digest, so pages already loaded must be reloaded.
 
 ## Phase B — Obtaining a token
 
@@ -92,6 +108,7 @@ give a reason (§3.2).
 | E7 | Compute the tally, preserving the distribution over distinct out-of-range values rather than one aggregate | any citizen | published ledger (§5.7) | public → anyone |
 | E8 | Compute and publish the tally: a deterministic function of the released records, preserving the distribution over distinct out-of-range values | EBB | EBB → public (Table 1, tally row) | tally : EBB → anyone |
 | E9 | Post-close verification of one's own ballot; under the provable variant, prove authorship by demonstrating control of `k_s^a` | voter | any device | voter → any third party |
+| E1b | Write the published record — the configuration as published, the ledger and the release register — into `closed/` under the election's own directory | ballot box operator | EBB → disk | three files : EBB → the election's directory |
 | E10 | Declare the official result | administering body | outside the three components | official body → anyone |
 | E11 | Read the release register: the identifiers, their commitments and openings, and the citizen's signed request behind each release | supervisor | VRO supervision surface, from the close (§6, companion note) | register : VRO → supervisor |
 | E12 | Publish the number of times the register has been read, so the office cannot hand it out quietly | VRO | VRO → public | read count : VRO → anyone |
@@ -131,11 +148,14 @@ Open questions and pending amendments across all documents are tracked in
    configuration of gap 1.
 
 3. **The box attests its own close.** That the close is an act of the EBB is
-   settled. What remains is that the box is the sole witness to its own
-   stopping, and that A9 opens both the EBB and the VRO while E1 closes only
-   the EBB — so token issuance has no stated stop. A token issued after the
-   close is useless, since no ballot can be submitted with it, but the design
-   should say so rather than leave it silent.
+   settled, and E1b now has it write the record rather than leaving the
+   artefacts reachable only until the next restart. What remains is that the
+   box is the sole witness to its own stopping — writing the record does not
+   witness it, since the same party produces both — and that A9 opens both the
+   EBB and the VRO while E1 closes only the EBB, so token issuance has no
+   stated stop. A token issued after the close is useless, since no ballot can
+   be submitted with it, but the design should say so rather than leave it
+   silent.
 
 4. **The office is both committer and sole opener.** The opening in B15 is generated
    by the VRO and returned to the voter in D1. The article notes the residue that
@@ -151,5 +171,6 @@ Open questions and pending amendments across all documents are tracked in
 ## Note for the wire-contract table
 
 B7, B8, B16, C3, C6, D1 and D3 are the request/response pairs that need
-field-level specification. The phase A rows are the ones with nothing yet to
-specify.
+field-level specification. The phase A rows now have something to specify:
+`wire-contract.md` carries the setup console's four authoring requests, and
+E1 and E1b are there as the close response and the record it writes.

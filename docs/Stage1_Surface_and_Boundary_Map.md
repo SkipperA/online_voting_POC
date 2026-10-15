@@ -29,10 +29,18 @@ but buy nothing technically.
 | 8004 | **EBB** | Yes | Ballot submission, receipts, published view, lookup by `k_p^a` | Anything keyed by `id` |
 | 8005 | **checker** | Yes | The three independent checks of §3.7, and the full recount of a published election | Any script loaded from 8003 or 8004 |
 | 8006 | **supervisor** | Yes | The office's release register with the identifiers in it, and the citizen's signed request behind each release | Any link from a citizen to a ballot — nothing it holds can supply one |
-| 8009 | **setup console** | No — build-time | Authoring UI; writes `election.json` into 8000's document root, then has no role | Any endpoint the poll depends on at runtime |
+| 8009 | **setup console** | No — build-time | Authoring UI; enrols voters, and writes `election.json` into 8000's document root. Authors every parameter: identifier, choice list, key size, schedule, cadence — and mints a new election, replacing all three key pairs. Then has no role | Any endpoint the poll depends on at runtime |
 
 **The config origin is inert. The setup console is build-time.** The poll must
 run correctly with 8009 stopped, and that is a test, not an intention.
+
+*Inert* means this origin computes nothing, not that it reads nothing. It
+serves the two files as they are on disk, read per request rather than
+snapshotted at startup, because the console may author a new election while
+the process runs and a snapshot would leave 8000 serving an election that no
+longer exists. Re-rendering the configuration object per request would be a
+different claim: the digest is over the bytes that were published, not over
+whatever the process would serialise today.
 
 ### Why the voter app cannot be a checker
 
@@ -81,6 +89,26 @@ back office and displays its fingerprint beside the fingerprint the VRO
 console displays, for a human to compare. Deliberately two surfaces and two
 glances rather than an automatic fetch: it is the honest picture of what
 pinning means, and it demonstrates well.
+
+**What may change while the process runs, and what it costs.** Three acts on
+8009 rewrite this object, and each moves its digest, so every page already
+loaded is pinning a configuration that is no longer served and must be
+reloaded.
+
+- *Schedule* (`POST /schedule`). The times are recorded, not enforced — the
+  close is an act of the box (E1) and these are what a reader checks it
+  against — so correcting them voids no token and disowns no receipt.
+- *Cadence* (`POST /tally-interval`). Refused once the box is **open**. An
+  interval is a promise about a running poll, so it has to be made before the
+  poll runs; changing it afterwards would also re-anchor the series on the
+  moment of the change rather than on the opening act, leaving boundaries that
+  no reader of the record could reconstruct.
+- *Mint* (`POST /election`). A new election over the current one: all three
+  key pairs replaced, the box and the release register discarded. Every token
+  already issued stops verifying and every receipt stops being evidence. The
+  request must name the election being replaced, and the previous election's
+  keys stay on disk in their own directory, so a ledger downloaded from it can
+  still be checked against the configuration it was published under.
 
 **A failure worth demonstrating.** Change one byte of the served file. The
 voter app refuses on the pinned-fingerprint check.

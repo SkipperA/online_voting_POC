@@ -203,6 +203,55 @@ authenticate a query about their own. A file that disclosed participation
 would be the plaintext register of §3.7, handed over in a more convenient
 form.
 
+### The close (`POST /close`, EBB)
+
+E1. The act, and what it leaves behind.
+
+| Field | Note |
+|---|---|
+| `closed` | The box is shut. Refused with 409 if it was not open |
+| `head` | The final chain head, so the operator has the figure every later recount must reach |
+| `archived` | The directory the record was written to, or `null`. See below |
+| `archive_error` | Present only when the write failed. The act still succeeded: an operator must never be left unsure whether the poll is shut |
+
+### The closed-poll record (`closed/`, on disk)
+
+Not a wire boundary but a disk one, and listed here because the files are the
+same bytes the endpoints serve and are checked by the same tool.
+
+At the close the box writes four files into `closed/` under the election's own
+directory: `election.json` (the configuration as published, byte for byte),
+`ledger.json`, `releases.json` and a README naming the order the verifier
+takes them in. The bytes are not a second rendering — a configuration
+re-serialised at close time could hash to something the dumps do not name,
+which is the verifier's first check.
+
+It writes nothing on an ephemeral run, and nothing if a record is already
+there: re-serving a past election gives a fresh empty box over the same keys,
+and a second close must not erase the record of the first.
+
+This is the published record of a finished poll, not a durable registry. The
+live chain is still in memory and a restart during voting still loses it
+(clause A7). What it removes is a window — the artefacts used to be reachable
+only between the close and the next restart.
+
+### The setup console (8009, build-time)
+
+Authoring requests, not protocol messages: they cross the boundary between the
+administering body and the system rather than between two parties to an
+election. Listed for completeness, because everything the other sections
+verify is pinned to the object these produce.
+
+| Request | Fields | Discharges |
+|---|---|---|
+| `POST /voters` | `voter_id` | A2, A3. Enrol into the electoral register |
+| `POST /schedule` | `opens`, `closes` | A5. Recorded, not enforced |
+| `POST /tally-interval` | `seconds` (or `null` for close-only) | A5. Refused once the box is open |
+| `POST /election` | `confirm`, `election_id`, `num_choices`, `bits`, `opens`, `closes`, `tally_interval_seconds`, `keep_register` | A4, A4b, A5, A7. Mints a new election: three new key pairs, a new registry. `confirm` must repeat the identifier being replaced |
+
+No signature on any of them, and no authorisation beyond reaching the origin —
+the same control the supervision register rests on, and the same clause (S4).
+
 ### The supervision register (8006, from the close)
 
 Its own origin, reachable only from inside the operator's network. No
