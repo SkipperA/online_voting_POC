@@ -1,17 +1,15 @@
 # election-data
 
-The durable half of a demonstration election, written by the setup
-console (`python -m service --init`) and reloaded at every start.
+One directory per election, each holding the durable half that the
+setup console authored: the two key pairs, the electoral register and
+the wallet personas. `current` names the one the service serves.
 
-**Committed on purpose, key material included.** `election.store.json`
-carries every wallet seed in the clear and `vro_token_key.pem` is the
-office's token signing key. Publishing them is the point: the demo
-substitutes a file for an eIDAS wallet and a directory for an HSM, and
-a reader should be able to see exactly what that substitution costs
-rather than take it on trust. The voters are fictional and this
-election is not one.
+Minting from the console writes a **new** directory and moves the
+pointer. Nothing here is overwritten, so the keys of an election that
+has been superseded are still on disk and can be served again with
+`python -m service --election <directory>` -- which is what lets a
+ledger downloaded from a past election still be checked against the
+configuration it was published under.
 
-What is **not** here is everything the poll produced: the ballot box,
-the hash chain and the released-token register are in memory and are
-lost when the process stops. A real ballot box does not forget its
-contents; this one does.
+**Committed on purpose, key material included.** See the README inside
+each directory. The voters are fictional and these are not elections.
