@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "election_id": "reload",
+  "vro_token_key_spki": "MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAtSMEkoq9jLvR3VPvLEnW1WhdELwbngGz1StlxkpNyYmHQdEWU6wmN2SjwWtsPPIFRsAYOQkrWzeMbtcMFK2hEJfPkm_Mop4-0VvRCALN7otXi1QtKKvNNI13CWPsKhTiZE-QUicjXhRwOOIt0P7q9nIbix1knrRqR00GSbikrU-9AtrgfVbkw9IMTrfI_AJm0D1z_MxsKOeC87gqSsejcgWmbUIm_fywi43gphTrRA7GxEd2zMxqJ9R8-JftV5XxRmkAkVY9f3Yq93pvC-I1JUJEDz4YtamJGMTOfB5xevu0FUlgFmcFakdzzSNB41pbOwJXOJ4C_H5MqupCu87Sx4TeMuYeNSJJ4Wn63gIaEkLnpOioLaG5EKN5z6QxcZEyob55HyuLt8ZaQDrz15aU2zKwmviMgBPGtM36zzfQfgHt9SvTrlscg-Tn2AfogSpoY8sW-xJS9_Onea2UaWgbOo_pOBc9jq2OEfCp5sVHvmbzaskr9vEQ6i4Pab7G_fpPAgMBAAE",
+  "vro_token_key_fingerprint": "bf56b866831720648ac5621422529323e5cd817ba7a6da62a1f12309ec194ca2",
+  "vro_statement_key": "i6551ERHcnbrH_aIneoXOxupyL7gWFUqB9DDczCPSEs",
+  "ebb_statement_key": "EdlByhfXbs57beAIW5A9CnhK7lgpGHmahPo8W96nfJ8",
+  "num_choices": 1,
+  "genesis_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "tally_interval_seconds": 10,
+  "opens": "2026-09-25T08:00:00Z",
+  "closes": "2026-09-25T20:00:00Z",
+  "scope_limits": {
+    "signature": "Clause S4: this configuration is published with a digest and no signature. Tampering is demonstrable, not attributable.",
+    "schedule": "Opening and closing times are recorded, not enforced. The close is an act of the EBB (E1), performed by an operator."
+  }
+}
