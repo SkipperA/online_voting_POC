@@ -32,6 +32,7 @@ confident the surrounding comments sound.
 | receipt_signed_with_a_throwaway_key | `test_a_receipt_is_evidence_about_one_election_only`<br>`test_a_receipt_verifies_under_the_published_statement_key` |
 | replayed_ballot_accepted_again | `test_a_replayed_ballot_cannot_annul_a_later_one` |
 | tally_available_before_the_close | `test_a_running_tally_is_published_only_when_configured`<br>`test_the_tally_endpoint_cannot_read_around_the_cadence`<br>`test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`<br>`test_three_voters_cast_and_verify` |
+| cadence_changeable_while_open | `test_the_cadence_is_fixed_once_the_box_is_open`<br>`test_the_console_refuses_the_cadence_once_the_box_is_open` |
 | reservation_publishes_the_commitment | `test_a_reservation_publishes_nothing`<br>`test_supervision_shows_the_identifiers_and_the_refusals`<br>`test_the_release_log_records_exactly_who_took_a_token` |
 | protest_distribution_collapsed | `test_distinct_protest_codes_are_not_merged`<br>`test_the_adversarial_scenarios_all_hold` |
 | submissions_accepted_after_the_close | `test_a_ballot_arriving_after_the_close_is_not_recorded`<br>`test_the_adversarial_scenarios_all_hold` |
@@ -296,6 +297,16 @@ Caught by:
 - `test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`
 - `test_three_voters_cast_and_verify`
 
+### `cadence_changeable_while_open`
+
+The publication cadence can be re-timed after the poll has opened, letting the operator choose mid-poll how much of the result the public is shown and when -- and re-anchoring the series away from the opening act, so the boundaries no longer line up with the time the box says it opened.
+
+Patched in `src/ovpoc/ballotbox.py`.
+
+Caught by:
+- `test_the_cadence_is_fixed_once_the_box_is_open`
+- `test_the_console_refuses_the_cadence_once_the_box_is_open`
+
 ### `reservation_publishes_the_commitment`
 
 The office writes the release commitment when it reserves rather than when it releases, so the published count overstates the tokens that exist and a pause becomes visible to third parties.
@@ -340,5 +351,5 @@ Caught by:
 
 ## Summary
 
-- 25 of 25 mutations were detected.
+- 26 of 26 mutations were detected.
 - 0 were not.
