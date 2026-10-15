@@ -14,7 +14,12 @@ from __future__ import annotations
 import pytest
 
 from service.state import Deployment
-from service.store import STORE_VERSION, NoElection
+from service.store import STORE_VERSION, NoElection, current
+
+
+def store_file_of(parent):
+    """The one election's store, wherever the parent is pointing."""
+    return current(parent) / "election.store.json"
 
 
 @pytest.fixture
@@ -60,7 +65,7 @@ def test_the_ballot_box_does_not_survive_and_that_is_stated(saved):
 
 
 def test_loading_an_absent_election_refuses_rather_than_minting_one(tmp_path):
-    with pytest.raises(NoElection, match="no election at"):
+    with pytest.raises(NoElection, match="no election under"):
         Deployment.load(tmp_path / "nothing-here")
 
 
@@ -91,13 +96,15 @@ def test_the_store_says_what_it_is(tmp_path):
     deployment.enrol("Kovács Ágnes")
     deployment.save(tmp_path / "data")
 
-    body = json.loads((tmp_path / "data" / "election.store.json").read_text())
+    body = json.loads(store_file_of(tmp_path / "data").read_text())
     assert "DEMONSTRATION KEY MATERIAL" in body["warning"]
     assert body["wallet_seeds"]["Kovács Ágnes"], "the seed is published on purpose"
 
-    readme = (tmp_path / "data" / "README.md").read_text()
+    readme = (store_file_of(tmp_path / "data").parent / "README.md").read_text()
     assert "Committed on purpose" in readme
     assert "lost when the process stops" in readme
+    # And the parent says what the directories beside it are for.
+    assert "One directory per election" in (tmp_path / "data" / "README.md").read_text()
 
     # And it still loads, warning and all.
     restored = Deployment.load(tmp_path / "data", document_root=tmp_path / "docs-b")
@@ -143,7 +150,7 @@ def test_an_election_saved_before_the_cadence_existed_still_loads(tmp_path):
     deployment.enrol("Kovács Ágnes")
     deployment.save(tmp_path / "data")
 
-    store_file = tmp_path / "data" / "election.store.json"
+    store_file = store_file_of(tmp_path / "data")
     body = json.loads(store_file.read_text(encoding="utf-8"))
     body["store_version"] = 1
     del body["tally_interval_seconds"]
@@ -166,7 +173,7 @@ def test_a_store_version_from_the_future_is_still_refused(tmp_path):
         bits=2048, num_choices=3, document_root=tmp_path / "docs-a"
     )
     deployment.save(tmp_path / "data")
-    store_file = tmp_path / "data" / "election.store.json"
+    store_file = store_file_of(tmp_path / "data")
     body = json.loads(store_file.read_text(encoding="utf-8"))
     body["store_version"] = 99
     store_file.write_text(json.dumps(body, indent=2) + "\n", encoding="utf-8")

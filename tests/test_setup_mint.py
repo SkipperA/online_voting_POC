@@ -16,7 +16,7 @@ from __future__ import annotations
 import pytest
 
 from service.state import Deployment
-from service.store import read
+from service.store import current, read
 
 
 @pytest.fixture
@@ -94,7 +94,7 @@ def test_minting_rewrites_the_durable_half(deployment, tmp_path):
                     opens="2027-05-05T07:00:00Z", closes="2027-05-05T19:00:00Z",
                     tally_interval_seconds=900)
 
-    body = read(tmp_path / "data")
+    body = read(current(tmp_path / "data"))
     assert body["election_id"] == "second"
     assert body["num_choices"] == 5
     assert body["tally_interval_seconds"] == 900
@@ -105,7 +105,8 @@ def test_a_store_predating_the_schedule_still_loads(deployment, tmp_path):
     """Version 2 on disk, read as what it was serving before the field."""
     import json
 
-    store = tmp_path / "data" / "election.store.json"
+    from service.store import current
+    store = current(tmp_path / "data") / "election.store.json"
     body = json.loads(store.read_text(encoding="utf-8"))
     body["store_version"] = 2
     del body["opens"], body["closes"]

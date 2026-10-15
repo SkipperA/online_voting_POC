@@ -73,9 +73,18 @@ context and the isolation would be a diagram rather than a fact.
 
 ```bash
 pip install -e ".[dev]"            # brings fastapi and uvicorn
-python -m service                  # loads the election in election-data/
-python -m service --init --data … # mint a fresh one somewhere else
+python -m service                  # serves the election election-data/current names
+python -m service --init           # mint one beside the others and serve it
+python -m service --election 001-… # serve a superseded election again
 ```
+
+`election-data/` holds one directory per election and a `current` file naming
+the one being served. Minting from the setup console writes a new directory
+and moves the pointer rather than overwriting, so a superseded election keeps
+its token key — without which a ledger downloaded from it could never be
+checked again. The election shipped here predates that layout and sits
+directly in `election-data/`; it is read where it lies, and the first mint
+puts a numbered directory beside it.
 
 The repository ships with a demonstration election already in
 `election-data/`: four fictional voters, and every key in the clear. That is
@@ -157,8 +166,9 @@ web/            one directory per origin, each its own browser page:
   shared/       the design tokens, injected into each page by its own origin
 interop/        a TypeScript consumer of the golden vectors
 tests/          including the adversarial suite and tests/vectors/
-election-data/  a demonstration election: fictional voters, key material
-                published on purpose, pre-populated so a clone can be voted in
+election-data/  one directory per election, and `current` naming the served
+                one: fictional voters, key material published on purpose,
+                pre-populated so a clone can be voted in
 docs/           protocol mapping, wire contract, threat model, scope limits
 ```
 

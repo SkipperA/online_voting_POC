@@ -51,7 +51,13 @@ class Deployment:
     config: ElectionConfig
     population: PopulationRegister
     document_root: Path = field(default=DOCUMENT_ROOT)
-    data_dir: Path | None = None       # where the durable half lives, if anywhere
+    #: The parent holding one directory per election, if the election is
+    #: durable at all.
+    data_dir: Path | None = None
+    #: This election's own directory under it. Allocated on the first save
+    #: and never reused: minting clears it so that a new election lands
+    #: beside the old one rather than on top of it.
+    data_folder: Path | None = None
 
     # Staged signing. Off by default, so every existing caller -- the demos,
     # the scripted runs, the tests -- sees `issue_token` behave as one act.
@@ -217,15 +223,26 @@ class Deployment:
         # no longer certifies anything.
         self.held_requests = {}
         self.token_replies = {}
+        # A different election gets a different directory. Clearing this is
+        # the whole of the protection: the superseded election's token key
+        # and register stay on disk, so a ledger downloaded from it can
+        # still be checked, and `--election` can serve it again.
+        self.data_folder = None
         if self.data_dir is not None:
             self.save(self.data_dir)
 
     # -- persistence -------------------------------------------------------
 
     def save(self, path: Path = DATA_DIR) -> Path:
-        """Write the durable half. The setup console's act, not the runtime's."""
+        """Write the durable half. The setup console's act, not the runtime's.
+
+        `path` is the parent. This election goes in its own directory under
+        it, and the pointer beside them says which one the service serves.
+        An election already on disk is written back where it was found.
+        """
+        folder = self.data_folder or store.allocate(path, self.config.election_id)
         store.write(
-            path,
+            folder,
             token_private=self.vro.private_key,
             statement_key=self.vro.office_key,
             box_statement_key=self.ebb.statement_key,
@@ -237,7 +254,9 @@ class Deployment:
             opens=self.config.opens,
             closes=self.config.closes,
         )
-        return path
+        store.point_at(path, folder)
+        self.data_folder = folder
+        return folder
 
     @classmethod
     def load(
@@ -249,7 +268,8 @@ class Deployment:
         they are what the poll produced, not what the console authored, and
         the demo says so rather than implying durability it does not have.
         """
-        body = store.read(path)
+        folder = store.current(path)
+        body = store.read(folder)
         population = PopulationRegister()
         vro = VRO(
             private_key=body["token_private"],
@@ -288,6 +308,7 @@ class Deployment:
         config.write(document_root)
         return cls(
             data_dir=path,
+            data_folder=folder,
             vro=vro,
             ebb=ebb,
             config=config,
