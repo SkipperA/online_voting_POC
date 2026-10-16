@@ -1,6 +1,15 @@
 /** The office's back office. Reads its own records; changes nothing. */
 const $ = (id) => document.getElementById(id);
 
+/**
+ * Not `escape`: that is a built-in global, the legacy URL encoder, and a
+ * page that calls it without defining its own gets %20 where it wanted a
+ * space. Shadowing a global to mean something else is the trap; a name of
+ * our own is the way out of it.
+ */
+const esc = (s) => String(s).replace(/[&<>]/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
 async function refresh() {
   const keys = await (await fetch('/back-office/keys')).json();
   $('keys').innerHTML =
@@ -52,9 +61,16 @@ async function refresh() {
     : '<tr><td colspan="3" class="muted">no requests yet</td></tr>';
 
   const log = await (await fetch('/release-log')).json();
-  $('register').innerHTML =
-    `${log.count} released · head ${log.head}` +
-    (log.entries.length ? `<pre>${JSON.stringify(log.entries, null, 2)}</pre>` : '');
+  $('reg-count').textContent = `${log.count} ${log.count === 1 ? 'token' : 'tokens'}`;
+  $('reg-head').textContent = `${String(log.head).slice(0, 24)}…`;
+  // One row per release, and nothing but the commitment in it. The office
+  // holds the identifier behind each of these and does not put it here:
+  // this is the published register, and its whole point is that reading it
+  // tells you how many tokens exist and nothing about whose they are.
+  $('register').innerHTML = log.entries.length
+    ? log.entries.map((e, i) => `<tr><td class="mono">${e.index ?? i}</td>`
+        + `<td class="mono">${esc(String(e.commitment ?? (e.payload || {}).commitment))}</td></tr>`).join('')
+    : '<tr><td colspan="2" class="muted">no token released yet</td></tr>';
 
   $('asof').textContent = `as of ${new Date().toLocaleTimeString()}`;
 }

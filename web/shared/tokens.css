@@ -198,8 +198,22 @@
 .origin--plain .origin-family,
 .origin--plain .origin-standing { color: var(--ink-faint); }
 
-/* The legend on the config origin: one swatch per trust domain, in that
- * domain's own hue, so the three families are visible together once. */
+/* A legend: swatches with their labels, wrapping. Used for the trust
+ * domains on the config origin and for the series palette on the checker
+ * and the box, so one rule rather than a copy in each page's <style>. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem 1rem;
+  margin: .5rem 0 0;
+  font-size: var(--t-sm);
+}
+
+.legend span { display: inline-flex; align-items: center; }
+
+/* One swatch per trust domain, in that domain's own hue, so the three
+ * families are visible together once -- and one per series on the pages
+ * that chart published figures. */
 .swatch {
   display: inline-block;
   width: .75rem;

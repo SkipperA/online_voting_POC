@@ -55,7 +55,7 @@ function spark(figures) {
 
 function legend(target, figures) {
   $(target).innerHTML = bands(figures).map((p) =>
-    `<span><i class="swatch" style="background:${p.colour}"></i>${esc(p.label)}</span>`
+    `<span><i class="swatch" style="--row-hue:${p.colour}"></i>${esc(p.label)}</span>`
   ).join('');
 }
 

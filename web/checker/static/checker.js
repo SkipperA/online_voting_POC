@@ -146,7 +146,7 @@ function legend(series, totals) {
     const item = document.createElement('span');
     const swatch = document.createElement('i');
     swatch.className = 'swatch';
-    swatch.style.background = s.colour;
+    swatch.style.setProperty('--row-hue', s.colour);
     item.appendChild(swatch);
     item.appendChild(document.createTextNode(
       totals ? `${s.label} — ${totals[i]}` : s.label));
