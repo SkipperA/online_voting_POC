@@ -20,6 +20,74 @@ function showWillCount(value, note) {
   $('voters-note').textContent = note;
 }
 
+// The shared series palette. Defined in tokens.css and used identically by
+// the checker, so a colour means the same thing on both pages. Protest
+// selections are grey on purpose: an out-of-range value is not a candidate
+// and must never be dressed as one.
+const SERIES = (option) => `var(--series-${((option - 1) % 6) + 1})`;
+const PROTEST = 'var(--series-protest)';
+
+/** The bands of one report or tally: every option, then protest if any. */
+function bands(figures) {
+  const counts = figures.counts || {};
+  const out = Object.keys(counts)
+    .map(Number).sort((a, b) => a - b)
+    .map((option) => ({ label: `option ${option}`, colour: SERIES(option),
+                        value: counts[option] }));
+  const protest = Object.values(figures.protest_codes || {})
+    .reduce((a, b) => a + b, 0);
+  if (protest) out.push({ label: 'outside the list', colour: PROTEST, value: protest });
+  return out;
+}
+
+/** A report's figures as proportions of itself, with the numbers kept. */
+function spark(figures) {
+  const parts = bands(figures);
+  const total = parts.reduce((a, b) => a + b.value, 0);
+  if (!total) return '<span class="muted">nothing counted in this report</span>';
+  const segments = parts.filter((p) => p.value).map((p) =>
+    `<i style="width:${(p.value / total) * 100}%;background:${p.colour}"`
+    + ` title="${esc(p.label)}: ${p.value}"></i>`).join('');
+  const numbers = parts.map((p) => p.value).join(' · ');
+  return `<div class="spark">${segments}</div>`
+    + `<span class="muted" style="font-size:var(--t-sm)">${numbers}</span>`;
+}
+
+function legend(target, figures) {
+  $(target).innerHTML = bands(figures).map((p) =>
+    `<span><i class="swatch" style="background:${p.colour}"></i>${esc(p.label)}</span>`
+  ).join('');
+}
+
+/** The tally as rows rather than as the JSON it arrived in. */
+function showTally(t) {
+  const parts = bands(t);
+  const top = Math.max(1, ...parts.map((p) => p.value));
+  const rows = parts.map((p) => `<div class="tally-row">
+      <span>${esc(p.label)}</span>
+      <span class="tally-bar"><i style="width:${(p.value / top) * 100}%;
+        background:${p.colour}"></i></span>
+      <span class="tally-n">${p.value}</span>
+    </div>`).join('');
+  // Every out-of-range value kept apart, because merging them is precisely
+  // what requirement 7 does not permit.
+  const codes = Object.entries(t.protest_codes || {});
+  const protest = codes.length
+    ? `<p class="sub" style="margin:.7rem 0 0">Outside the list, by value: `
+      + codes.map(([v, n]) => `<code>${esc(v)}</code> × ${n}`).join(', ') + '</p>'
+    : '';
+  $('tally').innerHTML = rows + `<p class="figures">
+      <span><span class="muted">ballots counted</span> ${t.voters}</span>
+      <span><span class="muted">valid</span> ${t.valid}</span>
+      <span><span class="muted">invalid</span> ${t.invalid}</span>
+      <span><span class="muted">rejected, published and not counted</span> ${t.rejected}</span>
+    </p>` + protest
+    + `<p class="sub" style="margin:.5rem 0 0">Chain head
+       <code>${esc((t.ledger_head || '').slice(0, 16))}…</code> — every figure
+       above is recomputable from the released records by anyone.</p>`;
+  legend('reports-legend', t);
+}
+
 function showReports(reports) {
   if (!reports.length) {
     $('reports').innerHTML =
@@ -28,11 +96,12 @@ function showReports(reports) {
     return;
   }
   $('reports').innerHTML = reports.map((r) => `<tr>
-      <td class="mono">${esc(r.at)}</td>
+      <td class="mono">${esc((r.at || '').slice(11, 19))}</td>
       <td>${r.after_accepted}</td>
       <td>${r.voters}</td>
-      <td class="mono">${esc(JSON.stringify(r.counts))}</td>
+      <td>${spark(r)}</td>
     </tr>`).join('');
+  legend('reports-legend', reports[reports.length - 1]);
 }
 
 async function refresh() {
@@ -68,13 +137,15 @@ async function refresh() {
   if (!open) {
     const t = await (await fetch('/tally')).json();
     showWillCount(t.voters, 'final');
-    $('tally').innerHTML = `<pre>${esc(JSON.stringify(t, null, 2))}</pre>`;
+    showTally(t);
   } else {
     const latest = reports.length ? reports[reports.length - 1] : null;
     showWillCount(latest ? latest.voters : '—',
                   latest ? `as published at ${latest.at}`
                          : 'not published yet; not knowable from here either');
-    $('tally').textContent = 'not until the poll closes';
+    $('tally').innerHTML = '<p class="muted">Not until the poll closes. The '
+      + 'reports above are what is knowable before then — by the operator as '
+      + 'much as by anybody else.</p>';
   }
   $('asof').textContent = `as of ${new Date().toLocaleTimeString()}`;
 }

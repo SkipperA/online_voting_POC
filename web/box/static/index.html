@@ -3,6 +3,26 @@
 <style>
  :root{--measure:56rem}
  .danger{border-color:var(--danger);color:var(--danger)}
+ /* The same legend the checker uses, from the shared palette: an audience
+    that has learned which colour option 3 is must not learn it twice. */
+ .legend{display:flex;flex-wrap:wrap;gap:.3rem 1rem;margin:.5rem 0 0;
+   font-size:var(--t-sm)}
+ .legend span{display:inline-flex;align-items:center;gap:.4rem}
+ .swatch{width:.7rem;height:.7rem;border-radius:2px;display:inline-block;
+   flex:0 0 auto}
+ /* A report's figures as proportions of that report, so a row is readable
+    across at a glance and still carries its numbers. */
+ .spark{display:flex;height:.6rem;min-width:7rem;background:var(--rule);
+   border-radius:2px;overflow:hidden}
+ .spark i{display:block;height:100%}
+ .tally-row{display:grid;grid-template-columns:7rem 1fr 3.5rem;
+   align-items:center;gap:.6rem;margin:.3rem 0}
+ .tally-bar{height:1.1rem;background:var(--rule);border-radius:2px;
+   overflow:hidden}
+ .tally-bar i{display:block;height:100%}
+ .tally-n{text-align:right;font-variant-numeric:tabular-nums}
+ .figures{display:flex;flex-wrap:wrap;gap:0 2rem;margin:.9rem 0 0;
+   font-size:var(--t-sm)}
 </style></head>
 <body>
 <h1>Electronic Ballot Box — operator</h1>
@@ -15,7 +35,9 @@ the poll.</p>
   The registry, the hash chain and the accepted ballots are in memory. A real
   ballot box does not forget its contents when its process stops, and the
   receipts voters hold would then refer to a chain that no longer exists —
-  which is exactly the evidence the design says they are.
+  which is exactly the evidence the design says they are. A poll that reaches
+  its close is written out and can be served again; one interrupted while
+  open is not.
 </div>
 
 <section>
@@ -72,8 +94,9 @@ the poll.</p>
     sees no more of the result than anybody else.
   </p>
   <table><thead><tr><th>published at</th><th>accepted</th>
-    <th>will count</th><th>counts</th></tr></thead>
+    <th>will count</th><th>how they fell</th></tr></thead>
     <tbody id="reports"><tr><td colspan="4">…</td></tr></tbody></table>
+  <p class="legend" id="reports-legend"></p>
 </section>
 
 <section>
@@ -84,7 +107,7 @@ the poll.</p>
     reported by the distinct value each voter cast rather than merged into
     one figure, so an organised protest is not flattened into "invalid".
   </p>
-  <div class="mono" id="tally">…</div>
+  <div id="tally">…</div>
 </section>
 
 <p><button id="refresh">Re-read</button>
