@@ -24,6 +24,35 @@ artefacts</button> <span id="asof" class="stamp">—</span></p>
 </div>
 
 <p id="poll-state">…</p>
+
+<section id="figures">
+  <h2>Anyone · the published figures</h2>
+  <p class="prose" style="margin:0 0 .9rem">
+    Drawn from what the box and the office publish, and from nothing else.
+    While voting is open that is the figures at each publication boundary,
+    not a live count: the box discloses selections at the close, so what
+    moves here moves on a schedule the election set in advance. Each point
+    already has supersession applied, so a voter who recasts moves the curve
+    down as well as up.
+  </p>
+
+  <div id="figures-waiting" class="waiting">
+    <div class="row"><span class="label">election</span><span class="value" id="fig-election">…</span></div>
+    <div class="row"><span class="label">cadence</span><span class="value" id="fig-cadence">…</span></div>
+    <div class="row"><span class="label">tokens released</span><span class="value" id="fig-tokens">…</span></div>
+    <div class="row"><span class="label">entries accepted</span><span class="value" id="fig-entries">…</span></div>
+    <p id="fig-next" class="sub" style="margin:.7rem 0 .35rem">…</p>
+    <div class="bar"><div class="bar-fill" id="fig-bar"></div></div>
+  </div>
+
+  <div id="figures-charts" hidden>
+    <div id="fig-step"></div>
+    <p class="sub" id="fig-step-caption">—</p>
+    <div id="fig-pie"></div>
+    <p class="sub" id="fig-pie-caption">—</p>
+  </div>
+</section>
+
 <section>
   <h2>Anyone · the office's release register</h2>
   <div class="row"><span class="label">tokens released</span><span class="value" id="released">…</span></div>

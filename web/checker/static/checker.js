@@ -27,6 +27,214 @@ const unb64 = (t) => Uint8Array.from(
 const b64 = (bytes) => btoa(String.fromCharCode(...bytes))
   .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
+// ---------------------------------------------------------------------------
+// The published figures
+//
+// Everything here comes from `/published` on the box and the release count on
+// the office. Nothing is computed from a privileged feed, and nothing is
+// inferred: before the first publication boundary there are no figures, and
+// the page says when the next one falls rather than drawing a line through
+// points it does not have. The box applies supersession when it counts, so a
+// recast ballot moves a series down and the chart has nothing to correct.
+// ---------------------------------------------------------------------------
+const SERIES = (i) => `var(--series-${(i % 6) + 1})`;
+const PROTEST = 'var(--series-protest)';
+const svgNS = 'http://www.w3.org/2000/svg';
+
+const el = (name, attrs, text) => {
+  const node = document.createElementNS(svgNS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+
+/** The series a snapshot list contains: each option, then protest if cast. */
+function seriesOf(snapshots, numChoices) {
+  const out = [];
+  for (let i = 1; i <= numChoices; i += 1) {
+    out.push({
+      label: `option ${i}`,
+      colour: SERIES(i - 1),
+      points: snapshots.map((s) => (s.counts || {})[i] || 0),
+    });
+  }
+  const protest = snapshots.map(
+    (s) => Object.values(s.protest_codes || {}).reduce((a, b) => a + b, 0));
+  if (protest.some((n) => n > 0)) {
+    out.push({ label: 'outside the list', colour: PROTEST, points: protest });
+  }
+  return out;
+}
+
+function stepChart(snapshots, numChoices) {
+  const W = 680, H = 260, L = 42, R = 14, T = 14, B = 34;
+  const series = seriesOf(snapshots, numChoices);
+  const top = Math.max(1, ...series.flatMap((s) => s.points));
+  const n = snapshots.length;
+  const x = (i) => L + (n === 1 ? (W - L - R) / 2 : (i * (W - L - R)) / (n - 1));
+  const y = (v) => H - B - (v / top) * (H - T - B);
+
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
+                          'aria-label': 'ballots per option at each publication boundary' });
+  // Axes, and a gridline per whole ballot while the numbers are small.
+  const stepY = Math.max(1, Math.ceil(top / 5));
+  for (let v = 0; v <= top; v += stepY) {
+    svg.appendChild(el('line', { x1: L, x2: W - R, y1: y(v), y2: y(v),
+                                 stroke: 'var(--rule)', 'stroke-width': 1 }));
+    svg.appendChild(el('text', { x: L - 8, y: y(v) + 4, 'text-anchor': 'end',
+                                 fill: 'var(--muted)', 'font-size': 11 }, String(v)));
+  }
+  svg.appendChild(el('line', { x1: L, x2: L, y1: T, y2: H - B,
+                               stroke: 'var(--rule-strong)', 'stroke-width': 1 }));
+  // Boundary labels: the first, the last, and the middle one if they fit.
+  const marks = n <= 2 ? [...snapshots.keys()] : [0, Math.floor((n - 1) / 2), n - 1];
+  for (const i of new Set(marks)) {
+    svg.appendChild(el('text', { x: x(i), y: H - 12, 'text-anchor': 'middle',
+                                 fill: 'var(--muted)', 'font-size': 11 },
+                       (snapshots[i].at || '').slice(11, 19)));
+  }
+  // The series themselves, drawn as steps: a figure holds until the next
+  // boundary republishes it, which is what the publication schedule means.
+  for (const s of series) {
+    let d = '';
+    s.points.forEach((v, i) => {
+      d += i === 0 ? `M ${x(i)} ${y(v)}` : ` L ${x(i)} ${y(s.points[i - 1])} L ${x(i)} ${y(v)}`;
+    });
+    svg.appendChild(el('path', { d, fill: 'none', stroke: s.colour,
+                                 'stroke-width': 2, 'stroke-linejoin': 'round' }));
+    s.points.forEach((v, i) => svg.appendChild(
+      el('circle', { cx: x(i), cy: y(v), r: 2.5, fill: s.colour })));
+  }
+  return { svg, series };
+}
+
+function pieChart(snapshot, numChoices) {
+  const series = seriesOf([snapshot], numChoices)
+    .map((s) => ({ ...s, value: s.points[0] }))
+    .filter((s) => s.value > 0);
+  const total = series.reduce((a, s) => a + s.value, 0);
+  const S = 220, r = 92, c = S / 2;
+  const svg = el('svg', { viewBox: `0 0 ${S} ${S}`, role: 'img',
+                          'aria-label': 'the published result so far' });
+  if (!total) {
+    svg.appendChild(el('circle', { cx: c, cy: c, r, fill: 'none',
+                                   stroke: 'var(--rule)', 'stroke-width': 1 }));
+    svg.appendChild(el('text', { x: c, y: c + 4, 'text-anchor': 'middle',
+                                 fill: 'var(--muted)', 'font-size': 12 },
+                       'no ballots counted yet'));
+    return { svg, series };
+  }
+  let angle = -Math.PI / 2;
+  for (const s of series) {
+    const sweep = (s.value / total) * 2 * Math.PI;
+    const [x1, y1] = [c + r * Math.cos(angle), c + r * Math.sin(angle)];
+    angle += sweep;
+    const [x2, y2] = [c + r * Math.cos(angle), c + r * Math.sin(angle)];
+    const d = series.length === 1
+      ? `M ${c} ${c - r} A ${r} ${r} 0 1 1 ${c - 0.01} ${c - r} Z`
+      : `M ${c} ${c} L ${x1} ${y1} A ${r} ${r} 0 ${sweep > Math.PI ? 1 : 0} 1 ${x2} ${y2} Z`;
+    svg.appendChild(el('path', { d, fill: s.colour,
+                                 stroke: 'var(--bg)', 'stroke-width': 1.5 }));
+  }
+  return { svg, series };
+}
+
+function legend(series, totals) {
+  const box = document.createElement('p');
+  box.className = 'legend';
+  series.forEach((s, i) => {
+    const item = document.createElement('span');
+    const swatch = document.createElement('i');
+    swatch.className = 'swatch';
+    swatch.style.background = s.colour;
+    item.appendChild(swatch);
+    item.appendChild(document.createTextNode(
+      totals ? `${s.label} — ${totals[i]}` : s.label));
+    box.appendChild(item);
+  });
+  return box;
+}
+
+/** Seconds until the next publication boundary, or null if there is none. */
+function nextBoundary(view, interval) {
+  if (!interval) return null;
+  const last = view.running_tally.length
+    ? view.running_tally[view.running_tally.length - 1].at
+    : (view.acts.find((a) => a.phase === 'opened') || {}).at;
+  if (!last) return null;
+  const from = typeof last === 'number' ? last * 1000 : Date.parse(last);
+  return (from + interval * 1000 - Date.now()) / 1000;
+}
+
+async function figures() {
+  const config = await pinned();
+  let view;
+  try {
+    view = await (await fetch(`${EBB}/published`)).json();
+  } catch { return; }
+  let released = '—';
+  try {
+    released = String((await (await fetch(`${VRO}/releases`)).json()).count);
+  } catch { /* the office is the office's to answer for */ }
+
+  const interval = config.tally_interval_seconds;
+  const snapshots = view.running_tally || [];
+  $('fig-election').textContent = config.election_id;
+  $('fig-cadence').textContent = interval
+    ? `every ${interval}s, and at the close` : 'the close only';
+  $('fig-tokens').textContent = released;
+  $('fig-entries').textContent = String(view.counts ? view.counts.accepted : 0);
+
+  if (!snapshots.length) {
+    $('figures-charts').hidden = true;
+    $('figures-waiting').hidden = false;
+    const left = nextBoundary(view, interval);
+    if (view.phase !== 'open') {
+      $('fig-next').textContent = view.phase === 'closed'
+        ? 'The poll is closed and published no interim figures: this election '
+          + 'chose the close as its only publication point.'
+        : 'The poll has not opened. Nothing is published before it does.';
+      $('fig-bar').style.width = '0%';
+    } else if (left === null) {
+      $('fig-next').textContent = 'No interim figures: this election publishes '
+        + 'at the close only, which is a choice the administering body makes '
+        + 'and a small electorate has reason to make.';
+      $('fig-bar').style.width = '0%';
+    } else {
+      $('fig-next').textContent = `First figures in ${Math.max(0, Math.ceil(left))}s. `
+        + 'Until a boundary falls there is no tally to be had — for anyone, '
+        + 'the operator included.';
+      $('fig-bar').style.width = `${Math.min(100, Math.max(0, (1 - left / interval) * 100))}%`;
+    }
+    return;
+  }
+
+  $('figures-waiting').hidden = false;
+  $('figures-charts').hidden = false;
+  const left = nextBoundary(view, interval);
+  $('fig-next').textContent = view.phase === 'closed'
+    ? 'Final figures. The records are open; every number here is recomputable '
+      + 'from them.'
+    : `Next figures in ${Math.max(0, Math.ceil(left || 0))}s.`;
+  $('fig-bar').style.width = view.phase === 'closed' ? '100%'
+    : `${Math.min(100, Math.max(0, (1 - (left || 0) / interval) * 100))}%`;
+
+  const last = snapshots[snapshots.length - 1];
+  const step = stepChart(snapshots, config.num_choices);
+  $('fig-step').replaceChildren(step.svg, legend(step.series));
+  $('fig-step-caption').textContent =
+    `${snapshots.length} publication ${snapshots.length === 1 ? 'point' : 'points'}, `
+    + `from the box's own running tally. Steps, not a curve: a figure holds `
+    + `until the next boundary republishes it.`;
+
+  const pie = pieChart(last, config.num_choices);
+  $('fig-pie').replaceChildren(pie.svg, legend(pie.series, pie.series.map((s) => s.value)));
+  $('fig-pie-caption').textContent = view.phase === 'closed'
+    ? `The final count, as published at ${(last.at || '').slice(11, 19)}.`
+    : `The count as published at ${(last.at || '').slice(11, 19)} — not the `
+      + `live count, which nobody has.`;
+}
+
 async function pinned() {
   if (!PINNED) PINNED = await (await fetch(`${CONFIG}/election.json`)).json();
   return PINNED;
@@ -299,8 +507,13 @@ async function showPollState(ebbOrigin) {
 }
 
 showPollState(EBB);
+figures();
+// The figures move on the election's schedule, so the page follows it rather
+// than waiting to be asked. One second, because the progress bar counts down
+// in seconds; the request is two small reads of published artefacts.
+setInterval(figures, 1000);
 
-$('refresh').onclick = () => { refresh(); showPollState(EBB); };
+$('refresh').onclick = () => { refresh(); showPollState(EBB); figures(); };
 $('d1-again').onclick = () => CREDENTIALS && ask(CREDENTIALS);
 
 $('query').onchange = async (e) => {

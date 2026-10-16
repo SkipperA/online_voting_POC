@@ -48,6 +48,20 @@
   --secret-bg: #fdeeee;
   --secret-rule: var(--danger);
 
+  /* Series colours for published figures. One palette, shared, so the
+     checker's chart and the box's own tally cannot disagree about which
+     colour option 3 is -- an audience that has learned the legend on one
+     page must not have to learn it again on another. Six, because a demo
+     ballot with more options than that is a chart nobody reads; beyond it
+     the series wrap and the labels carry the meaning. */
+  --series-1: #1d4ed8;
+  --series-2: #0f766e;
+  --series-3: #b45309;
+  --series-4: #7c3aed;
+  --series-5: #be123c;
+  --series-6: #4d7c0f;
+  --series-protest: #64748b;   /* outside the list: grey, never a candidate hue */
+
   /* -- trust-domain identity ------------------------------------------
    * Overridden per origin by the injected block. The six trust domains
    * group into three families of two -- voter side, authority side,
@@ -105,6 +119,13 @@
     --rule: #2c323a;
     --rule-strong: #434b56;
     --ok: #4ade80;
+    --series-1: #93b4fd;
+    --series-2: #5eead4;
+    --series-3: #fcd34d;
+    --series-4: #c4b5fd;
+    --series-5: #fda4af;
+    --series-6: #bef264;
+    --series-protest: #94a3b8;
     --warn: #fbbf24;
     --danger: #fca5a5;
     --note-bg: #2b2112;
