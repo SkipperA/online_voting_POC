@@ -11,6 +11,20 @@
 # Binds every origin inside the container only. Nothing is published; the
 # proxy reaches them over the compose network.
 
+# The voter application is TypeScript and its bundle is a build artefact,
+# deliberately not committed. Built here rather than on the host: the one
+# thing a deployment image must not do is require the machine it runs on to
+# have a toolchain, and a bundle built by hand is a bundle nobody can say
+# the provenance of.
+FROM node:20-slim AS voter-app
+
+WORKDIR /build
+COPY web/voter-app/package.json web/voter-app/package-lock.json ./
+RUN npm ci
+COPY web/voter-app/src ./src
+RUN npm run build
+
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -20,11 +34,14 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir -e "." && pip install --no-cache-dir uvicorn fastapi
+RUN pip install --no-cache-dir -e ".[service]"
 
 COPY service ./service
 COPY driver ./driver
 COPY web ./web
+# The bundle lands beside the page that loads it, exactly where the service
+# expects to read it from.
+COPY --from=voter-app /build/static/bundle.js ./web/voter-app/static/bundle.js
 COPY tools ./tools
 
 # The verifier is downloaded from the checker page, so it has to be in the

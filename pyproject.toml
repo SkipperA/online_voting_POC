@@ -9,9 +9,12 @@ dependencies = ["cryptography>=42.0"]
 # The HTTP layer of stage 1. Kept out of the core dependencies because
 # `src/ovpoc` neither imports nor needs it: the protocol runs headless, and
 # `demo.py` and `ext_demo.py` must keep working with none of this installed.
-service = ["fastapi>=0.110", "uvicorn>=0.29"]
-# httpx is what starlette's TestClient drives the applications through.
-dev = ["pytest>=8.0", "httpx>=0.27", "ovpoc[service]"]
+# httpx is not only the TestClient's transport: the office fetches a voter's
+# qualified certificate over it at runtime (§3.2), so a deployment that
+# installed `service` alone could not start. It was listed under `dev` until
+# an install without `dev` was attempted for the first time.
+service = ["fastapi>=0.110", "uvicorn>=0.29", "httpx>=0.27"]
+dev = ["pytest>=8.0", "ovpoc[service]"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
