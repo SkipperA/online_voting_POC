@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "election_id": "Monday_1",
+  "vro_token_key_spki": "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAuxnElsxM6wduyDkGFOR66s8scb6AHtOwxcs6Qidzv2NdQhNkvGgrnxLQD6ydxrhe2zXKBs8m0apOGJ6H2FW9cwIeXzwI5DNg73T6uwGQTM4OrmgU_Q6g0dkTb3QRoGmDuBSasTKvsKjmemAYfaL-1llPTZ9qE6fJwBU_rTqHyqNcCj68BpSVlcFpBZbCzIG-2t0J0DQoULhkjxoqaApKd9BvtSTQB3PxnwNSKhMIkr1za-xjm0wpqh5gu0Lyw0560hmaLTCDUAWYuJqC-LxZnIx2AaxNwzyZwMR34CT37Kw8PXr5ZCpkP7gq4Edepgbv_DF8DMph856EFXwDf80hldMxOod6HuKLg1Xxtc5KY3-Rz52XX-iWDVtN4bXfhPcURE6h8WUhczYrbSLcgOGYTwZqvuIOo3Qq2U7pIlItwxOCpjm6miI8niYO_47_rLAvbN4vAESubDyumEG6ewUDpv3aCFcDp1UwhaweVRlix87p7ZFFzZaoLXfDikNrN9IMkIRaAVGtTCChRhTv5GYgBmb1LXBC1YIDXwCEMF0TPVMZfMz4-3LhmGsL9L96ON2aoDdkSYV5ZW_aEIN_e7vf_uxN8aJSz4Vf_LHj6P_MjOWzLNFFswOCe2Brhcbi-enhYUOc6gLxyvNAzuf-smfV9sYARuwWEGK4bVJQ602lkHcCAwEAAQ",
+  "vro_token_key_fingerprint": "20d92f509d4922fd1a8f6073786e18bcb6042307a75287aefa33d6c35fd6882d",
+  "vro_statement_key": "-gK9HMiSKqYHj8k5CF0j8T27xbTkmWC1aJ_WAW67Xxg",
+  "ebb_statement_key": "KctzR6ZzsifoLt6o9jkZhb9qKsn8jzb2dyMnsF2_4jU",
+  "num_choices": 4,
+  "genesis_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "tally_interval_seconds": 10,
+  "opens": "2026-10-16T08:22:00",
+  "closes": "2026-10-16T08:28:00",
+  "scope_limits": {
+    "signature": "Clause S4: this configuration is published with a digest and no signature. Tampering is demonstrable, not attributable.",
+    "schedule": "Opening and closing times are recorded, not enforced. The close is an act of the EBB (E1), performed by an operator."
+  }
+}

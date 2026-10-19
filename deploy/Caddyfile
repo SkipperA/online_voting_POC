@@ -1,0 +1,61 @@
+# One hostname per origin, each to the port that origin listens on inside
+# the container. The mapping is the whole of the proxy's job: it must not
+# merge two origins behind one name, because the browser's same-origin
+# policy is what enforces the component boundaries this design claims.
+#
+# Certificates are issued automatically over HTTP-01, so all nine names
+# must resolve to this machine before the first start. A failed attempt
+# counts against the rate limit, so check with `dig` first.
+
+{
+	email postmaster@{$OVPOC_DOMAIN}
+}
+
+# The apex is not an origin. It sends a reader to the configuration, which
+# carries the legend naming the trust domains.
+{$OVPOC_DOMAIN} {
+	redir https://config.{$OVPOC_DOMAIN}{uri}
+}
+
+config.{$OVPOC_DOMAIN}  { reverse_proxy ovpoc:8000 }
+voter.{$OVPOC_DOMAIN}   { reverse_proxy ovpoc:8001 }
+wallet.{$OVPOC_DOMAIN}  { reverse_proxy ovpoc:8002 }
+vro.{$OVPOC_DOMAIN}     { reverse_proxy ovpoc:8003 }
+ebb.{$OVPOC_DOMAIN}     { reverse_proxy ovpoc:8004 }
+checker.{$OVPOC_DOMAIN} { reverse_proxy ovpoc:8005 }
+
+# The two gated origins. The supervision register names citizens, and the
+# setup console mints elections and replaces keys -- neither is a thing the
+# design hands to whoever finds the URL.
+#
+# This is a perimeter, not an authorisation model, and should be described
+# as one: it says who may reach the origin, which is exactly the claim the
+# supervision note already makes about who may read the register. An
+# address allowance first, because a password travelling to the wrong
+# person is a password; an address is harder to forward by accident.
+supervisor.{$OVPOC_DOMAIN} {
+	@allowed remote_ip {$OVPOC_ADMIN_CIDRS}
+	handle @allowed {
+		basic_auth {
+			# caddy hash-password  -- then paste the hash here
+			admin $2a$14$REPLACE_WITH_A_BCRYPT_HASH
+		}
+		reverse_proxy ovpoc:8006
+	}
+	handle {
+		respond "Not available from this address." 403
+	}
+}
+
+setup.{$OVPOC_DOMAIN} {
+	@allowed remote_ip {$OVPOC_ADMIN_CIDRS}
+	handle @allowed {
+		basic_auth {
+			admin $2a$14$REPLACE_WITH_A_BCRYPT_HASH
+		}
+		reverse_proxy ovpoc:8009
+	}
+	handle {
+		respond "Not available from this address." 403
+	}
+}

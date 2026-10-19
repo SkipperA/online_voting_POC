@@ -1,0 +1,44 @@
+# The hosted demonstration: the origins, and a proxy in front of them.
+#
+# The origins publish no ports. Everything from outside arrives at Caddy,
+# which terminates TLS and maps one hostname to each origin -- so the
+# separation that stage 1 gets from ports is carried by hostnames, and
+# nothing reaches an origin except through the name that identifies it.
+
+services:
+  ovpoc:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    environment:
+      # Every origin addresses its neighbours under this domain, and
+      # recognises itself by its own hostname rather than by a port --
+      # which matters, because behind the proxy all eight arrive on 443.
+      OVPOC_DOMAIN: ${OVPOC_DOMAIN:?set OVPOC_DOMAIN, e.g. diw.hu}
+    volumes:
+      # The elections: keys, registers, and the record each closed poll
+      # writes. Outside the image on purpose -- rebuilding the container
+      # must not discard an election.
+      - ./election-data:/data
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data        # certificates; losing these re-requests them
+      - caddy-config:/config
+    environment:
+      OVPOC_DOMAIN: ${OVPOC_DOMAIN:?set OVPOC_DOMAIN, e.g. diw.hu}
+      # Space-separated CIDRs allowed to reach the two gated origins.
+      OVPOC_ADMIN_CIDRS: ${OVPOC_ADMIN_CIDRS:-127.0.0.1/32}
+    depends_on:
+      - ovpoc
+
+volumes:
+  caddy-data:
+  caddy-config:
