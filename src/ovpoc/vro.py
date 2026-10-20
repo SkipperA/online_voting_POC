@@ -204,6 +204,36 @@ def commit(voter_id: str, opening: bytes) -> bytes:
     return hashlib.sha256(voter_id.encode("utf-8") + opening).digest()
 
 
+def _in_chain_order(
+    release_log: Ledger, openings: dict[str, bytes]
+) -> dict[str, bytes]:
+    """The openings, rearranged to the order the release chain was built in.
+
+    `supervision_dump` walks `_openings` to build the register a supervisor
+    reads, and the office's signature covers the *chain* -- so the two agree
+    only while the mapping holds the order tokens were issued in. A reload
+    does not preserve it: the poll is written with `canonical_bytes`, which
+    sorts keys, as canonical serialisation must.
+
+    So the chain is asked instead. Each entry carries one commitment; the
+    opening that produces it names the citizen that entry is about. An
+    opening the chain does not account for, or an entry no opening reaches,
+    is a stored register that contradicts itself -- it is put at the end
+    rather than dropped, because a supervisor who cannot chain the register
+    must still be able to see every name in it.
+    """
+    by_commitment = {b64(commit(voter_id, opening)): voter_id
+                     for voter_id, opening in openings.items()}
+    ordered: dict[str, bytes] = {}
+    for entry in release_log.entries:
+        voter_id = by_commitment.get(entry.payload.get("commitment"))
+        if voter_id is not None and voter_id not in ordered:
+            ordered[voter_id] = openings[voter_id]
+    for voter_id, opening in openings.items():
+        ordered.setdefault(voter_id, opening)
+    return ordered
+
+
 def release_query_payload(voter_id: str) -> bytes:
     """The bytes a voter signs to authenticate a step-12 query.
 
@@ -323,6 +353,16 @@ class VRO:
     register: set[str] = field(default_factory=set)         # electoral register: ids
     release_log: Ledger = field(default_factory=Ledger)     # commitments only
     _released: set[str] = field(default_factory=set)
+    #: voter_id -> the opening value behind that citizen's commitment.
+    #:
+    #: **Its order is load-bearing.** `supervision_dump` walks this
+    #: mapping to build the release list, and the supervisor's page chains
+    #: those commitments from the genesis hash to the head the office
+    #: signed. The head covers the order tokens were issued in, so this
+    #: has to hold that order and nothing else. It does, while the poll
+    #: runs, because entries are added as tokens are released -- but a
+    #: dict's order is not a property anything was checking, and
+    #: `restore_releases` lost it for a whole release of the project.
     _openings: dict[str, bytes] = field(default_factory=dict)
     _audit: list[AuditEntry] = field(default_factory=list)
     #: voter_id -> (c, s), the blinded value and the citizen's signature
@@ -394,6 +434,25 @@ class VRO:
         they make possible on a reloaded election is the voter's own
         token-request check and the supervisor's reading of the register,
         both of which are answers about a poll that has finished.
+
+        **The openings are reordered onto the chain, not taken as given.**
+        `_openings` is walked by `supervision_dump` to build the release
+        list, and the head the office signed covers the order tokens were
+        issued in -- so the mapping has to come back in that order. It did
+        not. The poll is written with `canonical_bytes`, which sorts keys
+        because canonical serialisation must; the openings came back
+        sorted by identifier, and a supervisor reloading a finished poll
+        was served a register that could not be chained to the head
+        printed beside it. Every commitment recomputed and the sequence
+        was somebody else's, which reads exactly like evidence of
+        tampering and was a demonstration artefact.
+
+        The fix belongs here rather than in the writer: sorted keys are
+        what canonical bytes are *for*, and a serialisation that preserved
+        insertion order to keep one consumer happy would be a worse thing
+        than this loop. The ledger is the authority on order -- it is what
+        the signature covers -- so the openings are threaded back onto it
+        by commitment.
         """
         for payload in releases:
             self.release_log.append(payload)
@@ -403,7 +462,7 @@ class VRO:
                 "signed; the release register has been altered"
             )
         self._released = set(released)
-        self._openings = dict(openings)
+        self._openings = _in_chain_order(self.release_log, openings)
         self._audit = list(audit)
         self._requests = dict(requests)
         self._supervisor_downloads = supervisor_downloads

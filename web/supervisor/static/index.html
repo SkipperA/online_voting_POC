@@ -27,7 +27,8 @@ never by whom.</p>
 <section>
   <h2>Does the office's own record hold together?</h2>
   <div class="row"><span class="label">tokens released</span><span class="value" id="count">—</span></div>
-  <div class="row"><span class="label">commitments rebuild the chain</span><span class="value" id="chain">—</span></div>
+  <div class="row"><span class="label">each commitment recomputes</span><span class="value" id="commitments">—</span></div>
+  <div class="row"><span class="label">the chain reaches the signed head</span><span class="value" id="chain">—</span></div>
   <div class="row"><span class="label">head signed under k_p^(O)</span><span class="value" id="head-sig">—</span></div>
   <div class="row"><span class="label">count signed under k_p^(O)</span><span class="value" id="count-sig">—</span></div>
   <div class="row"><span class="label">one release per identifier</span><span class="value" id="dupes">—</span></div>
@@ -38,6 +39,15 @@ never by whom.</p>
   and the chain from the genesis hash — so the register is checked rather
   than read. The signatures are verified against the keys published in the
   election configuration, not against anything in the data.</p>
+  <p class="prose" style="margin:.5rem 0 0">
+  Those first two are separate questions and either can fail alone. A
+  commitment that does not recompute means the office's own opening value
+  does not cover the identifier it published beside it — the rows below
+  name which positions. A chain that does not reach the signed head can
+  happen with every commitment recomputing perfectly: an entry inserted,
+  dropped or reordered leaves each one correct and the sequence wrong. The
+  identifiers are in doubt in the first case and the order in the second,
+  and one verdict for both would name only the weaker finding.</p>
 </section>
 
 <section>

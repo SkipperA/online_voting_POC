@@ -285,6 +285,144 @@ def test_every_page_carries_the_tokens_and_its_own_band(clients):
             assert origin.family in page, origin.name
 
 
+def test_every_runtime_page_watches_the_configuration_it_pinned(clients):
+    """A page cannot be served without the guard that notices a new election.
+
+    Every surface pins the published configuration when it loads, and the
+    setup console can mint a new election over the running one at any
+    moment -- replacing all three key pairs. Until this guard existed
+    nothing told the open pages, so they went on checking a new election's
+    artefacts against an old election's keys and said, accurately, that
+    nothing verified. Those messages name defences doing their job and
+    read, in a room, as the system being broken.
+
+    Served rather than written into the pages, like the band and the
+    tokens, so a surface added later cannot be added without one. And
+    injected rather than linked: a `<script src>` at 8000 would let the
+    config origin run code on six trust domains, which is a different and
+    worse dependency than sharing a stylesheet.
+    """
+    import re
+
+    body = (Path(__file__).resolve().parents[1]
+            / "web" / "shared" / "config-watch.js").read_text()
+    # A line from the file itself rather than a name it happens to define:
+    # a page carrying this is carrying the file, not something that looks
+    # like it.
+    fingerprint = "election.json.sha256"
+
+    for origin in origins.ALL:
+        if origin is origins.VOTER_APP:
+            continue  # its page is a 503 until someone runs the build
+        page = clients[origin.name].get("/").text
+
+        if origin is origins.SETUP:
+            # The console is the author of the change. A page reporting an
+            # operator's own mint back to them as news is noise, and noise
+            # in the one place a reader has been taught to read carefully.
+            assert fingerprint not in page, (
+                "the setup console must not warn about its own act")
+            continue
+
+        assert fingerprint in page, f"{origin.name}: no staleness watch"
+        assert f'window.OVPOC_CONFIG_ORIGIN="{origins.CONFIG.url}"' in page, (
+            f"{origin.name}: the watch has no config origin to read")
+        assert body.strip() in page, f"{origin.name}: the watch is not this file"
+        # A page's own scripts are same-origin and relative. Anything with a
+        # scheme in it is another origin running code here.
+        assert not re.findall(r'<script[^>]+src="[^"]*//', page), (
+            f"{origin.name}: a page that executes another origin's code "
+            "has handed that origin the page")
+
+
+def test_the_supervisor_reports_its_two_checks_separately(clients):
+    """One verdict for two checks could only name the weaker finding.
+
+    The page recomputes each commitment from the office's own
+    `[id, opening]` pair, and separately chains the published commitments
+    from the genesis hash to the head the office signed. These fail for
+    unrelated reasons and have unrelated remedies: a commitment that does
+    not recompute puts an identifier in doubt, while a chain that does not
+    reach the head can happen with every commitment recomputing perfectly
+    -- an entry inserted, dropped or reordered leaves each one correct and
+    the sequence wrong.
+
+    They were collapsed into a single line reading "THE REGISTER DOES NOT
+    REBUILD", which told a supervisor that something was wrong and not
+    which half. So: two rows, and each verdict a function of its own
+    check alone.
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[1] / "web" / "supervisor" / "static"
+    html = (root / "index.html").read_text()
+    script = (root / "supervisor.js").read_text()
+
+    page = clients[origins.SUPERVISOR.name].get("/").text
+    for slot in ("commitments", "chain"):
+        assert f'id="{slot}"' in html, f"no row for {slot}"
+        assert f"show('{slot}'," in script, f"nothing fills {slot}"
+        assert f'id="{slot}"' in page, f"{slot} is not served"
+
+    labels = re.findall(r'<span class="label">([^<]+)</span>\s*'
+                        r'<span class="value" id="(commitments|chain)"', html)
+    assert len(labels) == 2 and labels[0][0] != labels[1][0], (
+        "two checks reported under one name is the collapse coming back")
+
+    # Each verdict a function of its own check. The commitment line must
+    # not consult the head, and the chain line must not consult whether
+    # the commitments recomputed -- which is exactly what the single line
+    # did, and why a chain failure could be reported as a commitment one.
+    def call(slot: str) -> str:
+        at = script.index(f"show('{slot}',")
+        depth, out = 0, []
+        for ch in script[at:]:
+            out.append(ch)
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+        return "".join(out)
+
+    commitments, chain = call("commitments"), call("chain")
+    assert "data.head" not in commitments, (
+        "the commitment verdict must not depend on the chain")
+    for borrowed in ("rebuilt", "wrong"):
+        assert borrowed not in chain, (
+            f"the chain verdict must not depend on {borrowed}")
+
+
+def test_the_watch_reports_and_never_navigates():
+    """It says reload. It does not reload.
+
+    On the voter application a reload costs the voter the ad-hoc key, and
+    with it the entitlement to re-vote -- which is the design's own answer
+    to coercion, so a stale configuration must not be allowed to spend it.
+    The only navigation in the file is on a click the reader performed,
+    where the page's own `beforeunload` guard stands in the way.
+
+    And the bar collapses rather than closes: the condition is permanent
+    until the page is reloaded, so a notice that could be dismissed
+    outright would leave a stale page looking exactly like a current one.
+    """
+    import re
+
+    body = (Path(__file__).resolve().parents[1]
+            / "web" / "shared" / "config-watch.js").read_text()
+
+    navigations = re.findall(r"(?:location\.reload\(\)|location\s*=|location\."
+                             r"(?:href|assign|replace))", body)
+    assert len(navigations) == 1, f"more than one way out: {navigations}"
+    assert "reload.onclick = () => window.location.reload();" in body, (
+        "the one navigation must hang off a click the reader made")
+
+    assert "classList.add('stale--slim')" in body, "the bar must collapse"
+    for gone in (".remove()", "display = 'none'", "removeChild"):
+        assert gone not in body, f"the bar must not be closable ({gone})"
+
+
 def test_no_page_declares_a_colour_of_its_own():
     """Where the drift came back last time, it came back as a literal.
 
@@ -304,7 +442,9 @@ def test_no_page_declares_a_colour_of_its_own():
     # The scripts build markup too, and the step highlight in `main.ts` was
     # a hard-coded teal that outlived the sweep because nothing read the
     # TypeScript. It reads the band's own colour now; this keeps it that way.
-    scripts = sorted(root.glob("*/static/*.js")) + sorted(root.glob("voter-app/src/*.ts"))
+    scripts = (sorted(root.glob("*/static/*.js"))
+               + sorted(root.glob("shared/*.js"))
+               + sorted(root.glob("voter-app/src/*.ts")))
     for script in scripts:
         literals = set(re.findall(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3}(?:[0-9a-fA-F]{2})?)?\b",
                                   script.read_text()))
@@ -360,6 +500,7 @@ def test_nothing_sets_a_size_of_its_own():
     root = Path(__file__).resolve().parents[1] / "web"
     sources = sorted(root.glob("*/static/index.html"))
     sources += sorted(root.glob("*/static/*.js"))
+    sources += sorted(root.glob("shared/*.js"))
     sources += sorted(root.glob("voter-app/src/*.ts"))
     for source in sources:
         literals = re.findall(r"font-size\s*:\s*([\d.]+(?:px|pt|em))", source.read_text())

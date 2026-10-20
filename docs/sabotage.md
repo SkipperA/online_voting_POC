@@ -18,11 +18,11 @@ confident the surrounding comments sound.
 | wallet_signature_check_removed | `test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_office_console_shows_recorded_beside_disclosed` |
 | finalize_selfcheck_removed | `test_finalize_rejects_a_dishonest_vro_response` |
 | chain_verification_disabled | `test_altering_a_recorded_ballot_breaks_the_hash_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain` |
-| ledger_chaining_removed | `test_a_stranger_can_recompute_the_result_from_the_downloads`<br>`test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_verifier_service_runs_the_same_checks` |
+| ledger_chaining_removed | `test_a_stranger_can_recompute_the_result_from_the_downloads`<br>`test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed`<br>`test_the_verifier_service_runs_the_same_checks` |
 | rejected_ballots_supersede | `test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_the_adversarial_scenarios_all_hold` |
 | selection_range_check_removed | `test_a_protest_ballot_is_counted_as_invalid_not_rejected`<br>`test_distinct_protest_codes_are_not_merged`<br>`test_the_adversarial_scenarios_all_hold` |
 | vro_key_pinning_removed | `test_a_substituted_vro_key_is_refused_by_the_voter_app` |
-| release_log_publishes_ids | `test_a_voter_can_verify_the_answer_against_the_published_log`<br>`test_no_origin_discloses_an_id_during_a_complete_run`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_release_dump_names_nobody`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_release_log_publishes_no_voter_identities`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_release_register_downloads_as_one_canonical_file`<br>`test_the_vro_cannot_link_its_signature_to_a_published_ballot` |
+| release_log_publishes_ids | `test_a_voter_can_verify_the_answer_against_the_published_log`<br>`test_no_origin_discloses_an_id_during_a_complete_run`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_release_dump_names_nobody`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_release_log_publishes_no_voter_identities`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_release_register_downloads_as_one_canonical_file`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed`<br>`test_the_vro_cannot_link_its_signature_to_a_published_ballot` |
 | release_query_auth_removed | `test_an_unauthenticated_release_query_is_refused`<br>`test_the_adversarial_scenarios_all_hold` |
 | eligibility_checked_before_identity | `test_an_unknown_id_is_not_identified`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_wallet_reaches_the_office_over_the_wire` |
 | revocation_reported_before_identity | `test_a_revoked_certificate_is_reported_only_after_the_signature` |
@@ -34,10 +34,11 @@ confident the surrounding comments sound.
 | tally_available_before_the_close | `test_a_running_tally_is_published_only_when_configured`<br>`test_the_tally_endpoint_cannot_read_around_the_cadence`<br>`test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`<br>`test_three_voters_cast_and_verify` |
 | restored_records_not_re-derived | `test_an_altered_ledger_is_refused_rather_than_served` |
 | cadence_changeable_while_open | `test_the_cadence_is_fixed_once_the_box_is_open`<br>`test_the_console_refuses_the_cadence_once_the_box_is_open` |
-| reservation_publishes_the_commitment | `test_a_reservation_publishes_nothing`<br>`test_supervision_shows_the_identifiers_and_the_refusals`<br>`test_the_release_log_records_exactly_who_took_a_token` |
+| reservation_publishes_the_commitment | `test_a_reservation_publishes_nothing`<br>`test_supervision_shows_the_identifiers_and_the_refusals`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed` |
 | protest_distribution_collapsed | `test_distinct_protest_codes_are_not_merged`<br>`test_the_adversarial_scenarios_all_hold` |
 | submissions_accepted_after_the_close | `test_a_ballot_arriving_after_the_close_is_not_recorded`<br>`test_the_adversarial_scenarios_all_hold` |
 | receipt_omits_the_entry_position | `test_a_tampered_receipt_does_not_verify`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_inclusion_check_works_from_the_receipt_alone` |
+| reloaded_register_keeps_the_stored_order | `test_the_reloaded_register_chains_to_the_head_the_office_signed` |
 
 ## Detail
 
@@ -151,6 +152,7 @@ Caught by:
 - `test_ledger_vectors`
 - `test_the_dump_needs_no_signature_of_its_own`
 - `test_the_release_dump_needs_no_signature_of_its_own`
+- `test_the_reloaded_register_chains_to_the_head_the_office_signed`
 - `test_the_verifier_service_runs_the_same_checks`
 
 ### `rejected_ballots_supersede`
@@ -198,6 +200,7 @@ Caught by:
 - `test_the_release_log_publishes_no_voter_identities`
 - `test_the_release_log_records_exactly_who_took_a_token`
 - `test_the_release_register_downloads_as_one_canonical_file`
+- `test_the_reloaded_register_chains_to_the_head_the_office_signed`
 - `test_the_vro_cannot_link_its_signature_to_a_published_ballot`
 
 ### `release_query_auth_removed`
@@ -327,6 +330,7 @@ Caught by:
 - `test_a_reservation_publishes_nothing`
 - `test_supervision_shows_the_identifiers_and_the_refusals`
 - `test_the_release_log_records_exactly_who_took_a_token`
+- `test_the_reloaded_register_chains_to_the_head_the_office_signed`
 
 ### `protest_distribution_collapsed`
 
@@ -359,7 +363,16 @@ Caught by:
 - `test_the_adversarial_scenarios_all_hold`
 - `test_the_inclusion_check_works_from_the_receipt_alone`
 
+### `reloaded_register_keeps_the_stored_order`
+
+A reloaded poll serves the office's openings in whatever order storage returned them rather than the order the release chain was built in. The register a supervisor reads then cannot be chained to the head printed beside it, with every commitment recomputing perfectly -- which is the signature of an entry inserted, dropped or reordered, and is instead a serialisation artefact.
+
+Patched in `src/ovpoc/vro.py`.
+
+Caught by:
+- `test_the_reloaded_register_chains_to_the_head_the_office_signed`
+
 ## Summary
 
-- 27 of 27 mutations were detected.
+- 28 of 28 mutations were detected.
 - 0 were not.

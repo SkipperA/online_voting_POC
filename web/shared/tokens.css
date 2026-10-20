@@ -154,7 +154,11 @@
 
 .origin {
   position: sticky;
-  top: 0;
+  /* Normally the top of the scrollport. When the stale-configuration bar
+   * is up it sticks beneath it, so the two notices stack rather than one
+   * hiding the other; `config-watch.js` measures the bar and keeps this
+   * current. Unset, the fallback is where the band has always sat. */
+  top: var(--stale-height, 0px);
   z-index: 10;
   display: flex;
   flex-wrap: wrap;
@@ -416,6 +420,81 @@ input[type=text], input[type=number] { width: 20rem; max-width: 100%; }
   border-left: 3px solid var(--danger);
 }
 .note--exposed .kind { color: var(--danger); }
+
+/* -- the stale-configuration bar ---------------------------------------
+ * Raised by `web/shared/config-watch.js` when the published digest moves
+ * under an open page. Served rather than written into the pages, like the
+ * band and the tokens, so a surface added later cannot be added without
+ * it.
+ *
+ * It takes the danger colour, which on these pages means a secret on
+ * screen, a failed check, or a page that names citizens. This is the
+ * third of those in spirit: every check the page goes on to report is now
+ * about an election the page is no longer looking at, so the bar is a
+ * statement that the verdicts below it have stopped meaning what they
+ * say.
+ *
+ * Sticky and *stacked with the band*, not laid over it. It has to be
+ * legible from wherever in a long page of base64 the reader happens to
+ * be -- the verdicts it explains are mostly below the fold -- so it
+ * cannot simply scroll away. But a `fixed` bar covering the top of the
+ * viewport covers the band, and the band is the only thing on the page
+ * that says which trust domain the reader is standing in. Trading one
+ * permanent notice for the loss of another is not a trade.
+ *
+ * So both stick, one under the other: this at the top, the band at
+ * `--stale-height`, which `config-watch.js` measures and keeps current
+ * as the text rewraps. Unset -- which is every page that has not gone
+ * stale -- the fallback is `0px` and the band sits where it always did.
+ *
+ * It spans the content column rather than the viewport, like the band
+ * and for the same reason: `100vw` counts the scrollbar and overflows
+ * sideways on exactly the machines that drive projectors.
+ */
+.stale {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: .6rem 1.5rem;
+  margin: -2rem -1.25rem 0;
+  padding: .85rem 1.25rem;
+  background: var(--secret-bg);
+  border-bottom: 3px solid var(--danger);
+  color: var(--danger);
+  font-size: var(--t-sm);
+}
+
+/* The band pulls itself up into the body's padding to reach the top of
+ * the page. With a bar above it there is nothing left to pull up into:
+ * the bar is at the top now, and the band's own margin would drag it
+ * back underneath. */
+.stale + .origin { margin-top: 0; }
+.stale b {
+  display: block;
+  font-size: var(--t-base);
+  font-weight: 650;
+  margin-bottom: .25rem;
+}
+.stale-said { flex: 1 1 24rem; max-width: calc(var(--measure-prose) + 2rem); }
+.stale-why { display: block; margin-bottom: .3rem; }
+.stale-digests {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+}
+.stale-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-left: auto; }
+
+/* Collapsed, not closed. The condition is permanent until the page is
+ * reloaded, so the reader who wants to go on looking at the superseded
+ * page gets the room back and keeps the sentence saying why. */
+.stale--slim .stale-why,
+.stale--slim .stale-digests,
+.stale--slim .stale-controls button:last-child { display: none; }
+.stale--slim { padding: .4rem 1.25rem; }
+.stale--slim b { font-size: var(--t-sm); margin-bottom: 0; }
 
 /* A value a deployment would never put on a screen. */
 .secret {

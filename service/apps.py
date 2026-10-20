@@ -40,6 +40,7 @@ CHECKER_STATIC = WEB / "checker" / "static"
 OFFICE_STATIC = WEB / "office" / "static"
 BOX_STATIC = WEB / "box" / "static"
 TOKENS = WEB / "shared" / "tokens.css"
+CONFIG_WATCH = WEB / "shared" / "config-watch.js"
 
 
 def _page(path: Path, origin: origins.Origin, **substitutions: str) -> str:
@@ -50,6 +51,10 @@ def _page(path: Path, origin: origins.Origin, **substitutions: str) -> str:
     fourth allowance to the three the surface map permits; the separation is
     the property being demonstrated, so it is not spent on a stylesheet. One
     file in the repository, eight copies on the wire.
+
+    The staleness watch is injected the same way and for a stronger version
+    of the same reason: a page that *executes* code served by another origin
+    has handed that origin the page. See `_watch`.
 
     Read per request, like every other static artefact here, so editing the
     tokens needs no restart.
@@ -68,6 +73,7 @@ def _page(path: Path, origin: origins.Origin, **substitutions: str) -> str:
     head = (
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<style>{TOKENS.read_text(encoding='utf-8')}{_palette(origin)}</style>"
+        f"{_watch(origin)}"
     )
     anchor = '<meta charset="utf-8">'
     assert html.count(anchor) == 1, f"{path.name}: no single place to inject into"
@@ -97,6 +103,39 @@ def _palette(origin: origins.Origin) -> str:
     return (
         f":root{{{light}{mine}}}"
         f"@media(prefers-color-scheme:dark){{:root{{{dark}{mine_dark}}}}}"
+    )
+
+
+def _watch(origin: origins.Origin) -> str:
+    """The guard that notices the election changing under an open page.
+
+    Every surface here pins the published configuration when it loads --
+    the fingerprint a token must verify under, the digest the wallet
+    refuses a mismatch against, the statement keys the checker and the
+    supervisor verify every signature with. The setup console can mint a
+    new election over the running one at any moment, and minting replaces
+    all three key pairs. Nothing told the open pages, so they went on
+    checking a new election's artefacts against an old election's keys and
+    reported, accurately, that nothing verified. Every one of those
+    messages names a defence doing its job and reads, in a room, as the
+    system being broken.
+
+    So it is served, not written into the pages: a surface added later
+    cannot be added without it, exactly as with the band. Injected rather
+    than linked for the reason the tokens are, only more so -- a `<script
+    src>` at 8000 would let the config origin run code on six trust
+    domains, which is a different and worse dependency than a stylesheet.
+
+    The setup console is the one page that does not carry it. It is the
+    author of the change; a console reporting an operator's own mint back
+    to them as news would be noise, and noise in the one place a reader
+    has been taught to read carefully.
+    """
+    if origin is origins.SETUP:
+        return ""
+    return (
+        f'<script>window.OVPOC_CONFIG_ORIGIN="{origins.CONFIG.url}";</script>'
+        f"<script>{CONFIG_WATCH.read_text(encoding='utf-8')}</script>"
     )
 
 

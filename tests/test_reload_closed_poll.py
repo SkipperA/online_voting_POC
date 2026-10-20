@@ -88,6 +88,73 @@ def test_the_office_register_comes_back_with_its_openings(finished):
     assert after["supervisor_downloads"] == 0
 
 
+def test_the_reloaded_register_chains_to_the_head_the_office_signed(tmp_path):
+    """The supervisor's own check, run here, on a poll that was reloaded.
+
+    `supervision_dump` walks the office's openings to build the register,
+    and the signature covers the chain -- so the two agree only while that
+    mapping holds the order tokens were issued in. A reload did not
+    preserve it: the poll is written with `canonical_bytes`, which sorts
+    keys because canonical serialisation must, and the openings came back
+    sorted by identifier.
+
+    What a supervisor then saw was the worst available shape of this
+    failure. Every commitment recomputed from its own pair, and the chain
+    did not reach the head printed beside it -- which is precisely the
+    signature of an entry inserted, dropped or reordered, and here was a
+    serialisation artefact. The two checks had been reported as one
+    verdict until the change before this one, which is why it took this
+    long to see.
+
+    The identifiers are deliberately not in issue order: sorting them is
+    the bug, so an alphabetical electorate would pass either way.
+    """
+    import hashlib
+    import sys
+
+    sys.path.insert(0, "tests")
+    from ovpoc.messages import canonical_bytes
+    from ovpoc.voter import Voter
+
+    deployment = Deployment.create(election_id="ordered", bits=2048,
+                                   num_choices=3, document_root=tmp_path / "docs")
+    deployment.data_dir = tmp_path / "data"
+    deployment.save(deployment.data_dir)
+
+    issued = ["Zoltán", "Nagy Béla", "András"]
+    assert issued != sorted(issued), "the order has to be worth preserving"
+    for voter_id in issued:
+        deployment.enrol(voter_id)
+    for voter_id in issued:
+        voter = Voter(voter_id=voter_id, wallet=deployment.wallets[voter_id],
+                      vro_public_key=deployment.vro.public_key,
+                      pinned_vro_fingerprint=deployment.config.token_key_fingerprint)
+        deployment.vro.issue_token(voter.build_auth_request())
+    deployment.ebb.open()
+    clients = {o.name: TestClient(a) for o, a in build_all(deployment).items()}
+    clients["ebb"].post("/close")
+
+    def chains(dump: dict) -> bool:
+        """Exactly what `web/supervisor/static/supervisor.js` computes."""
+        head = bytes(32)
+        for index, release in enumerate(dump["releases"]):
+            head = hashlib.sha256(
+                index.to_bytes(8, "big") + head
+                + canonical_bytes({"commitment": release["commitment"]})
+            ).digest()
+        return head.hex() == dump["head"]
+
+    before = deployment.vro.supervision_dump()
+    assert [r["voter_id"] for r in before["releases"]] == issued
+    assert chains(before)
+
+    after = reloaded(tmp_path).vro.supervision_dump()
+    assert [r["voter_id"] for r in after["releases"]] == issued, (
+        "the reloaded register is in some order other than the one the "
+        "office signed")
+    assert chains(after)
+
+
 def test_an_altered_ledger_is_refused_rather_than_served(finished):
     """The verifier's own check, performed before anything is displayed."""
     deployment, tmp_path = finished

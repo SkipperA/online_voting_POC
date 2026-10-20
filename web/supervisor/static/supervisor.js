@@ -87,14 +87,48 @@ async function refresh() {
   show('count', `${data.count}`);
   show('downloads', `${data.supervisor_downloads ?? '—'}`, 'muted');
 
+  /*
+   * Two checks, two verdicts. They used to be one line reading "the
+   * register does not rebuild", which said that something was wrong with
+   * the register and nothing about what -- and the two halves fail for
+   * unrelated reasons and have unrelated remedies.
+   *
+   * Each commitment is H(id ‖ opening) over the pair the office holds, so
+   * a mismatch means the office's own openings do not account for what it
+   * published: the entry at that position names a citizen the commitment
+   * does not cover. The identifiers are what is in doubt, and the rows
+   * below name which ones.
+   *
+   * The chain is computed over the *published* commitments, in the order
+   * published, from the genesis hash in the configuration. It can fail
+   * with every commitment recomputing perfectly: an entry inserted,
+   * dropped or reordered leaves each remaining commitment correct and the
+   * head wrong. There the identifiers are sound and the sequence is not.
+   *
+   * So the first can fail while the second passes, and the second can
+   * fail while the first passes. One verdict for both could only ever
+   * name the weaker of the two findings.
+   */
   const rebuilt = await Promise.all(
     data.releases.map((r) => commitment(r.voter_id, r.opening)));
-  const allMatch = rebuilt.every((c, i) => c === data.releases[i].commitment);
+  const wrong = data.releases
+    .map((r, i) => (rebuilt[i] === r.commitment ? null : r.index))
+    .filter((i) => i !== null);
+  const total = data.releases.length;
+  show('commitments', wrong.length
+    ? `${wrong.length} of ${total} DO NOT RECOMPUTE — at position${
+        wrong.length === 1 ? '' : 's'} ${wrong.join(', ')}`
+    : `all ${total} recompute from the office's own [id, opening] pairs`,
+    wrong.length ? 'warn' : 'ok');
 
   const head = await chainOver(data.releases, data.genesis_hash);
-  show('chain', head === data.head && allMatch
-    ? `${data.releases.length} commitments rebuild to the published head`
-    : 'THE REGISTER DOES NOT REBUILD', head === data.head && allMatch ? 'ok' : 'warn');
+  show('chain', head === data.head
+    ? `${total} commitments chain from the genesis hash to the signed head`
+    // Short, because these cells are styled for base64 -- `word-break:
+    // break-all` -- and a long sentence in one comes apart mid-word. The
+    // prose under the rows carries what this failure means.
+    : 'THE CHAIN DOES NOT REACH THE PUBLISHED HEAD',
+    head === data.head ? 'ok' : 'warn');
 
   const headOk = await verifyStatement(office, {
     election_id: config.election_id, head: b64(fromHex(data.head)),

@@ -298,6 +298,20 @@ MUTATIONS = [
             "                self.election_id, accepted, reason, None, entry.entry_hash)),"
         ),
     ),
+    Mutation(
+        name="reloaded_register_keeps_the_stored_order",
+        what=(
+            "A reloaded poll serves the office's openings in whatever order "
+            "storage returned them rather than the order the release chain was "
+            "built in. The register a supervisor reads then cannot be chained to "
+            "the head printed beside it, with every commitment recomputing "
+            "perfectly -- which is the signature of an entry inserted, dropped "
+            "or reordered, and is instead a serialisation artefact."
+        ),
+        path="src/ovpoc/vro.py",
+        find="        self._openings = _in_chain_order(self.release_log, openings)",
+        replace="        self._openings = dict(openings)  # SABOTAGE: storage order",
+    ),
 ]
 
 

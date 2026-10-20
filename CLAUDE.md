@@ -138,6 +138,22 @@ register is `VRO.register` — a set of ids, and nothing else.
   new exposure — each ballot's `selection` was already public in the
   ledger; the change only stops the summary from discarding a distinction
   the ledger exposed all along.
+- **The order of `VRO._openings` is load-bearing, and a reload restores it
+  from the chain.** `supervision_dump` walks that mapping to build the
+  register a supervisor reads, and the office's signature covers the
+  *chain* — so the two agree only while the mapping holds the order tokens
+  were issued in. It does while the poll runs. It did not across a reload:
+  `poll.state.json` is written with `canonical_bytes`, which sorts keys
+  because canonical serialisation must, so the openings came back sorted by
+  identifier and a reloaded finished poll served a register that could not
+  be chained to the head printed beside it. Every commitment recomputed and
+  the sequence was somebody else's, which is exactly what tampering looks
+  like. The fix is `_in_chain_order`, in `restore_releases`: the ledger is
+  the authority on order, being what the signature covers, so the openings
+  are threaded back onto it by commitment. Not in the writer — sorted keys
+  are what canonical bytes are for. Found only once the supervisor page
+  stopped reporting its two checks as one verdict, which is the argument
+  for having split them.
 - **Supersession is applied at tally time**, not by overwriting. The full
   submission history stays auditable.
 - **The release log publishes commitments, not voter ids.** `H(id || opening)`,
@@ -159,6 +175,33 @@ register is `VRO.register` — a set of ids, and nothing else.
   fourth cross-origin allowance where the surface map permits three. One file
   in the repository, eight copies on the wire. A page opened straight off disk
   is therefore unstyled, as it was already unfilled.
+- **Every surface watches the configuration it pinned, and says "reload"
+  rather than reloading.** Each page pins the published configuration at
+  load -- the fingerprint a token must verify under, the digest the wallet
+  refuses a mismatch against, the statement keys the checker and the
+  supervisor verify every signature with. The setup console can mint a new
+  election over the running one at any moment, and minting replaces all
+  three key pairs. Nothing told the open pages, so they went on checking a
+  new election's artefacts against an old election's keys and reported,
+  accurately, that nothing verified. Every one of those messages names a
+  defence doing its job and reads, in a room, as the system being broken:
+  the failure was honest and the diagnosis unavailable.
+  `web/shared/config-watch.js` is the diagnosis. It watches
+  `election.json.sha256`, not the configuration, because the digest moves
+  on any change at all and deciding which changes a reader may ignore is
+  not this script's to make. It is served by `service/apps.py:_watch`, like
+  the band and the tokens, so a surface added later cannot be added without
+  one -- and injected rather than linked, which matters more here than for a
+  stylesheet: a `<script src>` at 8000 would let the config origin run code
+  on six trust domains. The setup console is the one page without it, being
+  the author of the change. The bar never navigates on its own: on the voter
+  application a reload costs the ad-hoc key and with it the entitlement to
+  re-vote, which is the design's own answer to coercion. It collapses rather
+  than closes, because the condition is permanent until the page is reloaded
+  and a dismissable notice would leave a stale page looking current. It
+  stacks with the band rather than covering it -- `--stale-height`, measured
+  in the script -- because the band is the only thing on the page that says
+  which trust domain the reader is standing in.
 - **Hue carries trust-domain identity and nothing else** — never a verdict,
   never decoration. The band colours live on `Origin` in `service/origins.py`
   beside the port, so a surface that moves in code moves on the page. The six
