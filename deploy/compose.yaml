@@ -34,8 +34,13 @@ services:
       - caddy-config:/config
     environment:
       OVPOC_DOMAIN: ${OVPOC_DOMAIN:?set OVPOC_DOMAIN, e.g. diw.hu}
-      # Space-separated CIDRs allowed to reach the two gated origins.
-      OVPOC_ADMIN_CIDRS: ${OVPOC_ADMIN_CIDRS:-127.0.0.1/32}
+      # Nothing else. There was an `OVPOC_ADMIN_CIDRS` here, naming the
+      # addresses allowed to reach `supervisor.` and `setup.`; the
+      # Caddyfile explains why it is gone. It is removed rather than left
+      # unused, because a variable that no longer does anything is read by
+      # the next person as one that does -- and this one in particular had
+      # a default of `127.0.0.1/32`, so forgetting it denied the operator
+      # their own console without erroring.
     depends_on:
       - ovpoc
 

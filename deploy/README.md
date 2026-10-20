@@ -19,13 +19,18 @@ over HTTP-01 and a failed attempt counts against the rate limit:
         dig +short "${n}${OVPOC_DOMAIN}"
     done
 
-Then set the two variables and a password hash:
+Then set the domain and generate a password hash:
 
     export OVPOC_DOMAIN=diw.hu
-    export OVPOC_ADMIN_CIDRS="203.0.113.4/32"     # your own address
     docker run --rm caddy:2-alpine caddy hash-password --plaintext '…'
 
 Paste the hash into `Caddyfile` in place of both `REPLACE_WITH_A_BCRYPT_HASH`.
+That is the only local edit this repository expects, and it is why an
+update touching `Caddyfile` has to be applied by hand.
+
+One variable, not two. `OVPOC_ADMIN_CIDRS` used to name the addresses
+allowed to reach `supervisor.` and `setup.`; it is gone, and the
+`Caddyfile` says why.
 
 ## Checking the proxy configuration
 
@@ -35,11 +40,26 @@ Ask it directly instead:
 
     docker run --rm \
       -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
-      -e OVPOC_DOMAIN -e OVPOC_ADMIN_CIDRS \
+      -e OVPOC_DOMAIN \
       caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
 
 Worth doing before the first start, because a proxy that will not parse its
-configuration never reaches the point of requesting a certificate.
+configuration never reaches the point of requesting a certificate. Worth
+doing before every start, in fact, and `&&` rather than `;` so that a
+configuration which does not parse cannot reach the running proxy:
+
+    docker run --rm -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+      -e OVPOC_DOMAIN caddy:2-alpine \
+      caddy validate --config /etc/caddy/Caddyfile \
+    && docker compose -f deploy/compose.yaml up -d
+
+A Caddy that cannot provision its configuration exits and is restarted by
+Compose, forever, and every origin is unreachable for as long as that
+lasts. It never reaches ACME in that state, so the certificates and the
+rate limit are untouched — the cost is availability, which on a
+demonstration day is the whole cost. The symptom in `docker compose logs`
+is the startup banner repeating; the cause is on the `error` line between
+two of them.
 
 ## Running
 
@@ -53,17 +73,16 @@ console once the certificates are up.
 
     git pull --ff-only
     export OVPOC_DOMAIN=diw.hu
-    export OVPOC_ADMIN_CIDRS="203.0.113.4/32"     # the same value as before
-    docker compose -f deploy/compose.yaml config | grep -A1 OVPOC_ADMIN_CIDRS
     docker compose -f deploy/compose.yaml up -d --build
 
 `--ff-only` so that a commit made on the server stops the pull instead of
 being buried in a merge. The local edit this repository *expects* on a
 server — the two bcrypt hashes in `Caddyfile` — does not block a pull
-unless a change upstream touches that file, in which case the conflict is
-the point.
+unless a change upstream touches that file, in which case the pull refuses
+and the two lines are re-pasted by hand. That is the one file to expect
+friction from.
 
-Three things go wrong here more than once.
+Two things go wrong here more than once.
 
 **`--build` is not optional, and omitting it looks like success.** Without
 it Compose recreates the container from the image it already has, so the
@@ -72,16 +91,6 @@ the old code. The symptom is a verification below that returns nothing at
 all. `docker compose -f deploy/compose.yaml exec ovpoc ls web/shared/`
 settles it: if the file a change added is missing there, the image
 predates it.
-
-**`OVPOC_ADMIN_CIDRS` fails quietly rather than loudly.** It has a default
-of `127.0.0.1/32`, so forgetting to export it does not stop the deploy —
-and because Compose recreates a service whose environment changed, Caddy
-comes back refusing `supervisor.` and `setup.` from your own address with
-a 403. `OVPOC_DOMAIN` is declared `:?` and does error, so only the
-allowance can surprise you. The `config | grep` line above is there to be
-read before the `up`, not after. Both variables in a `deploy/.env` file is
-the better arrangement: a value that depends on which shell you are in is
-a value that will one day be absent.
 
 **The rebuild restarts the process, so a poll in progress is lost** —
 clause A7, which no change to this repository alters. The election
@@ -116,13 +125,43 @@ that cannot fail is not a check.
 Confirm that says `200` before believing anything grepped from those two
 hosts.
 
+The same trap, in the general form: a placeholder that looks like shell
+syntax will eventually be pasted as shell syntax. `<the address>` in a
+command reaches a configuration file as `<the`, and an example address in
+a document — `203.0.113.4`, reserved by RFC 5737 so that it can never be
+real — looks real enough to copy. Both happened here. Where a value must
+be typed rather than computed, let the shell ask for it and check what it
+got before anything acts on it:
+
+    read -rp 'value: ' V
+    [[ "$V" =~ ^[0-9a-fA-F:.]+$ ]] || echo "refused: [$V]"
+
+The brackets are the point. They show the spaces and the angle brackets
+that a bare `echo` hides.
+
 ## What this does not claim
 
-The gating on `supervisor.` and `setup.` is a perimeter: an address
-allowance with a password behind it. It says who may reach those origins,
-not who is entitled to act there — the same distinction the supervision
-note draws about who may read the register, and it should be described that
-way to an audience rather than presented as an authorisation model.
+The gating on `supervisor.` and `setup.` is a password and nothing more.
+It says who may reach those origins, not who is entitled to act there —
+the same distinction the supervision note draws about who may read the
+register, and it should be described that way to an audience rather than
+presented as an authorisation model.
+
+It is deliberately weaker than the address allowance it replaced, because
+the supervision page is the oversight argument and a page the room cannot
+open argues nothing. What that costs is worth stating plainly rather than
+discovering: anyone holding the password can mint an election over a
+running poll, from any network, and every token already issued stops
+verifying. Minting requires naming the election being replaced, which
+guards against the accident and not against the act. Choose a password
+accordingly, and do not put it on a slide.
+
+A consequence of being publicly reachable: both origins will be scanned.
+`basic_auth` verifies at bcrypt cost 14, which is about a second of CPU
+per attempt by design — good against guessing, and on a single-core VPS
+also a cheap way for a scanner to spend the machine's capacity. It has not
+been a problem in practice; it is the sort of thing to recognise rather
+than to be surprised by.
 
 Hosted, the ballot box sees each voter's address, so the anonymising
 submission channel of §3.9 is an absence rather than a theoretical gap. And

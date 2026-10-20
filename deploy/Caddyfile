@@ -6,7 +6,10 @@
 # Certificates are issued automatically over HTTP-01, so all nine names
 # must resolve to this machine before the first start. A failed attempt
 # counts against the rate limit, so check with `dig` first.
-
+#
+# No blank line before the global options block below: `caddy fmt`
+# objects to one, and the objection arrives as a warning on every
+# start, in among the lines read when something is actually wrong.
 {
 	email postmaster@{$OVPOC_DOMAIN}
 }
@@ -40,34 +43,34 @@ checker.{$OVPOC_DOMAIN} {
 # setup console mints elections and replaces keys -- neither is a thing the
 # design hands to whoever finds the URL.
 #
-# This is a perimeter, not an authorisation model, and should be described
-# as one: it says who may reach the origin, which is exactly the claim the
-# supervision note already makes about who may read the register. An
-# address allowance first, because a password travelling to the wrong
-# person is a password; an address is harder to forward by accident.
+# A password, and nothing else. There was an address allowance in front of
+# this, on the reasoning that a password travelling to the wrong person is
+# still a password while an address is harder to forward by accident. That
+# reasoning holds for a deployment and is wrong for a demonstration: the
+# supervision page *is* the oversight argument, and an allowance pinned to
+# whoever configured the server means that in a room, on conference wifi,
+# from a borrowed laptop, nobody can open the page the argument depends on.
+# A perimeter that keeps out the audience is not protecting anything.
+#
+# So this is weaker than what it replaced, and the README says so in the
+# terms that matter: anyone holding the password can mint an election over
+# a running poll, from anywhere, which voids every token already issued.
+# The guard against doing it by accident is in the console -- a mint must
+# name the election it replaces -- and there is no guard against doing it
+# on purpose. That is the correct amount of protection for a demonstration
+# whose electorate is three personas, and it would not be for anything
+# else.
 supervisor.{$OVPOC_DOMAIN} {
-	@allowed remote_ip {$OVPOC_ADMIN_CIDRS}
-	handle @allowed {
-		basic_auth {
-			# caddy hash-password  -- then paste the hash here
-			admin $2a$14$REPLACE_WITH_A_BCRYPT_HASH
-		}
-		reverse_proxy ovpoc:8006
+	basic_auth {
+		# caddy hash-password  -- then paste the hash here
+		admin $2a$14$REPLACE_WITH_A_BCRYPT_HASH
 	}
-	handle {
-		respond "Not available from this address." 403
-	}
+	reverse_proxy ovpoc:8006
 }
 
 setup.{$OVPOC_DOMAIN} {
-	@allowed remote_ip {$OVPOC_ADMIN_CIDRS}
-	handle @allowed {
-		basic_auth {
-			admin $2a$14$REPLACE_WITH_A_BCRYPT_HASH
-		}
-		reverse_proxy ovpoc:8009
+	basic_auth {
+		admin $2a$14$REPLACE_WITH_A_BCRYPT_HASH
 	}
-	handle {
-		respond "Not available from this address." 403
-	}
+	reverse_proxy ovpoc:8009
 }
