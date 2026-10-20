@@ -17,12 +17,24 @@
 	redir https://config.{$OVPOC_DOMAIN}{uri}
 }
 
-config.{$OVPOC_DOMAIN}  { reverse_proxy ovpoc:8000 }
-voter.{$OVPOC_DOMAIN}   { reverse_proxy ovpoc:8001 }
-wallet.{$OVPOC_DOMAIN}  { reverse_proxy ovpoc:8002 }
-vro.{$OVPOC_DOMAIN}     { reverse_proxy ovpoc:8003 }
-ebb.{$OVPOC_DOMAIN}     { reverse_proxy ovpoc:8004 }
-checker.{$OVPOC_DOMAIN} { reverse_proxy ovpoc:8005 }
+config.{$OVPOC_DOMAIN} {
+	reverse_proxy ovpoc:8000
+}
+voter.{$OVPOC_DOMAIN} {
+	reverse_proxy ovpoc:8001
+}
+wallet.{$OVPOC_DOMAIN} {
+	reverse_proxy ovpoc:8002
+}
+vro.{$OVPOC_DOMAIN} {
+	reverse_proxy ovpoc:8003
+}
+ebb.{$OVPOC_DOMAIN} {
+	reverse_proxy ovpoc:8004
+}
+checker.{$OVPOC_DOMAIN} {
+	reverse_proxy ovpoc:8005
+}
 
 # The two gated origins. The supervision register names citizens, and the
 # setup console mints elections and replaces keys -- neither is a thing the

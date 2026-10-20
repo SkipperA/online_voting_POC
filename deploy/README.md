@@ -27,6 +27,20 @@ Then set the two variables and a password hash:
 
 Paste the hash into `Caddyfile` in place of both `REPLACE_WITH_A_BCRYPT_HASH`.
 
+## Checking the proxy configuration
+
+Caddy refuses a configuration it cannot parse and then restarts, which in
+`docker compose logs` looks like a banner repeating rather than an error.
+Ask it directly instead:
+
+    docker run --rm \
+      -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+      -e OVPOC_DOMAIN -e OVPOC_ADMIN_CIDRS \
+      caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+
+Worth doing before the first start, because a proxy that will not parse its
+configuration never reaches the point of requesting a certificate.
+
 ## Running
 
     docker compose -f deploy/compose.yaml up -d --build
