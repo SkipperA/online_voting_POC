@@ -12,6 +12,11 @@ ios/
   WalletApp/       the Digital Identity Wallet stand-in. Holds `id`, signs, transmits.
 ```
 
+The `.xcodeproj` for each app is *not* in the repository — `.gitignore`
+excludes it, and the five steps below are how it is made. The sources
+are, so the thing a reviewer reads is in version control and the thing
+Xcode generates is not.
+
 ## What the package is for
 
 `OVPOCKit` is to `ios/` what `src/ovpoc/` is to the repository: pure protocol
@@ -59,12 +64,27 @@ There is no `.xcodeproj` in the repository, on purpose. A generated
 a broken one fails in ways that look like code problems. Five steps in Xcode
 instead:
 
-1. **New project**, iOS → App, SwiftUI, name it `VoterApp`. Repeat for
-   `WalletApp`. Put both in `ios/`, so the package sits beside them.
+1. **New project**, iOS → App, SwiftUI, name it `VoterApp`, with the
+   location set to `ios/` — *not* `ios/OVPOCKit/`, which is the package.
+   **Uncheck "Create Git repository on my Mac"**: this repository already
+   exists one level up, and a second one nested inside it would quietly
+   take the commits. Repeat for `WalletApp`. Xcode produces
+   `ios/VoterApp/VoterApp.xcodeproj` with the sources a level down in
+   `ios/VoterApp/VoterApp/`.
 2. **File → Add Package Dependencies → Add Local**, and choose
    `ios/OVPOCKit`. Add the `OVPOCKit` library to both app targets.
-3. **Replace the generated `ContentView.swift` and `…App.swift`** with the
-   sources in `ios/VoterApp/` and `ios/WalletApp/`.
+3. **The app sources are in this repository and overwrite the generated
+   ones.** `ios/VoterApp/VoterApp/` and `ios/WalletApp/WalletApp/` hold
+   the real `ContentView.swift` and `…App.swift`; applying the patch that
+   adds them puts them where Xcode is already looking. From Xcode 16
+   onward a new project uses a file-system-synchronized folder, so they
+   appear in the target by themselves; on an older Xcode, drag them in
+   once.
+
+   If you have already *committed* Xcode's generated `ContentView.swift`
+   and `…App.swift`, delete them and commit the deletion first — a patch
+   that adds a file git already tracks will refuse to apply rather than
+   overwrite it.
 4. **The wallet declares that it opens token requests.** In the `WalletApp`
    target, Info → Document Types → add one with the extension `ovpocreq` and
    role *Viewer*, so a request file the voter shares can be opened in it. The
