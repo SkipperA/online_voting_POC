@@ -3,6 +3,7 @@
 /// This is the test that matters most in the package. Everything else
 /// verifies a signature; this decides what the signature is over, and a
 /// divergence here is invisible from either side on its own.
+import CoreFoundation
 import Crypto
 import Foundation
 import OVPOCKit
@@ -15,16 +16,33 @@ final class CanonicalJSONTests: XCTestCase {
     /// type is recovered. Only the shapes the protocol signs appear --
     /// strings, integers and nested objects -- which is the same
     /// restriction `CanonicalValue` declares.
+    /// `NSNumber` is where this went wrong once, and the vector caught it.
+    ///
+    /// `JSONSerialization` returns every JSON number *and* every JSON
+    /// boolean as `NSNumber`, and the bridge `n as? Bool` succeeds for
+    /// exactly 0 and 1. So a `case let b as Bool` placed before the
+    /// integer case turns the number 1 into `true` — and only the number
+    /// 1, which is why `{"z":1,"a":2,"M":3,"_":4}` came out as
+    /// `{"M":3,"_":4,"a":2,"z":true}` while every other numeric vector
+    /// passed. A bug visible in one input out of thirteen is the kind a
+    /// conformance file exists to find.
+    ///
+    /// The type is therefore asked rather than pattern-matched:
+    /// `CFBooleanGetTypeID` is what distinguishes a JSON boolean from a
+    /// JSON number once Foundation has bridged both to the same class.
     private func value(from any: Any) throws -> CanonicalValue {
         switch any {
-        case let s as String: return .string(s)
-        case let b as Bool: return .bool(b)
-        case let n as Int: return .int(n)
+        case let s as String:
+            return .string(s)
+        case let n as NSNumber:
+            if CFGetTypeID(n) == CFBooleanGetTypeID() { return .bool(n.boolValue) }
+            return .int(n.intValue)
         case let d as [String: Any]:
             var members: [String: CanonicalValue] = [:]
             for (k, v) in d { members[k] = try value(from: v) }
             return .object(members)
-        case is NSNull: return .null
+        case is NSNull:
+            return .null
         default:
             throw Vectors.Problem.notAnObject("value of type \(type(of: any))")
         }

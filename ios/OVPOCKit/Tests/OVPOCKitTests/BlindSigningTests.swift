@@ -93,13 +93,41 @@ final class BlindSigningTests: XCTestCase {
     func testADishonestReplyIsRefusedAtUnblinding() throws {
         let material = try testKeys()
         let election = try fixtureElection(publicKey: material.public)
-        let adhoc = AdHocKey()
-        let blinding = try Blinding(adhocPublicKey: adhoc.publicBytes, under: election)
+        let office = try _RSA.BlindSigning.PrivateKey<SHA384>(
+            derRepresentation: material.private,
+            parameters: .RSABSSA_SHA384_PSS_Deterministic)
 
+        let mine = try Blinding(
+            adhocPublicKey: AdHocKey().publicBytes, under: election)
+        let somebodyElse = try Blinding(
+            adhocPublicKey: AdHocKey().publicBytes, under: election)
+
+        // Two shapes of wrong reply. Rubbish, which is what a broken or
+        // hostile office might send; and a *correctly formed* signature
+        // over somebody else's blinded value, which is the one an office
+        // confusing two requests would send and the harder of the two to
+        // notice.
         let rubbish = Data(repeating: 0xAB, count: material.bits / 8)
-        XCTAssertThrowsError(try blinding.finalize(blindSignature: rubbish)) { error in
-            XCTAssertEqual(error as? Blinding.Failure, .replyDoesNotVerify)
+        let wrongRequest = try office.blindSignature(for: somebodyElse.blindedKey)
+
+        for (name, reply) in [("rubbish", rubbish),
+                              ("another request's signature",
+                               wrongRequest.rawRepresentation)] {
+            XCTAssertThrowsError(try mine.finalize(blindSignature: reply),
+                                 "a token came out of \(name)")
         }
+
+        // Which layer refuses is deliberately not asserted, and that is
+        // the finding rather than a weakening of the test. RFC 9474 puts
+        // the verification inside `Finalize` as step 5, `_CryptoExtras`
+        // implements it, and it throws `ProtocolError.invalidSignature`
+        // before `Blinding.finalize` reaches its own check -- so the
+        // check in `Blinding` is a second line that never fires today.
+        // What matters, and what is asserted, is that no usable token can
+        // be produced from a reply that is not a signature over this `c`.
+        // Asserting `Blinding.Failure.replyDoesNotVerify` here asserted
+        // which implementation refused, which is not a property of the
+        // protocol and broke the moment the library was consulted.
     }
 
     /// Nothing is blinded under a key that has not been pinned.
