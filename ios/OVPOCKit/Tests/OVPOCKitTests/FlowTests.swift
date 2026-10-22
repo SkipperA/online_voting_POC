@@ -290,3 +290,58 @@ final class WalletFlowTests: XCTestCase {
             over: sent.signedPayload))
     }
 }
+
+final class PersonaTests: XCTestCase {
+    /// An adopted citizen signs as that citizen.
+    ///
+    /// The failure this prevents is the one that reached the simulator: a
+    /// wallet generating its own key signs as nobody the register knows,
+    /// and the office answers `NOT_IDENTIFIED` — correctly, and
+    /// indistinguishably from an unknown identifier, which is §3.2 rather
+    /// than a fault. The name is not the credential; the key is.
+    func testAnAdoptedPersonaSignsUnderTheCertifiedKey() async throws {
+        let fixture = try Fixture()
+        let office = FakeOffice(fixture)
+        let registry = FakePersonas(["Kovács Ágnes", "Nagy Béla"])
+
+        let voter = VoterFlow(elections: FakeElections(fixture),
+                              replies: office, box: FakeBox(fixture))
+        try await voter.enrol()
+
+        let adopted = try await registry.adopt("Kovács Ágnes")
+        let wallet = WalletFlow(wallet: adopted, elections: office, office: office)
+        try await wallet.load(try XCTUnwrap(voter.requestFile))
+        _ = try await wallet.consentAndTransmit()
+
+        let sent = try XCTUnwrap(office.transmitted.first)
+        XCTAssertEqual(sent.voterID, "Kovács Ágnes")
+
+        // Verified under the key the register holds for that name, which
+        // is the check the office performs and the one a freshly
+        // generated key fails.
+        let certified = try XCTUnwrap(registry.certifiedKey(for: "Kovács Ágnes"))
+        XCTAssertTrue(Ed25519.verify(publicKey: certified,
+                                     signature: sent.walletSignature,
+                                     over: sent.signedPayload))
+
+        // And a key nobody enrolled does not verify under it.
+        let stranger = WalletKey(voterID: "Kovács Ágnes")
+        var forged = AuthRequest(voterID: "Kovács Ágnes", blindedKey: sent.blindedKey)
+        forged.walletSignature = try stranger.sign(forged.signedPayload)
+        XCTAssertFalse(Ed25519.verify(publicKey: certified,
+                                      signature: forged.walletSignature,
+                                      over: forged.signedPayload),
+                       "the name must not be what the office accepts")
+    }
+
+    func testAdoptingSomebodyWhoIsNotEnrolledFails() async throws {
+        let registry = FakePersonas(["Nagy Béla"])
+        do {
+            _ = try await registry.adopt("Nobody")
+            XCTFail("adopted a citizen who is not on the register")
+        } catch {
+            // The demonstration's own origin answers 404; the office's
+            // refusal is the opaque one and belongs to §3.2.
+        }
+    }
+}

@@ -65,7 +65,7 @@ public final class WalletFlow {
 
     /// Whose wallet this is. One citizen, one key, no parameter --
     /// unlike the browser stand-in, which holds a whole electorate so one
-    /// machine can play it (clause A3).
+    /// machine can play it (clause S1).
     public var voterID: String { wallet.voterID }
 
     // -- load and check ----------------------------------------------

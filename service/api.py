@@ -119,7 +119,7 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
     the last selection the signer for all of them: a hundred voters choosing
     a hundred identifiers would produce one token and ninety-nine refusals
     for a citizen who never asked.  A real wallet has one owner, one key and
-    no parameter.  Clause A3.
+    no parameter.  Clause S1.
     """
     app = base(origins.WALLET)
 
@@ -220,7 +220,7 @@ def wallet_app(deployment: Deployment, base) -> FastAPI:
     async def personas() -> dict:
         """The list exists only because one machine plays a whole electorate.
 
-        A real wallet has one owner and offers no such choice. Clause A3.
+        A real wallet has one owner and offers no such choice. Clause S1.
         """
         return {"personas": sorted(deployment.wallets)}
 

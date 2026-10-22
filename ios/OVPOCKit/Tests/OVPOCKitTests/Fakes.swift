@@ -130,3 +130,32 @@ final class FakeBox: BallotSubmitting, @unchecked Sendable {
                 "adhoc_public_key": ballot.adhocPublicKey.b64url]
     }
 }
+
+/// The demonstration's citizens, without the demonstration.
+///
+/// Holds the keys it hands out so a test can check that what the wallet
+/// signs verifies under the key the register would have for that name --
+/// which is the whole of what adoption is for.
+final class FakePersonas: PersonaSource, @unchecked Sendable {
+    private var keys: [String: WalletKey] = [:]
+    let enrolled: [String]
+
+    init(_ enrolled: [String]) {
+        self.enrolled = enrolled
+        for name in enrolled { keys[name] = WalletKey(voterID: name) }
+    }
+
+    func personas() async throws -> [String] { enrolled }
+
+    func adopt(_ voterID: String) async throws -> WalletKey {
+        guard let key = keys[voterID] else {
+            throw TransportError.status(404, body: "no such persona")
+        }
+        return key
+    }
+
+    /// What the population register would hold for that citizen.
+    func certifiedKey(for voterID: String) -> Data? {
+        keys[voterID]?.publicBytes
+    }
+}

@@ -113,22 +113,37 @@ struct ContentView: View {
     @ViewBuilder
     private var persona: some View {
         Section {
-            TextField("Your identifier", text: $model.voterID)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button("Use this identity") { model.adopt() }
-                .disabled(model.voterID.trimmingCharacters(
-                    in: .whitespacesAndNewlines).isEmpty)
+            if model.available.isEmpty {
+                Button("Find out who is enrolled") {
+                    Task { await model.loadPersonas() }
+                }
+            } else {
+                ForEach(model.available, id: \.self) { name in
+                    Button {
+                        Task { await model.adopt(name) }
+                    } label: {
+                        HStack {
+                            Text(name)
+                            Spacer()
+                            if model.adopted == name {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                }
+            }
         } header: {
             Text("Whose wallet this is")
         } footer: {
-            Text("A real wallet has one owner and no such screen: the key is "
-                 + "bound to hardware under eIDAS and the application holding "
-                 + "it cannot read it. This exists so one device can play "
-                 + "several citizens in a demonstration — clause A3.")
+            Text("Chosen from the citizens this demonstration enrolled, "
+                 + "because taking one of their identities means taking "
+                 + "their key — and the key, not the name, is what the "
+                 + "office checks. A real wallet has one owner, generates "
+                 + "its own key in hardware it cannot read, and offers no "
+                 + "such list. Clause S1.")
         }
     }
-}
 
 #Preview {
     ContentView()

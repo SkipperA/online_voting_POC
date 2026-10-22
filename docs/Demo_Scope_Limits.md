@@ -44,8 +44,32 @@ element would present. Nothing in the protocol depends on where the private
 key sits, only on the signature it produces. Moving the key into hardware is
 an implementation change behind an unchanged interface, not a redesign.
 
-**Label:** *Wallet is a software stub. In deployment the signing key is held
-in hardware and cannot be exported.*
+A sharper version of the same substitution arrived with the native wallet,
+and it is worth stating rather than leaving as an implementation detail. The
+office checks a token request against the key held for that identifier in the
+population register, and this demonstration enrols its citizens by generating
+their keys *server-side* — the browser wallet holds no key at all, it asks
+origin 8002 to sign. A wallet application generates its own key, which nothing
+has enrolled, so the office answers `NOT_IDENTIFIED`: not because the name is
+unknown but because the key is. That is §3.2 working exactly as written, and
+no identifier will get past it, because the name was never the credential.
+
+So the native wallet *adopts* a citizen the demonstration already created,
+fetching that citizen's private key from origin 8002 — an endpoint whose own
+docstring says a real wallet exposes no such thing. A private key crosses a
+network, which is the one sentence of this clause an audience should hear.
+
+The honest version is the other one: the wallet generates its key and the
+population register records the public half, which is what §3.2 describes.
+It needs `POST /voters` to accept a supplied key, and a setup console a phone
+can reach — which on the hosted deployment sits behind an address allowance
+and a password. Until both exist, adoption is the substitution and this
+paragraph is the disclosure.
+
+**Label:** *Wallet is a software stub, and on the phone it borrows one of the
+demonstration's citizens — key and all. In deployment the signing key is
+generated in hardware, cannot be exported, and is enrolled before any
+election.*
 
 ### S2 — The certificate lookup
 

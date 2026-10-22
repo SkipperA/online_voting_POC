@@ -296,6 +296,28 @@ register is `VRO.register` — a set of ids, and nothing else.
   appeared, and the button for everything else. Clause A8 records that what
   is substituted is the *enforcement* — a browser origin is enforced by the
   browser, an app sandbox by the system that also offers `openURL`.
+- **A native wallet has no enrolled key, and the name is not the
+  credential.** The office checks a token request against the key the
+  population register holds for that identifier; this demonstration enrols
+  citizens by generating their keys server-side, and the browser wallet
+  holds none — it asks origin 8002 to sign. So a wallet application that
+  generates its own key signs as nobody the register knows and the office
+  answers `NOT_IDENTIFIED`, which is §3.2 working rather than a fault, and
+  which no identifier will get past. `Personas.swift` closes it by
+  *adopting* one of the demonstration's citizens, key and all, over an
+  endpoint that says in its own docstring that no real wallet exposes it.
+  The honest version — the wallet generates its key and enrolment records
+  the public half, as §3.2 describes — needs `POST /voters` to accept a
+  supplied key and a setup console a phone can reach, and the hosted one
+  sits behind an address allowance and a password. Clause S1 carries the
+  disclosure.
+- **The wallet-persona substitution is clause S1, not A3.** Seven places
+  cited A3, which is *Browser-delivered code (stage 1 only)*; S1 is *The
+  Digital Identity Wallet*. Worth knowing that nothing checks this: the
+  suite verifies the clause citations on the *pages* and says nothing
+  about the ones in comments, so these drifted silently and were found by
+  reading. A3 is also the clause the native client partly discharges — its
+  own label says an App Store binary is not supplied by the VRO.
 - **The flows live in the package, not the app targets.** `VoterFlow` and
   `WalletFlow` are the native counterpart of `voter.py` — "the voter's
   whole flow in one file" — and they are in `OVPOCKit` so that step order,

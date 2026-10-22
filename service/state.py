@@ -72,7 +72,7 @@ class Deployment:
 
     # Wallet personas. A real wallet holds one citizen's key in hardware it
     # never leaves; this holds several in memory so one machine can play a
-    # whole electorate. Clause A3 in `docs/Demo_Scope_Limits.md` -- the
+    # whole electorate. Clause S1 in `docs/Demo_Scope_Limits.md` -- the
     # substitution is the wallet, not the boundary, which still holds: the
     # voter application below never reads any of these, nor the ids.
     wallets: dict[str, keys.SigningKeyPair] = field(default_factory=dict)

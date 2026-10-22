@@ -52,7 +52,7 @@ public struct AdHocKey: Sendable {
 /// `k_s^(v), k_p^(v)` -- the identified wallet key. One citizen, one key.
 ///
 /// In the browser demonstration one origin holds several of these so that
-/// a single machine can play a whole electorate (clause A3). A wallet
+/// a single machine can play a whole electorate (clause S1). A wallet
 /// *application* has exactly one owner, so there is no persona parameter
 /// here: the identifier it signs for is a property of the installation.
 public struct WalletKey: Sendable {
@@ -73,7 +73,7 @@ public struct WalletKey: Sendable {
 
     /// Only so the demonstration's persona survives a reinstall. A
     /// deployment has no such method, and `docs/Demo_Scope_Limits.md`
-    /// clause A3 is where that difference is recorded.
+    /// clause S1 is where that difference is recorded.
     public var demoSeed: Data { key.rawRepresentation }
 
     public func sign(_ data: Data) throws -> Data {

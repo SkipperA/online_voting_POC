@@ -34,6 +34,14 @@ public struct Origins: Sendable, Equatable {
 
     /// 8000 — inert. The configuration and its digest, as static bytes.
     public var config: URL { origin("config") }
+    /// 8002 — the browser demonstration's wallet.
+    ///
+    /// Reached by the *native wallet* and by nothing else here, and only
+    /// to borrow a persona: see `DemoPersonaClient`. The voting
+    /// application must never address this origin, which is why it does
+    /// not appear in any voter-side type.
+    public var wallet: URL { origin("wallet") }
+
     /// 8003 — the office. Token requests, and the reply collection.
     public var vro: URL { origin("vro") }
     /// 8004 — the ballot box. Submission, receipts, the published view.

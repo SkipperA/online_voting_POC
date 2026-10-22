@@ -6,7 +6,7 @@
 /// eIDAS and cannot be read by the application holding it, and there is
 /// no screen on which you choose who you are. Here the identifier is
 /// typed in once, because a demonstration needs to be able to play
-/// several citizens from one device. Clause A3.
+/// several citizens from one device. Clause S1.
 import Foundation
 import Observation
 import OVPOCKit
@@ -30,27 +30,58 @@ final class WalletModel {
     private(set) var summary: [VoterFlow.Field] = []
     private(set) var sent: [VoterFlow.Field] = []
 
-    var voterID: String = ""
+    /// Who this demonstration has enrolled, for the picker.
+    private(set) var available: [String] = []
+    private(set) var adopted: String?
 
     private let origins: Origins
+    private let personas: any PersonaSource
 
     init(origins: Origins = .hosted) {
         self.origins = origins
+        self.personas = DemoPersonaClient(origins: origins)
     }
 
-    /// One citizen, from here on. Changing it starts a new wallet rather
-    /// than re-signing as somebody else, because a wallet whose owner is
-    /// a text field is already a thing no deployment has.
-    func adopt() {
-        let trimmed = voterID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        flow = WalletFlow(
-            wallet: WalletKey(voterID: trimmed),
-            elections: ConfigClient(origins: origins),
-            office: OfficeRequestClient(origins: origins))
-        summary = []
-        sent = []
-        phase = .idle
+    /// Who the office will accept a request from.
+    ///
+    /// Asked rather than typed, and that is the correction. A free text
+    /// field invited the assumption that the *name* is the credential;
+    /// it is not, the key is. A wallet that generated its own key signed
+    /// as nobody the register knows, and the office answered
+    /// `NOT_IDENTIFIED` — correctly, and indistinguishably from an
+    /// unknown identifier, which is §3.2 working rather than a fault.
+    func loadPersonas() async {
+        do {
+            available = try await personas.personas()
+        } catch {
+            phase = .refused("Could not reach the demonstration's wallet "
+                             + "origin to list its citizens: \(error)")
+        }
+    }
+
+    /// Become one of the demonstration's citizens.
+    ///
+    /// This downloads that citizen's private key, which no wallet does
+    /// and no deployment permits. The alternative — this wallet
+    /// generating its own key and enrolling the public half — is what
+    /// §3.2 describes, and it needs an enrolment endpoint that accepts a
+    /// supplied key and a setup console a phone can reach. Neither
+    /// exists yet. See `Personas.swift` and clause S1.
+    func adopt(_ voterID: String) async {
+        phase = .working
+        do {
+            let key = try await personas.adopt(voterID)
+            flow = WalletFlow(
+                wallet: key,
+                elections: ConfigClient(origins: origins),
+                office: OfficeRequestClient(origins: origins))
+            adopted = voterID
+            summary = []
+            sent = []
+            phase = .idle
+        } catch {
+            phase = .refused("Could not take that identity: \(error)")
+        }
     }
 
     /// Read the file the voter carried, and check it against a
