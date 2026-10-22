@@ -14,7 +14,42 @@
 /// forgotten `fetch`.
 import Foundation
 
-public struct ConfigClient: Sendable {
+// -- what the flows depend on ------------------------------------------
+//
+// The flows take these rather than the concrete clients below, so that
+// `swift test` can run the whole sequence -- step order, what is held and
+// discarded, what happens when the configuration moves mid-flow -- with
+// no network and no running service. The apps wire in the real ones.
+//
+// Narrow on purpose, and separate on purpose. `RequestTransmitting` is the
+// wallet's and appears in no voter-side type; `TokenReplyCollecting` is
+// the application's. The §3.6 boundary is which protocol a flow is
+// written against, so a voter flow that wanted to transmit `[id, c, s]`
+// would have to grow a dependency a reviewer can see in its initialiser.
+
+public protocol ElectionReading: Sendable {
+    func election() async throws -> Election
+    func publishedDigest() async throws -> String
+}
+
+/// B16. Presenting `c`, which the application generated.
+public protocol TokenReplyCollecting: Sendable {
+    func collect(blindedKey: Data) async throws -> Data?
+}
+
+public protocol BallotSubmitting: Sendable {
+    func submit(_ ballot: Ballot) async throws -> Receipt
+    func find(adhocPublicKey: Data) async throws -> [String: Any]?
+}
+
+/// B7, and the wallet's alone. The voting application is not written
+/// against this and must not be.
+public protocol RequestTransmitting: Sendable {
+    @discardableResult
+    func transmit(_ request: AuthRequest) async throws -> String
+}
+
+public struct ConfigClient: Sendable, ElectionReading {
     let origins: Origins
 
     public init(origins: Origins) { self.origins = origins }
@@ -52,7 +87,7 @@ public struct ConfigClient: Sendable {
 }
 
 /// The wallet's end of B7. Present in the wallet app and nowhere else.
-public struct OfficeRequestClient: Sendable {
+public struct OfficeRequestClient: Sendable, RequestTransmitting {
     let origins: Origins
 
     public init(origins: Origins) { self.origins = origins }
@@ -82,7 +117,7 @@ public struct OfficeRequestClient: Sendable {
 }
 
 /// The voting application's end of B16. It presents `c` and nothing else.
-public struct OfficeReplyClient: Sendable {
+public struct OfficeReplyClient: Sendable, TokenReplyCollecting {
     let origins: Origins
 
     public init(origins: Origins) { self.origins = origins }
@@ -117,7 +152,7 @@ public struct OfficeReplyClient: Sendable {
     }
 }
 
-public struct BoxClient: Sendable {
+public struct BoxClient: Sendable, BallotSubmitting {
     let origins: Origins
 
     public init(origins: Origins) { self.origins = origins }

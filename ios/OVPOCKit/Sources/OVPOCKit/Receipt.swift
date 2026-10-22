@@ -25,7 +25,11 @@ public struct Receipt: Sendable, Equatable {
     public let entryHash: Data
     public let signature: Data
 
-    init(wire: [String: Any]) throws {
+    /// Public because a receipt arrives as a file as often as from a
+    /// response: the voter keeps one, and the checker page already accepts
+    /// an uploaded receipt and verifies it. A client that can parse one it
+    /// was handed can check it, which is the point of the receipt.
+    public init(wire: [String: Any]) throws {
         guard let accepted = wire["accepted"] as? Bool else {
             throw TransportError.missingField("accepted")
         }

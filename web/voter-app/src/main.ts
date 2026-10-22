@@ -412,16 +412,19 @@ function showBlind() {
   render({
     id: 'handover', fig: '→ 3', title: 'Hand the blinded key to the wallet',
     where: 'this device → the wallet',
-    why: 'The only file in the sequence, and a file for a reason: on a real ' +
-         'device this is an app-to-app invocation between two applications on ' +
-         'the same phone. Nothing that identifies the voter is in it, and c is ' +
-         'not a secret.',
+    why: 'The only file in the sequence, and a file for a reason: the voting ' +
+         'application must not be able to make the wallet sign anything. It ' +
+         'is carried here between two origins and on a phone between two ' +
+         'applications, and it is the same file either way. Nothing that ' +
+         'identifies the voter is in it, and c is not a secret.',
   });
   payload('handover', 'blinded-key.json — NOT the token request. The token ' +
           'request is the package [id, c, s] that the wallet builds: it adds ' +
           'the identifier and its signature. This file carries only c.', {
-    _transport: 'app-to-app invocation on a real device; a file here only ' +
-                'because a browser page cannot invoke the wallet application',
+    _transport: 'carried by the voter between two applications, as it is ' +
+                'carried between two browser origins. The voting application ' +
+                'cannot invoke the wallet, and that is the point rather than ' +
+                'a limitation of the medium.',
     election_id: CONFIG.election_id,
     config_digest: DIGEST,
     blinded_key: b64url(BLINDED),

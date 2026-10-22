@@ -296,6 +296,18 @@ register is `VRO.register` — a set of ids, and nothing else.
   appeared, and the button for everything else. Clause A8 records that what
   is substituted is the *enforcement* — a browser origin is enforced by the
   browser, an app sandbox by the system that also offers `openURL`.
+- **The flows live in the package, not the app targets.** `VoterFlow` and
+  `WalletFlow` are the native counterpart of `voter.py` — "the voter's
+  whole flow in one file" — and they are in `OVPOCKit` so that step order,
+  what is held and discarded, the refusal when the configuration moves
+  mid-flow, and what `Collect` does when pressed too early are all
+  reachable by `swift test` with no simulator and no network. The views
+  over them draw a list and three buttons. The seams are four narrow
+  protocols (`ElectionReading`, `TokenReplyCollecting`, `BallotSubmitting`,
+  `RequestTransmitting`), and their separation is the §3.6 boundary
+  expressed in types: `RequestTransmitting` is the wallet's and appears in
+  no voter-side type, so a voting application that wanted to transmit
+  `[id, c, s]` would have to grow a dependency visible in its initialiser.
 - **The native clients share `ios/OVPOCKit`, and it holds no interface.**
   What `src/ovpoc` is to the repository, that package is to `ios/`: the
   protocol, testable with `swift test` on a Mac with no simulator, no
