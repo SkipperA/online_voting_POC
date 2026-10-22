@@ -11,3 +11,12 @@ node_modules/
 interop/lib/
 *.tsbuildinfo
 web/voter-app/static/bundle.js
+
+# Swift. `.build` is the package's own output. The Xcode projects are not
+# committed on purpose -- `ios/README.md` has the five steps that create
+# them, because a generated `pbxproj` is several hundred lines nobody
+# reviews and no test covers.
+ios/**/.build/
+ios/**/*.xcodeproj/
+ios/**/*.xcworkspace/
+ios/**/xcuserdata/

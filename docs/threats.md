@@ -171,6 +171,20 @@ check is remote, automatic, and free of the friction a records request imposes.
   Timing side channels are not considered.
 - **No rate limiting, no denial-of-service resistance, no logging, no key
   management.** All the operational apparatus a real deployment would need.
+- **The iOS app boundary is a convention, not an origin.** The native clients
+  hand the token request over as a file the voter carries, exactly as the two
+  browser origins do, so the voting application cannot provoke a signature.
+  But two browser origins are separated by the browser, which a page cannot
+  talk its way around, while two applications are separated by a sandbox
+  enforced by the same system that offers `openURL`. Nothing in the repository
+  stops a later edit adding an inter-app channel; what stops it is this entry
+  and clause A8. A reviewer should check for it rather than assume it.
+- **The iOS blinding factor is not recoverable.** `_CryptoExtras` gives its
+  blinding inverse no accessor, deliberately, so the voter app cannot persist
+  it. An app terminated between blinding and unblinding leaves a token that
+  exists, an `s_c` that can still be collected, and nothing that can unblind
+  it: the entitlement is spent. The ad-hoc key survives, because its seed is
+  bytes; the blinding secret has no representation to keep. Clause A9.
 - **No independent review.** The most important gap on this page.
 
 ## Attacks worth adding to the suite

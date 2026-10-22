@@ -81,6 +81,21 @@
         "byte_length": 25,
         "sha256": "ec26b138cb68e028a7b060f429d2694cf680fffd22e7e0fdd5b907f9986345ff"
       }
+    },
+    {
+      "name": "characters-that-must-be-escaped",
+      "input": {
+        "quote_and_backslash": "a\"b\\c",
+        "short_forms": "\b\f\n\r\t",
+        "other_controls": "\u0000\u0001\u001f",
+        "solidus_is_not_escaped": "a/b"
+      },
+      "expected": {
+        "canonical_utf8": "{\"other_controls\":\"\\u0000\\u0001\\u001f\",\"quote_and_backslash\":\"a\\\"b\\\\c\",\"short_forms\":\"\\b\\f\\n\\r\\t\",\"solidus_is_not_escaped\":\"a/b\"}",
+        "canonical_b64url": "eyJvdGhlcl9jb250cm9scyI6Ilx1MDAwMFx1MDAwMVx1MDAxZiIsInF1b3RlX2FuZF9iYWNrc2xhc2giOiJhXCJiXFxjIiwic2hvcnRfZm9ybXMiOiJcYlxmXG5cclx0Iiwic29saWR1c19pc19ub3RfZXNjYXBlZCI6ImEvYiJ9",
+        "byte_length": 129,
+        "sha256": "3623ea8416d90b11835edff564e51e04a877a7c3877b48924998263c7168944d"
+      }
     }
   ]
 }

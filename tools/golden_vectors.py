@@ -88,11 +88,25 @@ def render(suite: str, description: str, vectors: list[dict]) -> str:
 
 
 def inputs_of(suite: str, fallback: list[dict]) -> list[dict]:
-    """Preserve committed inputs; use the fallback only when bootstrapping."""
+    """Preserve committed inputs; add any the fallback has gained since.
+
+    A committed input is the thing some other implementation has already
+    been checked against, so it is never altered or dropped here: editing
+    one turns a conformance file into a moving target, and the drift shows
+    up as the *other* implementation failing. They are returned first and
+    unchanged.
+
+    A new case is added by adding it to the fallback below and re-running,
+    which is why the fallback is not merely bootstrap material. Matching
+    is by name, so renaming a case retires the old one and adds a new --
+    which is the honest way to change what a vector tests.
+    """
     existing = read(suite)
     if existing is None:
         return fallback
-    return [{"name": v["name"], "input": v["input"]} for v in existing["vectors"]]
+    kept = [{"name": v["name"], "input": v["input"]} for v in existing["vectors"]]
+    known = {v["name"] for v in kept}
+    return kept + [v for v in fallback if v["name"] not in known]
 
 
 # --------------------------------------------------------------------------
@@ -168,6 +182,21 @@ def group_canonical_json() -> tuple[str, str, list[dict]]:
          "input": {"voter_id": "日本語", "note": "emoji 🗳"}},
         {"name": "key-order-is-not-insertion-order",
          "input": {"z": 1, "a": 2, "M": 3, "_": 4}},
+        # The one path a second implementation's encoder has that nothing
+        # else here pins. `ensure_ascii=False` settles what happens to
+        # non-ASCII, and the cases above check it; this settles what
+        # happens to the characters that must be escaped whatever the
+        # encoding -- quote and backslash, the five with short forms, and
+        # the remaining C0 controls, which take \u00XX. A Swift or
+        # TypeScript encoder that reaches for its platform's JSON writer
+        # gets most of this for free and then differs on one of them:
+        # JavaScript's `JSON.stringify` and Swift's `JSONEncoder` both
+        # escape `/` by default, and Python does not.
+        {"name": "characters-that-must-be-escaped",
+         "input": {"quote_and_backslash": 'a"b\\c',
+                   "short_forms": "\b\f\n\r\t",
+                   "other_controls": "\x00\x01\x1f",
+                   "solidus_is_not_escaped": "a/b"}},
     ]
     out = []
     for v in inputs_of("canonical-json", fallback):

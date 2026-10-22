@@ -260,6 +260,61 @@ register is `VRO.register` — a set of ids, and nothing else.
   alpha over near-black. `test_no_page_declares_a_colour_of_its_own` is what
   keeps a literal from coming back.
 
+- **The native handover is a file the voter carries, not a URL scheme.** The
+  browser wallet grants nothing to anyone and the only thing 8001 can put
+  into 8002 is a file; the iOS apps keep that, and it costs them the
+  one-tap flow a URL scheme would have bought. The reason is the wallet
+  note in `api.py`: a wallet an application can invoke is an API with a
+  consent screen painted on it. §5.3's property — no component holding
+  both `id` and `k_p^a` with the office's signature over their association
+  — would survive a URL scheme, since only `c` would cross; what would not
+  survive is the separate property that the application cannot *provoke* a
+  signature at all. That second property is the one being kept.
+  Consequently *Collect the token* is a button: with no callback there is
+  nothing for the application to wait on, and a timer would poll an office
+  with no reason to think the answer had changed. One automatic check when
+  the app returns to the foreground, because that is when `s_c` may have
+  appeared, and the button for everything else. Clause A8 records that what
+  is substituted is the *enforcement* — a browser origin is enforced by the
+  browser, an app sandbox by the system that also offers `openURL`.
+- **The native clients share `ios/OVPOCKit`, and it holds no interface.**
+  What `src/ovpoc` is to the repository, that package is to `ios/`: the
+  protocol, testable with `swift test` on a Mac with no simulator, no
+  device and no signing identity. Its one dependency is `apple/swift-crypto`
+  pinned `.exact` to 3.12.3 — for `_RSA.BlindSigning`, whose
+  `RSABSSA_SHA384_PSS_Deterministic` is the exact counterpart of
+  `rsabssa.py`'s variant, so the office serves both clients unchanged.
+  Exact rather than a range because the module is underscored, which is
+  Apple declaring the API unstable; 3.12.3 rather than the newest because
+  4.0 requires `swift-tools-version:6.1` and 5.0 requires 6.2, and the
+  blind-signing API is identical across all three.
+- **`CanonicalJSON.swift` is written out rather than delegated to
+  `JSONEncoder`.** Three silent divergences, each of which would produce
+  signatures the Python rejects and only for some inputs: `JSONEncoder`
+  escapes the solidus unless told not to and Python never does;
+  `.sortedKeys` orders by `String`'s Unicode-aware comparison while
+  Python's `sort_keys` orders by code point; and the choice of which
+  control characters take a short form is Python's specific one, with
+  `\u00xx` in *lower-case* hex for the rest. The
+  `characters-that-must-be-escaped` vector was added to
+  `tools/golden_vectors.py` for exactly this path, which nothing else
+  pinned. A `JSONEncoder` refactor would reintroduce these one at a time,
+  so `testTheThreeDivergencesFromAPlatformEncoder` names them one at a
+  time.
+- **A new vector is added by editing the generator's fallback.**
+  `inputs_of` returns the committed inputs unchanged and appends any
+  fallback case whose name is not already there. Committed inputs are
+  never altered or dropped: a vector's input is what some other
+  implementation has already been checked against, and editing one turns a
+  conformance file into a moving target whose drift surfaces as the *other*
+  implementation failing. Renaming a case retires it and adds a new one,
+  which is the honest way to change what a vector tests.
+- **swift-crypto's data-based RSA verify hashes with SHA-256.** Handing
+  `isValidSignature(_:for:padding:)` a message rather than a digest checks
+  a SHA-384 token against a SHA-256 encoding and returns `false` — which
+  reads as a blinding fault and is a one-word mistake at the call site.
+  Every verify in the Swift passes `SHA384.hash(data:)` explicitly.
+
 ## Open, deliberately not yet implemented
 
 - **Variant A — the anonymous random-number tracker.** The current code
@@ -352,4 +407,5 @@ python tools/sabotage.py     # regenerate docs/sabotage.md
 python demo_svr.py           # happy path against a live service
 python ext_demo_svr.py       # adversarial scenarios against a live service
 cd web/voter-app && npm install && npm run build   # the voter app's bundle.js
+cd ios/OVPOCKit && swift test # the native client against the golden vectors
 ```

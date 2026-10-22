@@ -258,6 +258,67 @@ keeps the election.*
 
 ---
 
+### A8 — There is no app sandbox boundary, only a file (iOS)
+
+In the browser the wallet grants nothing to anyone, and the surface map says
+why: a wallet reachable cross-origin by the voting application would be an API
+with a consent screen painted on it. The only thing 8001 can put into 8002 is
+a file the voter carries.
+
+The native clients keep that exactly, and it is the reason they are slower to
+use than they could be. The voter app writes the token request to a file; the
+voter moves it to the wallet themselves; the wallet signs and transmits
+`[id, c, s]` to the office itself; and the voter returns to the voting
+application and presses *Collect*. Nothing opens the wallet, nothing calls
+back, and the voting application cannot provoke a signature — which is the
+property a URL scheme would have given up, in exchange for one tap.
+
+What is substituted is not the boundary but what enforces it. Two browser
+origins are separated by the browser, which the page cannot talk its way
+around; two iOS applications are separated by the app sandbox, which is
+enforced by the same operating system that offers `openURL`. Nothing in the
+repository prevents a later edit from adding an inter-app channel. What is
+here is the discipline, the file, and this clause — not a mechanism that makes
+the shortcut impossible.
+
+The handover is also where the demonstration is most legible, which is worth
+saying to an audience rather than apologising for: the request can be opened
+and read before it is signed, because it is a file and not a message.
+
+**Label:** *The request moves between the apps as a file you carry, the way it
+moves between two browser origins.*
+
+---
+
+### A9 — The blinding factor cannot survive the app being killed (iOS only)
+
+`r` is generated inside `_CryptoExtras` and the blinding inverse it produces
+has no accessor and no initialiser — "users cannot create values of this type
+manually", deliberately, since a serialisable blinding secret is a blinding
+secret that gets serialised. So there is no representation for the voter app
+to keep.
+
+The consequence is specific. The ad-hoc key pair survives a restart, because
+its seed is bytes the app can hold. The blinding inverse does not. If iOS
+terminates the voter app between blinding and unblinding — which is to say,
+while the voter is over in the wallet app consenting — then on return the
+token exists, `s_c` can still be collected from the office, and nothing can
+turn it into `s_{k_p^a}`. The entitlement is spent and no second token is
+available.
+
+This is the same hazard `CLAUDE.md` records for a browser reload, arriving in
+a flow where the app switch is mandatory rather than accidental. In practice
+iOS keeps a recently-backgrounded app resident and the window is seconds long;
+in principle it is a real way for a voter to lose a vote to an operating
+system decision. A deployment would hold the blinding factor in the secure
+element alongside the key, which is also where a wallet's own key would live,
+and neither substitution is available here.
+
+**Label:** *Do not force-quit the voter app between asking for a token and
+receiving it.*
+
+---
+
 
 ## Out of scope
 
