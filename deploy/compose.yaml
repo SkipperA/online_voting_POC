@@ -10,6 +10,12 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      args:
+        # Set from the update command, so the running container can say
+        # which code it is. Unset it reaches the image as `unknown`,
+        # which the configuration page reports as such rather than
+        # guessing -- see `service/build.py`.
+        OVPOC_REVISION: ${OVPOC_REVISION:-unknown}
     restart: unless-stopped
     environment:
       # Every origin addresses its neighbours under this domain, and

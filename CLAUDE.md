@@ -260,6 +260,25 @@ register is `VRO.register` — a set of ids, and nothing else.
   alpha over near-black. `test_no_page_declares_a_colour_of_its_own` is what
   keeps a literal from coming back.
 
+- **The build says which code it is, and says what that is worth.** Every
+  check for "is the deployment running what I think" was a proxy invented
+  per patch: grep a page for a string only that patch introduced, or `exec`
+  into the container and read a file. `service/build.py` reports
+  `OVPOC_REVISION` on `/health` for every origin and under *This build* on
+  the configuration index. It answers which code the operator *meant* to
+  deploy; nothing verifies that the running code is that commit, there is
+  no signature and no reproducible build, so it is weaker than clause S4,
+  which at least publishes a hash. Three decisions inside it. Unset it
+  reports `unknown` rather than guessing, because a plausible wrong
+  revision would be believed. The environment wins over a `.git` in the
+  build context, since that is the container's explicit claim. And it is
+  *not* in `election.json`: an image rebuilt with no change to the election
+  must not move the digest every voter pinned, and a reader must not
+  mistake a software version for something the configuration attests —
+  hence two sections on the page, and
+  `test_the_revision_is_not_part_of_the_election`. The `ARG` sits last in
+  the Dockerfile, because consumed earlier it would put a per-commit value
+  in the cache key of every layer below it.
 - **The native handover is a file the voter carries, not a URL scheme.** The
   browser wallet grants nothing to anyone and the only thing 8001 can put
   into 8002 is a file; the iOS apps keep that, and it costs them the

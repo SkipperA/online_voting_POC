@@ -21,7 +21,7 @@ from fastapi import FastAPI, Response
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import origins
+from . import build, origins
 from .api import ebb_app as ebb_api
 from .api import vro_app as vro_api
 from .api import setup_app as setup_api
@@ -194,6 +194,12 @@ def _base(origin: origins.Origin) -> FastAPI:
             "port": origin.port,
             "trust_domain": origin.trust_domain,
             "serves": origin.serves,
+            # Which code this is, as the builder declared it. On every
+            # origin rather than one, because the question is asked of a
+            # container and all eight run in it -- and because the next
+            # stage splits the process, at which point they can differ and
+            # a single reported version would be a guess.
+            "revision": build.REVISION,
         }
 
     return app
@@ -233,7 +239,8 @@ def config_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def index() -> HTMLResponse:
         return HTMLResponse(
-            _page(INDEX_STATIC / "index.html", origins.CONFIG).replace(
+            _page(INDEX_STATIC / "index.html", origins.CONFIG,
+                  revision=build.REVISION).replace(
                 'data-origins=""', f"data-origins='{origin_table}'"
             )
         )

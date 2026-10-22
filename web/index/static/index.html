@@ -15,7 +15,7 @@
  .dom{color:var(--ok)} .nodom{color:var(--ink-faint)}
  ol{padding-left:1.3rem} li{margin:.35rem 0}
 </style></head>
-<body data-origins="">
+<body data-origins="" data-revision="">
 <h1>Anonymous Authenticated Ballot System</h1>
 <p class="sub">A demonstration of the design in <em>Proposal for a Secure,
 Private, and Coercion-Resistant Online Voting System</em>. Eight origins, one
@@ -72,6 +72,24 @@ covers what you actually received.</p>
 under. The setup console
 shows the same value. Two surfaces, two glances: the voting application must
 not learn which key to trust from the office whose signatures it checks.</p>
+
+<h2>This build</h2>
+<table><tbody>
+<tr><td style="width:13rem">software revision</td><td class="mono" id="revision">…</td></tr>
+</tbody></table>
+<p class="prose">A separate section from the election above, and separate on
+purpose. The configuration digest covers the election; it does not cover
+this. An image rebuilt with no change to the election must not move the
+digest every voter pinned, so the revision is not in
+<code>election.json</code> and is not attested by anything.</p>
+<p class="prose">It is what the builder declared, which answers <em>which code
+did the operator mean to deploy</em> and not <em>which code is this</em>. The
+second question needs a reproducible build and a signature over the result,
+and neither exists here — so this is weaker even than clause
+<code>S4</code>, which at least publishes a hash. It is an operations
+convenience. <code>unknown</code> means an image was built without being
+told, which is a real thing that happens and is reported rather than
+guessed.</p>
 
 <h2>Origins</h2>
 <p class="prose" style="margin-top:-.3rem">A browser origin is
@@ -140,5 +158,10 @@ for (const o of O) {
   document.getElementById('digest').textContent = d.split(/\s+/)[0];
   document.getElementById('statement').textContent = c.vro_statement_key;
 })();
+// Served into the page rather than fetched: it describes the process that
+// served the page, so asking a second endpoint for it would be asking a
+// different question.
+document.getElementById('revision').textContent =
+  document.body.dataset.revision || 'unknown';
 </script>
 </body></html>

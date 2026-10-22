@@ -73,7 +73,8 @@ console once the certificates are up.
 
     git pull --ff-only
     export OVPOC_DOMAIN=diw.hu
-    docker compose -f deploy/compose.yaml up -d --build
+    OVPOC_REVISION=$(git rev-parse --short HEAD) \
+      docker compose -f deploy/compose.yaml up -d --build
 
 `--ff-only` so that a commit made on the server stops the pull instead of
 being buried in a merge. The local edit this repository *expects* on a
@@ -104,9 +105,24 @@ re-requested and the rate limit is not approached.
 
 ## Checking that an update reached the wire
 
-A deployment can be healthy and stale at once, so the checks worth running
-are the ones that name something the update introduced rather than
-something every version serves:
+Ask the container which code it is:
+
+    curl -s https://config.$OVPOC_DOMAIN/health
+
+The `revision` in that answer is what `OVPOC_REVISION` was set to at build
+time, and `https://config.$OVPOC_DOMAIN/` shows the same value under *This
+build*. `unknown` means the image was built without being told, which is
+what forgetting the variable above looks like — the field reports it rather
+than guessing, since a plausible wrong revision would be believed.
+
+It answers which code the operator *meant* to deploy. Nothing verifies that
+the running code is that commit, there is no signature and no reproducible
+build, and `service/build.py` says so at length. For the stronger question
+there is no answer here yet.
+
+So the checks below remain worth running: they name something a specific
+update introduced rather than something every version serves, and unlike
+the revision they are evidence rather than a claim.
 
     curl -s https://checker.$OVPOC_DOMAIN/ | grep -o 'OVPOC_CONFIG_ORIGIN="[^"]*"'
 

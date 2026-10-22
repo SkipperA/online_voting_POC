@@ -60,6 +60,73 @@ def test_six_trust_domains_and_two_that_are_not():
     }
 
 
+def test_every_origin_reports_which_build_it_is(clients):
+    """One `curl` instead of a fresh proxy per patch.
+
+    Every check for "is the deployment running the code I think it is" was
+    a proxy: grep a page for a string only one patch introduced, or `exec`
+    into the container and read a file. Each works, and each has to be
+    invented again next time. The process knows.
+
+    On every origin rather than one, because stage 2 splits the process and
+    at that point they can differ -- a single reported version would then
+    be a guess about seven other containers.
+    """
+    from service import build
+
+    for origin in origins.ALL:
+        body = clients[origin.name].get("/health").json()
+        assert body["revision"] == build.REVISION, origin.name
+        assert body["revision"], f"{origin.name}: an empty revision says nothing"
+
+
+def test_the_revision_is_not_part_of_the_election(clients):
+    """It is a claim about software, not a field the digest covers.
+
+    An image rebuilt with no change to the election must not move the
+    digest every voter pinned, and a reader must not be able to mistake a
+    software version for something the configuration attests. So the
+    revision reaches the index page through the served markup and never
+    through `election.json`.
+    """
+    from service import build
+
+    served = clients["config"].get("/election.json").json()
+    for key, value in served.items():
+        assert build.REVISION not in str(value), (
+            f"the revision has leaked into election.json under {key!r}")
+    assert not any("revision" in k for k in served), served.keys()
+
+    page = clients["config"].get("/").text
+    assert f'data-revision="{build.REVISION}"' in page
+    assert "This build" in page
+
+
+def test_an_unset_revision_is_reported_rather_than_guessed(monkeypatch):
+    """`unknown`, and not something plausible.
+
+    An image built without the argument is a real thing that happens --
+    `up -d --build` with the variable unexported does it. A revision that
+    looked right and was wrong would be believed, which is worse than a
+    field that admits it has nothing.
+    """
+    import importlib
+
+    from service import build
+
+    monkeypatch.setenv("OVPOC_REVISION", "")
+    monkeypatch.setattr(build, "_from_git", lambda: None)
+    assert build._resolve() == "unknown"
+
+    # And the environment wins over a `.git` that happens to be present:
+    # the container's explicit claim about what was built must not be
+    # overridden by whatever the build context carried in.
+    monkeypatch.setenv("OVPOC_REVISION", "deadbee")
+    monkeypatch.setattr(build, "_from_git", lambda: "0000000")
+    assert build._resolve() == "deadbee"
+    importlib.reload(build)
+
+
 def test_every_origin_answers_health(clients):
     for name, client in clients.items():
         body = client.get("/health").json()

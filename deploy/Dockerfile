@@ -58,4 +58,20 @@ USER poc
 # service/origins.py: loopback here would be reachable by nothing.
 ENV OVPOC_BIND=0.0.0.0
 
+# Which code this is, as the builder declares it. See `service/build.py`
+# for what that claim is and is not worth -- in short, it answers which
+# code the operator meant to deploy, and nothing verifies it.
+#
+# Last, and deliberately. An `ARG` consumed early would put the revision
+# in the cache key of every layer below it, so changing it would rebuild
+# the image from that point down -- which for a value that changes on
+# every commit means never reusing a layer again. Here it invalidates one.
+#
+# Defaulted to `unknown` rather than required, because an image built
+# without it is a real thing that happens and `unknown` is the honest
+# report of it. A plausible-looking wrong revision would be worse, since
+# it would be believed.
+ARG OVPOC_REVISION=unknown
+ENV OVPOC_REVISION=$OVPOC_REVISION
+
 CMD ["python", "-m", "service", "--data", "/data"]
