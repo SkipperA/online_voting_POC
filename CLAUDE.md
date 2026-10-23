@@ -296,6 +296,19 @@ register is `VRO.register` — a set of ids, and nothing else.
   appeared, and the button for everything else. Clause A8 records that what
   is substituted is the *enforcement* — a browser origin is enforced by the
   browser, an app sandbox by the system that also offers `openURL`.
+- **The app targets have no tests, so the Python suite balances their
+  delimiters.** `swift test` reaches `ios/OVPOCKit` and nothing else:
+  `VoterApp` and `WalletApp` are Xcode app targets with no test target, so
+  until `tests/test_native_sources.py` the only thing between a malformed
+  source file and a broken build was the build. It earned its place
+  immediately — a brace dropped while editing `WalletApp/ContentView.swift`
+  programmatically left a `struct` unclosed, and Xcode found it rather
+  than this suite. It is a delimiter count and nothing semantic: balancing
+  is not compiling, and a green run means only that the cheapest mistake
+  is absent. `strip()` is written out rather than regexed because the
+  regex version failed in the obvious way — removing `//` comments first
+  truncates `"https://host"` mid-literal and every quote after it is
+  misaligned.
 - **A native wallet has no enrolled key, and the name is not the
   credential.** The office checks a token request against the key the
   population register holds for that identifier; this demonstration enrols
