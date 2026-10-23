@@ -11,16 +11,16 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @State private var model = WalletModel()
     @State private var choosingFile = false
-
+    
     var body: some View {
         NavigationStack {
             Form {
                 persona
-
+                
                 switch model.phase {
                 case .noPersona:
                     EmptyView()
-
+                    
                 case .idle:
                     Section {
                         Button("Open a token request") { choosingFile = true }
@@ -31,10 +31,10 @@ struct ContentView: View {
                              + "application can invoke is an interface with a "
                              + "consent screen painted on it.")
                     }
-
+                    
                 case .working:
                     Section { HStack { ProgressView(); Text("Checking…") } }
-
+                    
                 case .loaded:
                     Section("You are being asked to authorise") {
                         ForEach(model.summary, id: \.name) { field in
@@ -58,7 +58,7 @@ struct ContentView: View {
                              + "the voting application, which never learns your "
                              + "identifier.")
                     }
-
+                    
                 case .transmitted(let outcome):
                     Section("Sent") {
                         LabeledContent("the office answered", value: outcome)
@@ -83,7 +83,7 @@ struct ContentView: View {
                         Text("Go back to the voting application and collect "
                              + "the token.")
                     }
-
+                    
                 case .refused(let why):
                     Section {
                         Text(why)
@@ -109,7 +109,7 @@ struct ContentView: View {
             }
         }
     }
-
+    
     @ViewBuilder
     private var persona: some View {
         Section {
@@ -144,7 +144,7 @@ struct ContentView: View {
                  + "such list. Clause S1.")
         }
     }
-
+}
 #Preview {
     ContentView()
 }
