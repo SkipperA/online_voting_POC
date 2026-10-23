@@ -95,6 +95,33 @@ instead:
    the request and the exported transcripts are reachable from the Files app.
    That is also what lets a cryptographer in the room take the payloads away
    and check them somewhere else.
+6. **Build the two apps one at a time, with one project open.** Open
+   `VoterApp.xcodeproj`, build and run; close it; open
+   `WalletApp.xcodeproj`, build and run with the *same* simulator or
+   device as the destination. Both apps install and stay installed, so the
+   demonstration — voter app writes the request, wallet reads it, office
+   issues, voter app collects — works exactly as designed.
+
+   This is the step that cost an evening, so it is written down as what
+   happened rather than as what ought to work. A *local* Swift package can
+   be open in one project at a time, and both apps reference
+   `ios/OVPOCKit`, so opening the second project gives
+
+       Couldn't load OVPOCKit because it is already opened from
+       another project or workspace
+
+   The documented remedy is an Xcode workspace holding both projects, and
+   it did not deliver: with both projects added — `contents.xcworkspacedata`
+   recording each correctly as a project reference, both `.xcodeproj`
+   bundles healthy — the second project would not load, and the wallet
+   could be launched only from its own project window. Removing the
+   package reference from the projects and hoisting it to the workspace
+   did not change that.
+
+   So: one project at a time. It costs a window switch and nothing else.
+   If you want to try the workspace anyway, the thing to check is whether
+   the *scheme menu* lists both apps; the navigator's appearance is not a
+   reliable signal either way.
 
 Both apps address the hosted deployment — `config.diw.hu`, `vro.diw.hu`,
 `ebb.diw.hu` — so a device works over the internet with nothing configured. A
