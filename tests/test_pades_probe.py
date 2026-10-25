@@ -98,13 +98,72 @@ def test_the_rendered_text_is_ascii_so_nothing_is_transliterated(payload, blinde
             dict(payload, election_id="előválasztás"), blinded)
 
 
-def test_the_cross_reference_offsets_point_at_their_objects(document):
+@pytest.mark.parametrize("variant", pades_probe.LADDER, ids=lambda v: v.name)
+def test_every_rung_is_structurally_sound(variant, payload, blinded):
     """Not pedantry: a malformed file is a wasted trip to the phone.
 
-    The probe is about to be carried to a wallet that will refuse to open
-    anything it cannot parse, and a wrong offset here would read as the
-    wallet rejecting the route.
+    The ladder is about to be carried to a wallet that has already refused
+    one document without saying why. A rung with a wrong offset would be
+    refused too, and would be read as evidence about the feature it was
+    built to test.
     """
+    document = pades_probe.probe_document(payload, blinded, variant)
+    assert document.startswith(b"%PDF-1.7\n")
+    assert document.rstrip().endswith(b"%%EOF")
+
+    table = document.split(b"xref\n", 1)[1]
+    rows = re.findall(rb"(\d{10}) (\d{5}) ([nf]) \n", table)
+    assert rows, "no cross-reference table"
+    numbers = set()
+    for offset, _generation, kind in rows:
+        if kind == b"f":
+            continue
+        header = re.match(rb"(\d+) 0 obj\n", document[int(offset):int(offset) + 32])
+        assert header, f"offset {int(offset)} does not land on an object header"
+        numbers.add(int(header.group(1)))
+    # Contiguous from 1: a variant that reserved a number for an object it
+    # does not have would leave a hole, and the hole would be what the
+    # wallet objected to.
+    assert numbers == set(range(1, len(numbers) + 1))
+
+
+@pytest.mark.parametrize("variant", pades_probe.LADDER, ids=lambda v: v.name)
+def test_every_rung_carries_exactly_what_it_declares(variant, payload, blinded):
+    """The ladder's whole value is that one rung differs from the last by one thing."""
+    document = pades_probe.probe_document(payload, blinded, variant)
+    canonical = canonical_bytes(payload)
+
+    assert (pades_inspect.carrier_marker(document) == canonical) is variant.marker
+    assert (pades_inspect.carrier_xmp(document) == canonical) is variant.xmp
+    assert (pades_inspect.carrier_embedded(document) == canonical) is variant.attachment
+    assert (b"/Info " in document) is variant.info
+
+
+def test_every_rung_renders_the_same_page(payload, blinded):
+    """Otherwise a refusal would have two candidate causes again.
+
+    The documents differ in structure and metadata. What a reader sees must
+    not vary, or the experiment stops being single-variable.
+    """
+    pages = {
+        v.name: pades_inspect.content_streams(
+            pades_probe.probe_document(payload, blinded, v))[0]
+        for v in pades_probe.LADDER
+    }
+    assert len(set(pages.values())) == 1, (
+        "these rungs do not render identically: "
+        + ", ".join(sorted(pages))
+    )
+
+
+def test_the_rungs_are_distinct_documents(payload, blinded):
+    built = [pades_probe.probe_document(payload, blinded, v)
+             for v in pades_probe.LADDER]
+    assert len(set(built)) == len(built)
+
+
+def test_the_cross_reference_offsets_point_at_their_objects(document):
+    """The full document specifically, as the single-file mode writes it."""
     table = document.split(b"xref\n", 1)[1]
     rows = re.findall(rb"(\d{10}) (\d{5}) ([nf]) \n", table)
     assert rows, "no cross-reference table"
@@ -288,6 +347,16 @@ def test_build_writes_both_files_and_a_usable_sidecar(tmp_path):
     rebuilt = pades_probe.probe_document(
         stored["payload"], unb64(stored["payload"]["blinded_key"]))
     assert rebuilt == pdf
+
+
+def test_the_ladder_writes_every_rung_and_a_legend(tmp_path):
+    legend = pades_probe.build_ladder(tmp_path, ELECTION, None)
+    for rung in legend["rungs"]:
+        assert (tmp_path / rung["file"]).read_bytes()
+        assert rung["note"], f"{rung['file']} does not say what a refusal would mean"
+    names = [r["file"] for r in legend["rungs"]]
+    assert names[:len(pades_probe.LADDER)] == [
+        f"{v.name}.pdf" for v in pades_probe.LADDER]
 
 
 def test_the_fingerprint_is_four_groups_of_four_hex_digits(blinded):

@@ -108,16 +108,65 @@ route exists to prevent.  The election is named here by its identifier and the
 digest of its configuration, which is what the voter can check against their
 application in any case.  A deployment-grade document embeds a font.
 
+THE FIRST ANSWER CAME BACK A REFUSAL
+------------------------------------
+The DAP application declined to sign the first probe at all, before any
+signature was attempted: *"Problemas fajlok -- az alabbi fajlokkal tartalmi
+problemak vannak, a biztonsagod erdekeben nem lehetseges az alairasuk, ezert
+eltavolitjuk oket."*  Content problems; for your security these cannot be
+signed, so we are removing them.
+
+That is a finding and not a setback, but it is an undifferentiated one: the
+first document varied six things from an ordinary PDF at once, and the refusal
+names none of them.  The wording is worth reading closely, though.  *For your
+security* is what a service says about content it considers active or
+dangerous, rather than about a file it could not parse -- which points at the
+embedded file stream first, attachments inside a PDF being the thing such a
+scan exists to find.  It is a suspicion and not a conclusion, and the way to
+settle it is to vary one thing at a time.
+
+Hence `--variants`, which writes a ladder of documents differing from their
+predecessor in exactly one respect.  The page text is byte-identical in all of
+them, deliberately: if the rendering varied too, a refusal would have two
+candidate causes again.
+
+    v1-bare      the page, and nothing else at all
+    v2-info      + a document information dictionary
+    v3-marker    + the %OVPOC-REQUEST comment
+    v4-xmp       + the XMP metadata packet
+    v5-attach    + the embedded file, /Names and /AF
+    v6-all       + all three carriers together (the original probe, with /Info)
+    v7-qpdf      v6 rewritten by qpdf, if qpdf is on PATH
+
+The last one is the control that matters most if the first six are all
+refused: qpdf is a mainstream producer, so `v7` carries this document's content
+in somebody else's bytes.  Refused as well, and the problem is what the
+document *contains*; accepted, and the problem is that we wrote it ourselves.
+
+**Sign them as one batch.**  The wallet takes several documents at once and
+its refusal screen lists the ones it rejected by name, so a single pass gives
+both halves of the experiment: the list of what was refused, and signed copies
+of everything that was not -- which `tools/pades_inspect.py` can then be run
+over for the prefix question the ladder was built to reach.
+
+One consequence of `/Info` worth recording before it is forgotten.  A document
+information dictionary conventionally carries `/CreationDate` and `/ModDate`,
+and a renderer that writes the current time is no longer a pure function of
+its payload, which is the property the office's rule depends on.  The dates
+here are fixed constants.  If it turns out that `/Info` is required, a
+deployment has to derive them from the election rather than from a clock.
+
 USAGE
 -----
     python tools/pades_probe.py                       # writes build/pades-probe/
+    python tools/pades_probe.py --variants            # the whole ladder
     python tools/pades_probe.py --out DIR
     python tools/pades_probe.py --election-id demo-2026 --config-digest abc...
 
-Then: move `pades-probe.pdf` to the phone, sign it in the wallet, bring the
-signed file back, and
+Then: move the documents to the phone, sign them in the wallet, bring back
+whatever was signed, and
 
-    python tools/pades_inspect.py SIGNED.pdf --original build/pades-probe/pades-probe.pdf
+    python tools/pades_inspect.py SIGNED.pdf --original build/pades-probe/v6-all.pdf
 """
 
 from __future__ import annotations
@@ -125,7 +174,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
+import subprocess
 import sys
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -154,6 +207,78 @@ MARGIN = 56
 #: lines of the 64 every surface already wraps a payload at.
 FIXTURE_ELECTION_ID = "demo-2026"
 FIXTURE_C_BYTES = 384
+
+#: Fixed, because a renderer that reads a clock is not a function of its
+#: payload.  See the note on `/Info` in the module docstring.
+FIXED_DATE = "D:20260101000000Z"
+
+
+@dataclass(frozen=True)
+class Variant:
+    """One rung of the ladder: what this document has that the last one did not.
+
+    `note` is what a refusal of *this* document and acceptance of the one
+    before it would establish.  It is carried here rather than in a table
+    somewhere else so that the reason a file exists travels with the file.
+    """
+
+    name: str
+    adds: str
+    note: str
+    info: bool = False
+    marker: bool = False
+    xmp: bool = False
+    attachment: bool = False
+
+
+#: Each rung differs from the one above it in exactly one respect, and every
+#: rung renders the same page.  A ladder rather than a matrix: six documents
+#: answer the question if the cause is a single feature, and if it is a
+#: combination then no batch small enough to sign would have found it anyway.
+LADDER: tuple[Variant, ...] = (
+    Variant(
+        "v1-bare", "nothing — one page and three fonts",
+        "refused here and the objection is to the document itself: hand-written "
+        "bytes, standard-14 fonts, or the absence of everything a producer "
+        "normally writes.",
+    ),
+    Variant(
+        "v2-info", "a document information dictionary",
+        "accepted here and refused at v1 would mean the service requires the "
+        "metadata an ordinary producer writes.",
+        info=True,
+    ),
+    Variant(
+        "v3-marker", "the %OVPOC-REQUEST comment",
+        "refused here and the objection is to unrecognised bytes ahead of the "
+        "first object, which would be a surprise: a comment is legal anywhere.",
+        info=True, marker=True,
+    ),
+    Variant(
+        "v4-xmp", "the XMP metadata packet",
+        "refused here and the objection is to metadata under a namespace the "
+        "service does not know.",
+        info=True, xmp=True,
+    ),
+    Variant(
+        "v5-attach", "the embedded file, /Names and /AF",
+        "the one to watch. Refused here and the objection is to a PDF carrying "
+        "an attachment, which is what a content scan exists to find and what "
+        "'for your security' most likely means. It would close off the carrier "
+        "with the best precedent and leave the marker comment doing the work.",
+        info=True, attachment=True,
+    ),
+    Variant(
+        "v6-all", "all three carriers at once",
+        "the original probe with /Info added. Refused while v3, v4 and v5 are "
+        "each accepted would mean the objection is to the combination, which "
+        "no single-variable ladder can localise further.",
+        info=True, marker=True, xmp=True, attachment=True,
+    ),
+)
+
+#: What `probe_document` builds when nothing says otherwise: everything.
+FULL = LADDER[-1]
 
 
 # --------------------------------------------------------------------------
@@ -310,94 +435,144 @@ def _xmp_packet(payload_json: bytes) -> bytes:
     ).encode("utf-8")
 
 
-def probe_document(payload: dict, blinded_key: bytes) -> bytes:
-    """The whole file, as a pure function of the payload.
+def probe_document(payload: dict, blinded_key: bytes,
+                   variant: Variant = FULL) -> bytes:
+    """The whole file, as a pure function of the payload and the variant.
 
     Object order is fixed, offsets are computed, and there is no value in here
     that a holder of the payload could not reproduce.  That is the property the
     office's rule would depend on, so the probe has it too -- a probe that was
     not reproducible would answer a different question from the one being
     asked.
+
+    Object *numbers* are assigned to whichever objects this variant has, in a
+    fixed order, rather than reserved and left dangling.  A variant with a hole
+    in its cross-reference table would be testing the hole and not the feature.
     """
     payload_json = canonical_bytes(payload)
     content = _content_stream(_page_lines(payload, blinded_key))
-    xmp = _xmp_packet(payload_json)
+    xmp = _xmp_packet(payload_json) if variant.xmp else b""
 
     # The identifier, derived.  A random /ID is the commonest reason two runs
     # of a PDF writer disagree, and the trailer is inside the signed bytes.
-    ident = hashlib.sha256(payload_json).hexdigest()[:32].upper()
+    ident = hashlib.sha256(payload_json + variant.name.encode("ascii")) \
+        .hexdigest()[:32].upper()
 
-    objects: list[bytes] = [
-        # 1: catalogue.  /Names carries the embedded file, /AF marks it as an
-        # associated file of the document, /Metadata the XMP packet.
-        b"<< /Type /Catalog /Pages 2 0 R /AF [ 7 0 R ] /Metadata 9 0 R "
-        b"/Names << /EmbeddedFiles << /Names [ (" + EMBEDDED_NAME.encode("ascii")
-        + b") 7 0 R ] >> >> >>",
-        # 2
-        b"<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>",
-        # 3
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 "
-        + f"{PAGE_W} {PAGE_H}".encode("ascii")
-        + b" ] /Resources << /Font << /F1 4 0 R /F2 5 0 R /F3 10 0 R >> >> "
-        b"/Contents 6 0 R >>",
-        # 4, 5, 10: three of the standard fourteen, so no font is embedded.
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
-        # 6: the page content, uncompressed on purpose.  Every stream here is
-        # written `stream\n DATA \nendstream` with /Length counting DATA
-        # alone: the end-of-line before `endstream` is the separator the
-        # specification allows and not part of the data, and writing all three
-        # the same way is what keeps a reader's length arithmetic simple.
-        b"<< /Length " + str(len(content)).encode("ascii") + b" >>\nstream\n"
-        + content + b"\nendstream",
-        # 7: the file specification for the embedded copy.
-        b"<< /Type /Filespec /F (" + EMBEDDED_NAME.encode("ascii") + b") /UF ("
-        + EMBEDDED_NAME.encode("ascii") + b") /AFRelationship /Source "
-        b"/Desc (The three values this document states, as canonical JSON.) "
-        b"/EF << /F 8 0 R >> >>",
-        # 8: the embedded copy itself, uncompressed so a reader can find it.
-        b"<< /Type /EmbeddedFile /Subtype /application#2Fjson /Length "
-        + str(len(payload_json)).encode("ascii")
-        + b" /Params << /Size " + str(len(payload_json)).encode("ascii")
-        + b" >> >>\nstream\n" + payload_json + b"\nendstream",
-        # 9: the XMP packet.
-        b"<< /Type /Metadata /Subtype /XML /Length " + str(len(xmp)).encode("ascii")
-        + b" >>\nstream\n" + xmp + b"\nendstream",
-        # 10
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
-    ]
+    present = ["catalog", "pages", "page", "f1", "f2", "f3", "content"]
+    if variant.attachment:
+        present += ["filespec", "embedded"]
+    if variant.xmp:
+        present += ["metadata"]
+    if variant.info:
+        present += ["info"]
+    n = {name: i + 1 for i, name in enumerate(present)}
+
+    def ref(name: str) -> bytes:
+        return str(n[name]).encode("ascii") + b" 0 R"
+
+    catalog = b"<< /Type /Catalog /Pages " + ref("pages")
+    if variant.attachment:
+        catalog += (
+            b" /AF [ " + ref("filespec") + b" ] /Names << /EmbeddedFiles << "
+            b"/Names [ (" + EMBEDDED_NAME.encode("ascii") + b") "
+            + ref("filespec") + b" ] >> >>"
+        )
+    if variant.xmp:
+        catalog += b" /Metadata " + ref("metadata")
+    catalog += b" >>"
+
+    bodies: dict[str, bytes] = {
+        "catalog": catalog,
+        "pages": b"<< /Type /Pages /Kids [ " + ref("page") + b" ] /Count 1 >>",
+        "page": (
+            b"<< /Type /Page /Parent " + ref("pages") + b" /MediaBox [ 0 0 "
+            + f"{PAGE_W} {PAGE_H}".encode("ascii")
+            + b" ] /Resources << /Font << /F1 " + ref("f1") + b" /F2 " + ref("f2")
+            + b" /F3 " + ref("f3") + b" >> >> /Contents " + ref("content") + b" >>"
+        ),
+        # Three of the standard fourteen, so that no font binary becomes a
+        # second artefact to keep byte-identical across implementations.
+        "f1": b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        "f2": b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
+        "f3": b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+        # Every stream here is written `stream\n DATA \nendstream` with
+        # /Length counting DATA alone: the end-of-line before `endstream` is
+        # the separator the specification allows and not part of the data, and
+        # writing all of them the same way keeps a reader's arithmetic simple.
+        "content": (
+            b"<< /Length " + str(len(content)).encode("ascii") + b" >>\nstream\n"
+            + content + b"\nendstream"
+        ),
+    }
+
+    # Built only where the variant has them: these bodies reference object
+    # numbers that do not exist on the lower rungs.
+    if variant.attachment:
+        bodies["filespec"] = (
+            b"<< /Type /Filespec /F (" + EMBEDDED_NAME.encode("ascii") + b") /UF ("
+            + EMBEDDED_NAME.encode("ascii") + b") /AFRelationship /Source "
+            b"/Desc (The three values this document states, as canonical JSON.) "
+            b"/EF << /F " + ref("embedded") + b" >> >>"
+        )
+        # Uncompressed, so that a reader can find it with an editor.
+        bodies["embedded"] = (
+            b"<< /Type /EmbeddedFile /Subtype /application#2Fjson /Length "
+            + str(len(payload_json)).encode("ascii")
+            + b" /Params << /Size " + str(len(payload_json)).encode("ascii")
+            + b" >> >>\nstream\n" + payload_json + b"\nendstream"
+        )
+    if variant.xmp:
+        bodies["metadata"] = (
+            b"<< /Type /Metadata /Subtype /XML /Length "
+            + str(len(xmp)).encode("ascii") + b" >>\nstream\n" + xmp + b"\nendstream"
+        )
+    if variant.info:
+        # Fixed dates. See the note in the module docstring: a producer that
+        # writes the current time is not a function of its payload.
+        bodies["info"] = (
+            b"<< /Title (Token request) /Subject (Anonymous Authenticated Ballot System) "
+            b"/Producer (ovpoc pades probe) /Creator (ovpoc pades probe) "
+            b"/CreationDate (" + FIXED_DATE.encode("ascii") + b") "
+            b"/ModDate (" + FIXED_DATE.encode("ascii") + b") >>"
+        )
 
     out = bytearray()
     out += b"%PDF-1.7\n"
     # The conventional binary comment, so that a transport which guesses at
     # text or binary guesses right.
     out += b"%\xe2\xe3\xcf\xd3\n"
-    # Carrier 2.  Ahead of the first object, where it can be found by a reader
-    # with nothing but `grep`.
-    out += MARKER + payload_json + b"\n"
+    if variant.marker:
+        # Ahead of the first object, where a reader with nothing but `grep`
+        # can find it.
+        out += MARKER + payload_json + b"\n"
 
     offsets: list[int] = []
-    for number, body in enumerate(objects, start=1):
+    for name in present:
         offsets.append(len(out))
-        out += str(number).encode("ascii") + b" 0 obj\n" + body + b"\nendobj\n"
+        out += (str(n[name]).encode("ascii") + b" 0 obj\n" + bodies[name]
+                + b"\nendobj\n")
 
     startxref = len(out)
-    out += b"xref\n0 " + str(len(objects) + 1).encode("ascii") + b"\n"
+    out += b"xref\n0 " + str(len(present) + 1).encode("ascii") + b"\n"
     out += b"0000000000 65535 f \n"
     for offset in offsets:
         out += f"{offset:010d} 00000 n \n".encode("ascii")
-    out += (
-        b"trailer\n<< /Size " + str(len(objects) + 1).encode("ascii")
-        + b" /Root 1 0 R /ID [ <" + ident.encode("ascii") + b"> <"
-        + ident.encode("ascii") + b"> ] >>\n"
+    trailer = (
+        b"trailer\n<< /Size " + str(len(present) + 1).encode("ascii")
+        + b" /Root " + ref("catalog")
     )
+    if variant.info:
+        trailer += b" /Info " + ref("info")
+    trailer += (b" /ID [ <" + ident.encode("ascii") + b"> <"
+                + ident.encode("ascii") + b"> ] >>\n")
+    out += trailer
     out += b"startxref\n" + str(startxref).encode("ascii") + b"\n%%EOF\n"
     return bytes(out)
 
 
 # --------------------------------------------------------------------------
 
-def build(out_dir: Path, election_id: str, config_digest: str | None) -> dict:
+def _payload_for(election_id: str, config_digest: str | None) -> tuple[dict, bytes]:
     blinded_key = fixture_blinded_key(election_id)
     if config_digest is None:
         # Derived, so that a run with no arguments is reproducible.  A real one
@@ -405,27 +580,217 @@ def build(out_dir: Path, election_id: str, config_digest: str | None) -> dict:
         config_digest = hashlib.sha256(
             b"ovpoc-pades-probe-config/" + election_id.encode("utf-8")
         ).hexdigest()
+    return payload_of(election_id, config_digest, blinded_key), blinded_key
 
-    payload = payload_of(election_id, config_digest, blinded_key)
-    document = probe_document(payload, blinded_key)
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = out_dir / "pades-probe.pdf"
-    pdf_path.write_bytes(document)
-
-    # A sidecar, so that the inspector can still do its work if the unsigned
-    # original is lost between the laptop and the phone -- which is exactly the
-    # journey it is about to make.
-    sidecar = {
+def _sidecar(payload: dict, blinded_key: bytes, document: bytes) -> dict:
+    return {
         "payload": payload,
         "fingerprint": fingerprint(blinded_key),
         "document_sha256": hashlib.sha256(document).hexdigest(),
         "document_bytes": len(document),
     }
+
+
+def build(out_dir: Path, election_id: str, config_digest: str | None) -> dict:
+    """The single full document, as before the ladder existed."""
+    payload, blinded_key = _payload_for(election_id, config_digest)
+    document = probe_document(payload, blinded_key, FULL)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "pades-probe.pdf").write_bytes(document)
+
+    # A sidecar, so that the inspector can still do its work if the unsigned
+    # original is lost between the laptop and the phone -- which is exactly the
+    # journey it is about to make.
+    sidecar = _sidecar(payload, blinded_key, document)
     (out_dir / "pades-probe.json").write_text(
         json.dumps(sidecar, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return sidecar
+
+
+def _rewrite_with_qpdf(source: Path, target: Path) -> str:
+    """The same content in somebody else's bytes.
+
+    The control for the case where every hand-written rung is refused: qpdf is
+    a mainstream producer, and it writes object streams, compressed content and
+    a cross-reference stream where this script writes none of those.  Refused
+    as well and the objection is to what the document contains; accepted and
+    the objection was to our writing it ourselves.
+
+    A command-line tool rather than a library, deliberately: nothing is added
+    to what this repository installs, and a machine without qpdf gets a stated
+    omission instead of a missing rung it might not notice.
+    """
+    if shutil.which("qpdf") is None:
+        return "skipped: qpdf is not on PATH"
+    try:
+        subprocess.run(
+            ["qpdf", "--object-streams=generate", "--compress-streams=y",
+             "--deterministic-id", str(source), str(target)],
+            check=True, capture_output=True, timeout=60,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        return f"failed: {exc}"
+    return "written"
+
+
+def graft_ladder(base: Path, out_dir: Path, payload: dict) -> dict:
+    """The other ladder: a document the wallet already accepted, plus one carrier.
+
+    The hand-written ladder asks whether a deterministic document can be
+    signed at all.  This one asks a different question and asks it better:
+    taking a file the wallet has *already* signed, and adding one carrier to
+    it, removes "we wrote the bytes ourselves" as a variable entirely.  Four
+    rungs, each differing from the last in one respect:
+
+        w1-base      the accepted document, untouched
+        w2-qpdf      the same, rewritten by qpdf and otherwise unchanged
+        w3-attach    w2 plus an embedded file
+        w4-marker    w2 plus the %OVPOC-REQUEST comment
+
+    `w2` is not padding.  Without it, `w3` would differ from `w1` by both the
+    attachment and the rewrite, and a refusal would not say which.
+
+    The marker is inserted through qpdf's own QDF mode, which writes a
+    normalised file with a classic cross-reference table, and `--fix-qdf`,
+    which recomputes every offset afterwards.  Editing a linearised file by
+    hand and leaving its offsets wrong would test the broken offsets.
+    """
+    missing = [t for t in ("qpdf", "fix-qdf") if shutil.which(t) is None]
+    if missing:
+        return {"error": f"the graft ladder needs {' and '.join(missing)} on PATH"}
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload_json = canonical_bytes(payload)
+    rungs: list[dict] = []
+
+    def record(name: str, path: Path, adds: str, note: str) -> None:
+        data = path.read_bytes()
+        rungs.append({"file": path.name, "adds": adds, "note": note,
+                      "bytes": len(data),
+                      "sha256": hashlib.sha256(data).hexdigest()})
+
+    w1 = out_dir / "w1-base.pdf"
+    w1.write_bytes(base.read_bytes())
+    record("w1", w1, "nothing — the accepted document as it was",
+           "refused here and something other than the document changed between "
+           "the run that worked and this one.")
+
+    w2 = out_dir / "w2-qpdf.pdf"
+    subprocess.run(["qpdf", "--deterministic-id", str(base), str(w2)],
+                   check=True, capture_output=True, timeout=60)
+    record("w2", w2, "a qpdf rewrite, and no other change",
+           "refused here and the objection is to being rewritten at all, which "
+           "would make every rung below it unreadable.")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        attachment = Path(tmp) / EMBEDDED_NAME
+        attachment.write_bytes(payload_json)
+        w3 = out_dir / "w3-attach.pdf"
+        subprocess.run(
+            ["qpdf", "--deterministic-id", str(w2), str(w3),
+             "--add-attachment", str(attachment),
+             "--mimetype=application/json", "--"],
+            check=True, capture_output=True, timeout=60,
+        )
+    record("w3", w3, "an embedded file",
+           "the one to watch. Refused here while w2 is accepted and the "
+           "objection is to a PDF carrying an attachment, whatever wrote it.")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        qdf = Path(tmp) / "qdf.pdf"
+        subprocess.run(["qpdf", "--qdf", "--deterministic-id", str(w2), str(qdf)],
+                       check=True, capture_output=True, timeout=60)
+        # After the three header lines, not before them: QDF mode marks the
+        # file with `%QDF-1.0` on the third line and `fix-qdf` looks for it
+        # there. Pushing it down by one leaves a file nothing will repair.
+        lines = qdf.read_bytes().split(b"\n")
+        spliced = b"\n".join(
+            lines[:3] + [MARKER + payload_json] + lines[3:])
+        marked = Path(tmp) / "marked.pdf"
+        marked.write_bytes(spliced)
+        # `fix-qdf` is its own program, not a qpdf option. It recomputes every
+        # offset and the cross-reference table after an edit of this kind.
+        fixed = subprocess.run(["fix-qdf", str(marked)],
+                               check=True, capture_output=True, timeout=60)
+        w4 = out_dir / "w4-marker.pdf"
+        w4.write_bytes(fixed.stdout)
+    record("w4", w4, "the %OVPOC-REQUEST comment",
+           "refused here and the objection is to unrecognised bytes ahead of "
+           "the first object.")
+
+    legend = {"base": str(base), "payload": payload, "rungs": rungs}
+    (out_dir / "graft.json").write_text(
+        json.dumps(legend, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return legend
+
+
+def _surviving_carriers(document: bytes, payload_json: bytes) -> dict:
+    """Which copies of the payload are still in these bytes, and still right.
+
+    Used on anything that has been through another producer. Written here
+    rather than imported from `pades_inspect` so that the generator stays
+    free of the inspector: the two are run at different moments, on different
+    machines, and a circular import between them would be the kind of
+    convenience that makes a diagnostic harder to trust.
+    """
+    found = {}
+    found["marker"] = (MARKER + payload_json) in document
+    found["xmp"] = XMP_NS.encode("ascii") in document and payload_json in document
+    found["embedded"] = (b"/Type /EmbeddedFile" in document
+                         or b"/Type/EmbeddedFile" in document)
+    return found
+
+
+def build_ladder(out_dir: Path, election_id: str, config_digest: str | None) -> dict:
+    """Every rung, plus a legend naming what each one would establish."""
+    payload, blinded_key = _payload_for(election_id, config_digest)
+    payload_json = canonical_bytes(payload)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    rungs = []
+    for variant in LADDER:
+        document = probe_document(payload, blinded_key, variant)
+        (out_dir / f"{variant.name}.pdf").write_bytes(document)
+        rungs.append({
+            "file": f"{variant.name}.pdf",
+            "adds": variant.adds,
+            "note": variant.note,
+            "bytes": len(document),
+            "sha256": hashlib.sha256(document).hexdigest(),
+        })
+
+    qpdf_status = _rewrite_with_qpdf(
+        out_dir / f"{FULL.name}.pdf", out_dir / "v7-qpdf.pdf")
+    if qpdf_status == "written":
+        written = (out_dir / "v7-qpdf.pdf").read_bytes()
+        rungs.append({
+            "file": "v7-qpdf.pdf",
+            "adds": "nothing — v6 rewritten by a mainstream producer",
+            "note": "refused here as well and the objection is to what the "
+                    "document contains; accepted and the objection was to our "
+                    "writing the bytes ourselves.",
+            # Which carriers a rewrite leaves behind is a finding of its own,
+            # and it is recorded rather than assumed: a producer that drops a
+            # carrier has ruled it out whatever the wallet then says.
+            "carriers_surviving_the_rewrite": _surviving_carriers(
+                written, payload_json),
+            "bytes": len(written),
+            "sha256": hashlib.sha256(written).hexdigest(),
+        })
+
+    legend = {
+        "payload": payload,
+        "fingerprint": fingerprint(blinded_key),
+        "qpdf": qpdf_status,
+        "rungs": rungs,
+    }
+    (out_dir / "variants.json").write_text(
+        json.dumps(legend, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return legend
 
 
 def main() -> int:
@@ -436,7 +801,41 @@ def main() -> int:
         "--config-digest", default=None,
         help="the digest of election.json; derived from the election id if omitted",
     )
+    parser.add_argument(
+        "--variants", action="store_true",
+        help="write the whole ladder, one feature to a rung, for one batch",
+    )
+    parser.add_argument(
+        "--graft", type=Path, default=None,
+        help="a PDF the wallet is known to accept; add one carrier at a time to it",
+    )
     args = parser.parse_args()
+
+    if args.graft is not None:
+        payload, _ = _payload_for(args.election_id, args.config_digest)
+        legend = graft_ladder(args.graft, args.out, payload)
+        if "error" in legend:
+            print(legend["error"])
+            return 1
+        print(f"grafted {len(legend['rungs'])} documents onto {args.graft}")
+        print()
+        for rung in legend["rungs"]:
+            print(f"  {rung['file']:<16} {rung['bytes']:>7}  adds {rung['adds']}")
+        return 0
+
+    if args.variants:
+        legend = build_ladder(args.out, args.election_id, args.config_digest)
+        print(f"wrote {len(legend['rungs'])} documents to {args.out}")
+        print(f"  qpdf control: {legend['qpdf']}")
+        print()
+        for rung in legend["rungs"]:
+            print(f"  {rung['file']:<16} {rung['bytes']:>6}  adds {rung['adds']}")
+        print()
+        print("  fingerprint   " + legend["fingerprint"])
+        print()
+        print("Sign them as ONE batch. The refusal screen lists what it would")
+        print("not take; bring back both that list and whatever it did sign.")
+        return 0
 
     sidecar = build(args.out, args.election_id, args.config_digest)
     print(f"wrote {args.out / 'pades-probe.pdf'}  ({sidecar['document_bytes']} bytes)")
