@@ -257,6 +257,49 @@ def carrier_visible(data: bytes, payload: dict | None) -> dict:
 
 
 # --------------------------------------------------------------------------
+# Revisions
+# --------------------------------------------------------------------------
+
+def revisions(data: bytes) -> list[int]:
+    """Where each revision ends, as a byte count from the start of the file.
+
+    A signed PDF is the original followed by one or more incremental updates,
+    and the first of these offsets is therefore the length of the document the
+    citizen actually signed.  Knowing it without being handed the original is
+    the office's position exactly.
+
+    **The end-of-line after `%%EOF` belongs to the revision.**  Written out
+    because getting it wrong is silent and convincing: cutting at the end of
+    the `%%EOF` token alone produced a prefix one byte short of a real
+    original, whose digest then disagreed with the citizen's own copy -- which
+    reads precisely like a wallet that rewrote the file, and was nothing of
+    the kind.  The terminator may be `\\r\\n`, `\\n`, `\\r`, or absent at the
+    very end of the file, so all four are consumed.
+    """
+    out: list[int] = []
+    for match in re.finditer(rb"%%EOF", data):
+        end = match.end()
+        if data[end:end + 2] == b"\r\n":
+            end += 2
+        elif data[end:end + 1] in (b"\n", b"\r"):
+            end += 1
+        out.append(end)
+    return out
+
+
+def looks_like_a_whole_pdf(data: bytes) -> bool:
+    """Enough of a shape check to tell a revision boundary from a coincidence.
+
+    `%%EOF` can occur inside a stream, so an offset is not by itself evidence
+    that a revision ends there.  A revision has a cross-reference pointer and
+    a header.
+    """
+    return (data.startswith(b"%PDF-")
+            and b"startxref" in data
+            and data.rstrip().endswith(b"%%EOF"))
+
+
+# --------------------------------------------------------------------------
 # The signature, structurally
 # --------------------------------------------------------------------------
 
@@ -346,13 +389,50 @@ def _page_content(data: bytes) -> bytes | None:
     return found[0] if found else None
 
 
+def signed_document_end(data: bytes) -> int | None:
+    """Where the document the citizen signed ends, found by the signature.
+
+    Not "the first revision": a linearised PDF carries a `%%EOF` a few
+    hundred bytes in, after the cross-reference table for its first page, and
+    that prefix satisfies every cheap shape check while being no revision at
+    all.  The signed file examined here has one at byte 445 and its real
+    original at 15907, so a tool that reported the first would report a
+    four-hundred-byte document and be believed.
+
+    The signature locates it instead.  The signature dictionary lives in the
+    update that added it, so the document that was signed is whatever ended
+    at the last revision boundary before that object -- which needs no
+    guessing about linearisation and no original to compare against.
+    """
+    sigs = signature_dictionaries(data)
+    if not sigs:
+        return None
+    first_signature_at = min(s["offset"] for s in sigs)
+    candidates = [e for e in revisions(data)
+                  if e <= first_signature_at and looks_like_a_whole_pdf(data[:e])]
+    return max(candidates) if candidates else None
+
+
 def incremental_updates(data: bytes) -> dict:
-    return {
-        "eof_markers": data.count(b"%%EOF"),
+    ends = revisions(data)
+    out = {
+        "eof_markers": len(ends),
+        "revision_ends": ends,
+        "complete_revisions": [e for e in ends if looks_like_a_whole_pdf(data[:e])],
         "startxref_markers": data.count(b"startxref"),
         "xref_streams": data.count(b"/Type /XRef") + data.count(b"/Type/XRef"),
         "trailer_prev": data.count(b"/Prev"),
+        "linearized": b"/Linearized" in data[:2048],
     }
+    end = signed_document_end(data)
+    if end is not None:
+        # The document as the citizen handed it over, if the wallet appended
+        # rather than re-saved. Offered as a length and a digest so that it
+        # can be checked against their own copy without this tool being
+        # trusted about anything else.
+        out["signed_document_bytes"] = end
+        out["signed_document_sha256"] = hashlib.sha256(data[:end]).hexdigest()
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -546,6 +626,13 @@ def render_report(report: dict) -> str:
     u = report["updates"]
     w(f"  %%EOF markers                        {u['eof_markers']}"
       "   (more than one means an incremental update)")
+    w(f"  revision boundaries                  {u['revision_ends']}")
+    w(f"  linearised                           {_yes(u['linearized'])}"
+      + ("   (its early %%EOF is not a revision)" if u["linearized"] else ""))
+    if "signed_document_bytes" in u:
+        w(f"  the document that was signed ends at {u['signed_document_bytes']}")
+        w(f"    its sha256                         {u['signed_document_sha256']}")
+        w("    compare that with the document you handed the wallet")
     w(f"  /Prev in a trailer                   {u['trailer_prev']}")
     w(f"  cross-reference streams              {u['xref_streams']}")
     return "\n".join(out)

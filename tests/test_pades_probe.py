@@ -21,6 +21,7 @@ promoted once the signed file comes back.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
@@ -314,6 +315,71 @@ def test_a_misrecovered_payload_cannot_produce_a_false_accept(document, payload,
     report = pades_inspect.inspect(tampered, None, None)
     assert report["payload"] is not None
     assert report["prefix"]["holds"] is False
+
+
+@pytest.mark.parametrize("eol", [b"\n", b"\r\n", b"\r", b""])
+def test_a_revision_ends_after_the_end_of_line_that_follows_eof(document, eol):
+    """One byte, and getting it wrong looks exactly like a wallet rewriting the file.
+
+    Cutting a signed document at the end of the `%%EOF` token alone yields a
+    prefix one byte short of the original, whose digest then disagrees with
+    the citizen's own copy — which is indistinguishable, to a reader of the
+    report, from the wallet having re-saved the document. It happened. The
+    terminator varies, so all four forms are pinned here.
+    """
+    original = document.rstrip(b"\r\n") + eol
+    signed = original + b"7 0 obj\n<< >>\nendobj\nstartxref\n0\n%%EOF\n"
+    ends = pades_inspect.revisions(signed)
+    assert ends[0] == len(original)
+    assert signed[:ends[0]] == original
+    assert pades_inspect.looks_like_a_whole_pdf(signed[:ends[0]])
+
+
+def _with_signature(document: bytes) -> bytes:
+    """An incremental update carrying something shaped like a signature."""
+    return (document + b"7 0 obj\n<< /Type /Sig /ByteRange [0 "
+            + str(len(document)).encode("ascii")
+            + b" 999 10] /Contents <00> >>\nendobj\nstartxref\n0\n%%EOF\n")
+
+
+def test_the_signed_document_is_reported_with_a_digest_to_compare(document, payload):
+    updates = pades_inspect.inspect(_with_signature(document), None, payload)["updates"]
+    assert updates["signed_document_bytes"] == len(document)
+    assert updates["signed_document_sha256"] == hashlib.sha256(document).hexdigest()
+
+
+def test_an_early_eof_in_a_linearised_file_is_not_taken_for_the_document():
+    """The failure this rule exists to avoid, in the shape it actually took.
+
+    A linearised PDF ends its first-page cross-reference with `%%EOF` a few
+    hundred bytes in. That prefix starts with `%PDF-`, contains `startxref`
+    and ends with `%%EOF`, so every cheap shape check passes — and a tool
+    that reported the first such boundary would report a four-hundred-byte
+    document and sound certain about it.
+    """
+    head = (b"%PDF-1.6\n16 0 obj\n<</Linearized 1/L 900>>\nendobj\n"
+            b"startxref\n0\n%%EOF\n")
+    body = b"1 0 obj\n<< /Type /Catalog >>\nendobj\nstartxref\n9\n%%EOF\n"
+    original = head + body
+    signed = _with_signature(original)
+
+    updates = pades_inspect.inspect(signed, None, None)["updates"]
+    assert updates["linearized"] is True
+    # All three boundaries pass the shape check — the linearisation header,
+    # the document, and the update that signed it. That is the point: the
+    # shape check cannot choose between them and the signature can.
+    assert updates["complete_revisions"] == [len(head), len(original), len(signed)]
+    assert updates["signed_document_bytes"] == len(original)
+
+
+def test_an_eof_inside_a_stream_is_not_taken_for_a_revision(payload, blinded):
+    """`%%EOF` is five ordinary bytes, and a document may contain them."""
+    forged = (b"%PDF-1.7\n1 0 obj\n<< /Length 9 >>\nstream\n%%EOF\n...\n"
+              b"endstream\nendobj\nstartxref\n9\n%%EOF\n")
+    ends = pades_inspect.revisions(forged)
+    whole = [e for e in ends if pades_inspect.looks_like_a_whole_pdf(forged[:e])]
+    assert len(ends) == 2
+    assert whole == [len(forged)]
 
 
 def test_the_coverage_arithmetic_separates_the_hole_from_appended_bytes():
