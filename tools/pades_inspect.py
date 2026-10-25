@@ -67,9 +67,18 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from ovpoc.messages import canonical_bytes, unb64  # noqa: E402
 
-from pades_probe import MARKER, XMP_NS, probe_document  # noqa: E402
+from pades_probe import FULL, LADDER, MARKER, XMP_NS, probe_document  # noqa: E402
 
-OBJ_RE = re.compile(rb"(\d+)\s+(\d+)\s+obj\b")
+#: The lookbehind is not decoration, and the explicit whitespace class is not
+#: style.  A PAdES `/Contents` is zero-padded to a fixed width, so every
+#: signed file contains a run of tens of thousands of digits -- 29 894 of them
+#: in the first real one examined here.  Against that, `(\d+)\s+(\d+)\s+obj`
+#: restarts inside the run at every offset and backtracks the whole way back,
+#: which is quadratic: 6.7 seconds for one scan of a 63 KB file, called six
+#: times per inspection, on a document small enough that nobody would suspect
+#: the tool rather than their own machine.  Refusing to start a match inside a
+#: number takes it to 0.002 seconds for the same 27 objects.
+OBJ_RE = re.compile(rb"(?<![0-9])(\d+)[\x00\t\r\n\f ]+(\d+)[\x00\t\r\n\f ]+obj\b")
 STREAM_RE = re.compile(rb"stream\r?\n")
 BYTERANGE_RE = re.compile(rb"/ByteRange\s*\[([^\]]*)\]")
 MARKER_RE = re.compile(re.escape(MARKER) + rb"(\{.*?\})\s*\n")
@@ -466,15 +475,30 @@ def inspect(signed: bytes, original: bytes | None, payload: dict | None) -> dict
     recovered, source = recovered_payload(signed)
     payload = payload or recovered
 
-    rebuilt = None
+    rebuilt, rebuilt_as = None, None
     if payload is not None:
+        # Every rung, not just the full one. The office has a single renderer
+        # and no such search to do; the probe has seven documents and cannot
+        # know which of them it is holding, so it rebuilds under each and
+        # reports the one that reproduces the bytes. Picking only the full
+        # variant would report "the rebuild does not match" for five rungs out
+        # of six and read as the rule failing.
         try:
-            rebuilt = probe_document(payload, unb64(payload["blinded_key"]))
+            blinded = unb64(payload["blinded_key"])
+            for variant in LADDER:
+                candidate = probe_document(payload, blinded, variant)
+                if original is None and signed[:len(candidate)] == candidate:
+                    rebuilt, rebuilt_as = candidate, variant.name
+                    break
+                if rebuilt is None and variant is FULL:
+                    rebuilt, rebuilt_as = candidate, variant.name
         except Exception:  # noqa: BLE001 - a malformed payload is a finding
-            rebuilt = None
+            rebuilt, rebuilt_as = None, None
 
     expected = original if original is not None else rebuilt
     prefix: dict = {"checked_against": "original" if original is not None else "rebuilt"}
+    if original is None and rebuilt_as is not None:
+        prefix["rebuilt_as"] = rebuilt_as
     if expected is None:
         prefix["holds"] = None
         prefix["note"] = "no original and nothing rebuildable: cannot check"
@@ -563,8 +587,11 @@ def render_report(report: dict) -> str:
 
     prefix = report["prefix"]
     w("THE QUESTION THAT DECIDES THE DESIGN")
+    against = prefix["checked_against"]
+    if "rebuilt_as" in prefix:
+        against += f" {prefix['rebuilt_as']}"
     w(f"  original bytes survive as a prefix   {_yes(prefix.get('holds'))}"
-      f"   (checked against the {prefix['checked_against']})")
+      f"   (checked against the {against})")
     if prefix.get("holds") is False:
         w(f"  first difference at byte             {prefix.get('first_difference_at')}")
         w(f"    expected                           {prefix.get('expected_here')!r}")

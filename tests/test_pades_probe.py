@@ -25,6 +25,7 @@ import hashlib
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -380,6 +381,53 @@ def test_an_eof_inside_a_stream_is_not_taken_for_a_revision(payload, blinded):
     whole = [e for e in ends if pades_inspect.looks_like_a_whole_pdf(forged[:e])]
     assert len(ends) == 2
     assert whole == [len(forged)]
+
+
+def test_object_scanning_survives_a_signature_sized_run_of_digits():
+    """A PAdES `/Contents` is zero-padded, and the padding is the hazard.
+
+    Every real signed file carries a run of tens of thousands of digits. A
+    pattern that may begin a match inside that run backtracks the whole way
+    back from every offset in it, which is quadratic: the first genuine
+    DÁP file took 6.7 seconds per scan, six scans to an inspection, on 63 KB.
+    Nobody reading that output suspects the regular expression.
+
+    One second is a loose bound — the fix runs in about two milliseconds —
+    chosen so the test fails on the pathology and not on a slow machine.
+    """
+    padded = (b"%PDF-1.7\n1 0 obj\n<< /Type /Sig /Contents <"
+              + b"0" * 40000 + b"> >>\nendobj\n2 0 obj\n<< >>\nendobj\n")
+    started = time.monotonic()
+    found = pades_inspect.objects(padded)
+    assert time.monotonic() - started < 1.0, "object scanning went quadratic"
+    assert [o["number"] for o in found] == [1, 2]
+
+
+def test_a_number_inside_a_longer_number_does_not_start_an_object(document):
+    """What the lookbehind costs, asserted so a later rewrite cannot drop it."""
+    assert pades_inspect.objects(b"123456 0 obj\n<< >>\nendobj\n")[0]["number"] \
+        == 123456
+
+
+@pytest.mark.parametrize("variant", pades_probe.LADDER, ids=lambda v: v.name)
+def test_the_rule_identifies_which_rung_it_is_holding(variant, payload, blinded):
+    """The office has one renderer; the probe has seven and must not guess.
+
+    Rebuilding only the full variant would report "the rebuild does not
+    match" for every rung but the last, which is the rule appearing to fail
+    on five documents that are perfectly good.
+    """
+    document = pades_probe.probe_document(payload, blinded, variant)
+    signed = document + b"\n% an incremental update\n%%EOF\n"
+    report = pades_inspect.inspect(signed, None, None)
+    if not (variant.marker or variant.xmp or variant.attachment):
+        # No carrier, so nothing to recover and nothing to rebuild from.
+        assert report["payload"] is None
+        assert report["prefix"]["holds"] is None
+        return
+    assert report["payload"] == payload
+    assert report["prefix"]["holds"] is True
+    assert report["prefix"]["rebuilt_as"] == variant.name
 
 
 def test_the_coverage_arithmetic_separates_the_hole_from_appended_bytes():
