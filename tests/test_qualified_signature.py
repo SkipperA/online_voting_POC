@@ -27,6 +27,9 @@ import datetime
 import hashlib
 import io
 import logging
+import re
+import shutil
+import subprocess
 
 import pytest
 
@@ -284,6 +287,119 @@ def test_an_expired_certificate_still_identifies_its_signer(
 
     assert found is not None, "expiry was collapsed into NOT_IDENTIFIED"
     assert found.expired is True
+    assert found.subject["serial_number"] == SERIAL
+
+
+# --------------------------------------------------------------------------
+# What the wallet does to the document after signing it
+# --------------------------------------------------------------------------
+#
+# Both tests below reproduce, synthetically, a condition observed in a
+# document signed by the real DÁP application. Neither is hypothetical and
+# neither could be found by reading documentation: the first file that came
+# back from a phone was refused by this validator for both reasons at once,
+# and would have been answered NOT_IDENTIFIED by an office built on the
+# library's defaults.
+#
+# They are built here rather than committed, because the only real example
+# is a named citizen's qualified signature and that does not belong in a
+# public repository.
+
+def _append_revision(signed: bytes, body: bytes) -> bytes:
+    """An incremental update, chained to the revision before it."""
+    previous = int(re.search(rb"startxref\s+(\d+)\s*%%EOF\s*$",
+                             signed, re.S).group(1))
+    return signed + body(len(signed), previous)
+
+
+def test_a_later_revision_that_frees_an_object_still_identifies_the_signer(
+    trusted, citizen, unsigned
+):
+    """What DÁP's own `/DSS` update does, and what pyHanko makes of it.
+
+    The wallet appends a second revision carrying certificates and OCSP
+    responses, and in doing so frees an object. pyHanko's reject-by-default
+    difference policy calls that an unacceptable modification, so
+    `bottom_line` comes back false -- with `trusted` true and
+    `trust_problem_indic` None, because nothing is wrong with the chain.
+
+    The office does not ask whether later modifications were acceptable.
+    It decides on the prefix it recomputed and disregards everything past
+    it, so a later revision cannot change what the document requests. An
+    office that inherited the verdict would refuse every genuine request.
+    """
+    _cert, signed = citizen
+
+    def freeing(start: int, previous: int) -> bytes:
+        table = (b"xref\n0 1\n0000000000 65535 f \n"
+                 b"10 1\n0000000000 00001 f \n")
+        return (table + b"trailer\n<< /Size 20 /Root 1 0 R /Prev "
+                + str(previous).encode() + b" >>\nstartxref\n"
+                + str(start).encode() + b"\n%%EOF\n")
+
+    found = trusted.validate(_append_revision(signed, freeing))
+    assert found is not None, "the modification verdict was inherited"
+    assert found.subject["serial_number"] == SERIAL
+    assert found.covered_prefix_length >= len(unsigned)
+
+
+def test_a_later_revision_clobbering_an_xref_stream_is_still_read(
+    authority, unsigned, tmp_path_factory
+):
+    """The strict reader refuses a real DÁP document before validation begins.
+
+    `PdfStrictReadError: XRef stream objects must not be clobbered in
+    strict mode` -- because the update the wallet appends reuses an object
+    number that held a cross-reference stream. Strictness about structure
+    buys this office nothing it does not already have: the meaning of the
+    document comes from bytes it recomputed itself, so a parser's opinion
+    of the file's tidiness cannot make a wrong document acceptable.
+    """
+    ca_key, ca_cert = authority
+    key, cert = _issue(_name(cn="TESZT POLGAR", serial=SERIAL, country="HU"),
+                       issuer=ca_cert.subject, issuer_key=ca_key)
+
+    # qpdf rewrites the document with cross-reference streams, which is what
+    # the real file has and what `render` deliberately does not produce.
+    directory = tmp_path_factory.mktemp("streams")
+    (directory / "in.pdf").write_bytes(unsigned)
+    if shutil.which("qpdf") is None:
+        pytest.skip("qpdf is not on PATH")
+    subprocess.run(["qpdf", "--object-streams=generate", "--deterministic-id",
+                    str(directory / "in.pdf"), str(directory / "out.pdf")],
+                   check=True, capture_output=True)
+    signed = _sign((directory / "out.pdf").read_bytes(), key, cert, ca_cert,
+                   tmp_path_factory)
+
+    xref_objects = [int(m.group(1)) for m in re.finditer(
+        rb"(?<![0-9])(\d+) 0 obj\s*<<[^>]*?/Type\s*/XRef", signed, re.S)]
+    assert xref_objects, "this test needs a document with cross-reference streams"
+    target = xref_objects[0]
+
+    # The catalogue's own object number, carried over rather than guessed:
+    # qpdf renumbers, so a trailer naming `1 0 R` would point `/Root` at
+    # whatever happened to land there and the reader would find no
+    # signature — a test failing for a reason of its own making.
+    root = int(re.findall(rb"/Root (\d+) 0 R", signed)[-1])
+
+    def clobbering(start: int, previous: int) -> bytes:
+        # An inert object, not a replacement catalogue: what trips the
+        # strict reader is the object number having held a cross-reference
+        # stream, and a destructive body would make the test fail for the
+        # wrong reason.
+        body = (str(target).encode() + b" 0 obj\n<< >>\nendobj\n")
+        table = (b"xref\n0 1\n0000000000 65535 f \n" + str(target).encode()
+                 + b" 1\n" + f"{start:010d}".encode() + b" 00000 n \n")
+        return (body + table + b"trailer\n<< /Size 999 /Root "
+                + str(root).encode() + b" 0 R /Prev "
+                + str(previous).encode() + b" >>\nstartxref\n"
+                + str(start + len(body)).encode() + b"\n%%EOF\n")
+
+    clobbered = _append_revision(signed, clobbering)
+    validator = QualifiedSignatureValidation(
+        trust_roots=(ca_cert.public_bytes(DER),))
+    found = validator.validate(clobbered)
+    assert found is not None, "the strict reader refused the document"
     assert found.subject["serial_number"] == SERIAL
 
 

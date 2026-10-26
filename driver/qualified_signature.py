@@ -171,7 +171,16 @@ class QualifiedSignatureValidation:
         from pyhanko_certvalidator import ValidationContext
 
         try:
-            reader = PdfFileReader(io.BytesIO(document))
+            # `strict=False`, and the reason is the whole of the note below
+            # on what this office does and does not ask. A real DÁP-signed
+            # document is refused outright by the strict reader --
+            # `PdfStrictReadError: XRef stream objects must not be clobbered`
+            # -- because the update the wallet appends after signing reuses
+            # an object number that held a cross-reference stream. Every
+            # genuine request would be answered NOT_IDENTIFIED, and the
+            # office would have been refusing the only wallet it is built
+            # for.
+            reader = PdfFileReader(io.BytesIO(document), strict=False)
             signatures = reader.embedded_signatures
         except Exception:  # noqa: BLE001
             # Anything a malformed file can throw is the same answer. The
@@ -213,13 +222,26 @@ class QualifiedSignatureValidation:
         revoked = status.revocation_details is not None
         expired = _expired(status)
 
-        # Trust. `bottom_line` folds revocation and expiry into one verdict,
-        # and for this office those two are findings rather than refusals --
-        # see the note at the top of this module. So they are subtracted
-        # from the verdict rather than inherited with it: anything else that
-        # made it false (no path to an anchor, an untrusted root, a broken
-        # chain) is a pre-identity failure and gets the opaque answer.
-        if not status.bottom_line and not (revoked or expired):
+        # Trust, and `trusted` rather than `bottom_line`. The difference is
+        # one question: `bottom_line` also folds in the modification
+        # analysis -- were the changes made *after* signing acceptable? --
+        # and this office does not ask it, because it does not read them.
+        # It decides on the prefix it recomputed and disregards everything
+        # past it, so what a later revision did to the document cannot
+        # change what the document requests.
+        #
+        # Not a theoretical allowance. The update DÁP appends after signing
+        # frees an object, and pyHanko's reject-by-default diff policy
+        # returns `bottom_line=False` for it with `trusted=True` and
+        # `trust_problem_indic=None` -- the chain is perfect and the
+        # verdict is about the wallet's own housekeeping. Inheriting it
+        # would refuse every genuine request.
+        #
+        # Revocation and expiry are subtracted for the separate reason at
+        # the top of this module. Anything else that made `trusted` false
+        # -- no path to an anchor, an untrusted root, a broken chain -- is
+        # a pre-identity failure and gets the opaque answer.
+        if not status.trusted and not (revoked or expired):
             return None
 
         subject = {k: str(v) for k, v in

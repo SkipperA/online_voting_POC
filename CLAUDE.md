@@ -94,6 +94,27 @@ register is `VRO.register` — a set of ids, and nothing else.
   `tools/sabotage.py` (`eligibility_checked_before_identity`,
   `revocation_reported_before_identity`) exist to catch a refactor that
   reorders this.
+- **The office does not ask whether the document changed after it was
+  signed, because it does not read the part that changed.** Two of
+  pyHanko's defaults refuse every document the real wallet produces, and
+  both were found by signing one on a phone rather than by reading
+  anything. The strict reader rejects the file outright --
+  `XRef stream objects must not be clobbered` -- because the update DÁP
+  appends reuses an object number that held a cross-reference stream; and
+  `bottom_line` is false for it because that update frees an object, which
+  the reject-by-default difference policy calls an unacceptable
+  modification, with `trusted` true and nothing whatever wrong with the
+  chain. So `driver/qualified_signature.py` reads non-strict and asks
+  `trusted` rather than `bottom_line`. What makes that affordable is the
+  recomputation rule: the office decides on the prefix it rebuilt from the
+  payload and disregards everything past it, so a parser's opinion of the
+  file's tidiness cannot make a wrong document acceptable, and a later
+  revision cannot change what the document requests.
+  `pdf_reader_put_back_in_strict_mode` and
+  `validator_inherits_the_modification_verdict` are the mutations, and the
+  tests behind them reproduce both conditions synthetically -- the only
+  real example is a named citizen's qualified signature, which does not
+  belong in this repository.
 - **The identity boundary runs through the signature validator too, and a
   library will move it if nothing stops it.** On the qualified-signature
   route there is no certificate lookup: the certificate arrives with the

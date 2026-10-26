@@ -363,11 +363,11 @@ MUTATIONS = [
         ),
         path="driver/qualified_signature.py",
         find=(
-            "        if not status.bottom_line and not (revoked or expired):\n"
+            "        if not status.trusted and not (revoked or expired):\n"
             "            return None"
         ),
         replace=(
-            "        if not status.bottom_line:  # SABOTAGE\n"
+            "        if not status.trusted:  # SABOTAGE\n"
             "            return None"
         ),
     ),
@@ -444,6 +444,28 @@ MUTATIONS = [
             "            )"
         ),
         replace="        pass  # SABOTAGE: take the document on trust",
+    ),
+    Mutation(
+        name="validator_inherits_the_modification_verdict",
+        what=(
+            "The office refuses a signed document because of what a later, "
+            "unsigned revision did to it -- which is every document the "
+            "real wallet produces."
+        ),
+        path="driver/qualified_signature.py",
+        find="        if not status.trusted and not (revoked or expired):",
+        replace="        if not status.bottom_line and not (revoked or expired):",
+    ),
+    Mutation(
+        name="pdf_reader_put_back_in_strict_mode",
+        what=(
+            "The office reads an uploaded document with a strict parser, "
+            "which refuses the structure the real wallet writes before any "
+            "signature is checked."
+        ),
+        path="driver/qualified_signature.py",
+        find="            reader = PdfFileReader(io.BytesIO(document), strict=False)",
+        replace="            reader = PdfFileReader(io.BytesIO(document))",
     ),
 ]
 
