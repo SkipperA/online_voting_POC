@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hand in a signed token request</title>
+<style>
+  main { max-width: var(--measure); margin: 0 auto; padding: 0 1rem 4rem; }
+  p, li { max-width: var(--measure-prose); }
+  .drop { border: 2px dashed var(--rule); border-radius: 8px; padding: 1.5rem;
+          margin: 1.5rem 0; }
+  .drop input[type=file] { font: inherit; max-width: 100%; }
+  button { font: inherit; padding: .6rem 1.2rem; margin-top: 1rem; }
+  #outcome { margin: 1.5rem 0; padding: 1rem 1.25rem; border-radius: 6px;
+             border: 1px solid var(--rule); display: none; }
+  #outcome.shown { display: block; }
+  #outcome.good { border-color: var(--verified); }
+  #outcome.bad { border-color: var(--danger); }
+  #outcome h2 { margin: 0 0 .4rem; font-size: 1.05rem; }
+  #outcome p { margin: .4rem 0 0; }
+  dl.what { display: grid; grid-template-columns: max-content 1fr; gap: .2rem 1rem; }
+  dl.what dt { color: var(--muted); }
+  dl.what dd { margin: 0; font-family: var(--mono); word-break: break-all; }
+</style>
+</head>
+<body data-vro-origin="">
+<main>
+
+<h1>Hand in a signed token request</h1>
+
+<p>Your voting application wrote a document and you signed it in your wallet.
+This is where the signed document is given to the Registration Office. The
+office reads who you are from the certificate that signed it, checks that the
+document is a token request and nothing else, and — if you are on the
+electoral register and have not already been issued one — releases your
+token.</p>
+
+<p>Then go back to the voting application and press <b>Collect</b>. The token
+is handed to whoever presents the blinded value, which only that application
+holds, so nothing you do here can collect it for you and nobody who takes this
+file from you can use it.</p>
+
+<div class="drop">
+  <label for="file">The signed document, as your wallet exported it:</label><br>
+  <input type="file" id="file" accept="application/pdf,.pdf">
+  <br><button id="send" type="button">Hand it in</button>
+</div>
+
+<div id="outcome" role="status" aria-live="polite">
+  <h2 id="headline"></h2>
+  <p id="detail"></p>
+</div>
+
+<h2>What the office is about to read</h2>
+<p>Picked up from the document in your browser, before anything is sent, so
+that you can see it is the request you meant to sign:</p>
+<dl class="what">
+  <dt>election</dt><dd id="w-election">—</dd>
+  <dt>configuration</dt><dd id="w-digest">—</dd>
+  <dt>fingerprint of c</dt><dd id="w-fingerprint">—</dd>
+</dl>
+<p>Those three should match what the voting application showed you. This page
+cannot check them for you: it is served by the office, and a check performed
+by the party being checked is not one. The office does the same reading again
+on its own side, from the bytes your signature covers.</p>
+
+<div class="note note--substituted">
+  <span class="kind">Substituted · <code>S6</code></span>
+  <b>What this demo substitutes</b>
+  The office accepts your signature because it chains to a certificate an
+  operator pinned by hand. A deployment takes its anchors from the European
+  trusted list instead — which is also what would let it say your signature is
+  <i>qualified</i>, a word this build does not use because it cannot
+  establish it.
+</div>
+
+<div class="note note--absent">
+  <span class="kind">Absent · <code>A2</code></span>
+  <b>What this build does not do</b>
+  Nothing anonymises this upload. The office sees the address it arrived from
+  and the minute it arrived, and a ballot submitted from the same address
+  shortly afterwards is linkable to it by timing alone. The cryptography does
+  not leak the link; the network does.
+</div>
+
+<script src="upload.js" type="module"></script>
+</main>
+</body>
+</html>

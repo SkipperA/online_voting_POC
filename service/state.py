@@ -54,7 +54,7 @@ DEFAULT_OPENS = "2026-09-25T08:00:00Z"
 DEFAULT_CLOSES = "2026-09-25T20:00:00Z"
 
 
-def _signature_validation(data_dir: Path | None):
+def _signature_validation(anchors: Path | None):
     """The validator, if this deployment has been told what to trust.
 
     `None` when there are no pinned anchors, and the office then offers no
@@ -69,10 +69,7 @@ def _signature_validation(data_dir: Path | None):
     having silently trusted a swapped certificate would look like nothing
     at all.
     """
-    if data_dir is None:
-        return None
-    anchors = data_dir / TRUST_ANCHORS
-    if not anchors.is_dir():
+    if anchors is None or not anchors.is_dir():
         return None
     from driver.qualified_signature import QualifiedSignatureValidation
 
@@ -144,10 +141,16 @@ class Deployment:
         opens: str = DEFAULT_OPENS,
         closes: str = DEFAULT_CLOSES,
         document_root: Path = DOCUMENT_ROOT,
+        # Explicit, and defaulted rather than reached for. A deployment that
+        # read this out of a module-level path would make the whole suite's
+        # behaviour depend on whether a clone happens to carry pinned
+        # anchors -- which is the same fault as a test that skips when a
+        # tool is missing, arriving through configuration instead.
+        trust_anchors: Path | None = DATA_DIR / TRUST_ANCHORS,
     ) -> "Deployment":
         population = PopulationRegister()
         vro = VRO.create(population, bits=bits, election_id=election_id)
-        vro.signature_validation = _signature_validation(DATA_DIR)
+        vro.signature_validation = _signature_validation(trust_anchors)
         ebb = BallotBox(vro_public_key=vro.public_key, num_choices=num_choices,
                         tally_interval_seconds=tally_interval_seconds,
                         election_id=election_id)
@@ -317,7 +320,7 @@ class Deployment:
             office_key=body["statement_key"],
             election_id=body["election_id"],
             register=set(body["electoral_register"]),
-            signature_validation=_signature_validation(path),
+            signature_validation=_signature_validation(path / TRUST_ANCHORS),
         )
         wallets = body["wallet_personas"]
         for voter_id, pair in wallets.items():

@@ -20,13 +20,13 @@ from urllib.parse import quote
 
 import httpx
 from cryptography.hazmat.primitives import serialization
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from ovpoc import keys, rsabssa
 from ovpoc.ballotbox import BoxStillOpen, verify_phase
 from ovpoc.messages import AuthRequest, Ballot, b64, canonical_bytes, unb64
-from ovpoc.vro import release_query_payload
+from ovpoc.vro import Outcome, release_query_payload
 
 from . import origins, state
 from .state import Deployment
@@ -457,6 +457,74 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             # Held for collection at B16 rather than returned here: the reply
             # belongs to the application, which is not the party that asked.
             deployment.token_replies[blinded] = response.blind_signature
+        return {"outcome": response.outcome.name}
+
+    #: The office reads an uploaded document into memory to check it, so it
+    #: will not read an unbounded one from a stranger. Not an answer to
+    #: denial of service -- `docs/threats.md` says there is none -- but an
+    #: open endpoint with no cap at all is an invitation rather than an
+    #: omission. A signed request is some tens of kilobytes.
+    LARGEST_UPLOAD = 2 * 1024 * 1024
+
+    @app.post("/signed-token-requests")
+    async def signed_token_request(request: Request) -> dict:
+        """The qualified-signature route's counterpart to `/token-requests`.
+
+        Reachable by anyone who can address this origin, which is the point
+        on this route as much as the other: the office's checks must
+        withstand a document that came from nowhere in particular. Every
+        one of them is in `ovpoc.vro` and `ovpoc.pdfrequest`; this function
+        chooses nothing.
+
+        **Only the outcome comes back.** The office records why in its own
+        log and hands a requester the enum and no more, exactly as
+        `/token-requests` does -- including for the refusals that sit below
+        the identity boundary, where it would be permitted to say more.
+        What each answer is taken to mean is written on the page instead,
+        where a reader can see it; putting it on the wire would make the
+        office's disclosure depend on the wording of a page it serves.
+
+        That the upload is unauthenticated is not a gap. Anyone holding a
+        citizen's signed document can hand it in, and the only consequence
+        is that the citizen's token is released to a reply nobody but their
+        own application can collect: `s_c` is served to whoever presents
+        `c`, and is worth nothing without the `r` that never left that
+        application (§5.3).
+        """
+        body = bytearray()
+        async for chunk in request.stream():
+            body += chunk
+            if len(body) > LARGEST_UPLOAD:
+                return {"outcome": "TOO_LARGE"}
+
+        if deployment.vro.signature_validation is None:
+            # Not NOT_IDENTIFIED. An office that was never told what to
+            # trust has not been configured for this route, and reporting
+            # a deployment's state as a citizen's failure would send them
+            # looking for a problem with their own certificate.
+            return {"outcome": "ROUTE_NOT_OFFERED"}
+
+        # Reserve and release separately rather than through
+        # `issue_token_for_signed_document`, for the reason the other route
+        # keeps its `AuthRequest`: the reply is held for collection under
+        # `c`, and `c` is only reachable through the request the office
+        # built while validating.
+        reserved, held = deployment.vro.reserve_signed_document(bytes(body))
+        if reserved.outcome is not Outcome.RESERVED:
+            return {"outcome": reserved.outcome.name}
+
+        if deployment.manual_release:
+            # The voter's application sees no difference except that its
+            # reply is not there yet, which is the state B16 tolerates.
+            deployment.held_requests[held.voter_id] = held
+            return {"outcome": "AWAITING_RELEASE"}
+
+        response = deployment.vro.release(held)
+        if response.issued:
+            # Collected at B16 by presenting `c`, exactly as on the other
+            # route: nothing about how a token was asked for survives into
+            # how it is collected.
+            deployment.token_replies[held.blinded_key] = response.blind_signature
         return {"outcome": response.outcome.name}
 
     @app.get("/token-replies/{blinded_key}")

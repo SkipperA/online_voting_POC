@@ -500,6 +500,30 @@ MUTATIONS = [
             "            raise TrustAnchorsRefused("
         ),
     ),
+    Mutation(
+        name="unconfigured_office_blames_the_citizen",
+        what=(
+            "An office that was never given trust anchors answers an "
+            "uploaded document NOT_IDENTIFIED instead of saying it offers "
+            "no such route."
+        ),
+        path="service/api.py",
+        find='            return {"outcome": "ROUTE_NOT_OFFERED"}',
+        replace='            return {"outcome": "NOT_IDENTIFIED"}  # SABOTAGE',
+    ),
+    Mutation(
+        name="upload_size_cap_removed",
+        what=(
+            "The office reads an uploaded document of any size into memory "
+            "before looking at it."
+        ),
+        path="service/api.py",
+        find=(
+            "            if len(body) > LARGEST_UPLOAD:\n"
+            '                return {"outcome": "TOO_LARGE"}'
+        ),
+        replace="            pass  # SABOTAGE: read whatever arrives",
+    ),
 ]
 
 

@@ -38,6 +38,7 @@ SUPERVISOR_STATIC = WEB / "supervisor" / "static"
 INDEX_STATIC = WEB / "index" / "static"
 CHECKER_STATIC = WEB / "checker" / "static"
 OFFICE_STATIC = WEB / "office" / "static"
+UPLOAD_STATIC = WEB / "upload" / "static"
 BOX_STATIC = WEB / "box" / "static"
 TOKENS = WEB / "shared" / "tokens.css"
 CONFIG_WATCH = WEB / "shared" / "config-watch.js"
@@ -414,6 +415,23 @@ def vro_app(deployment: Deployment) -> FastAPI:
     @app.get("/office.js")
     async def script() -> Response:
         return Response((OFFICE_STATIC / "office.js").read_text(encoding="utf-8"),
+                        media_type="text/javascript")
+
+    # The voter's own surface, on the office's origin and not on the voting
+    # application's. That is the whole of clause A8 on this route: the
+    # application writes the document and never sees the signed one, so the
+    # page that hands it in cannot be a screen in the application. Served
+    # from here because the endpoint is here, so no cross-origin permission
+    # is needed and none is granted.
+    @app.get("/upload", response_class=HTMLResponse)
+    async def upload_page() -> HTMLResponse:
+        return HTMLResponse(
+            _page(UPLOAD_STATIC / "index.html", origins.VRO,
+                  vro_origin=origins.VRO.url))
+
+    @app.get("/upload.js")
+    async def upload_script() -> Response:
+        return Response((UPLOAD_STATIC / "upload.js").read_text(encoding="utf-8"),
                         media_type="text/javascript")
 
     return app

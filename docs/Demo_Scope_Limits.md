@@ -133,6 +133,38 @@ asserts it on the page while the single list did not carry it.
 **Label:** *No login: whoever can reach this origin is a supervisor. A
 deployment appoints one and records who read the register.*
 
+### S6 — The trust anchors
+
+Covers the qualified-signature route only.
+
+The office accepts a signed token request because its signature chains to a
+certificate in `election-data/trust-anchors/`, pinned by an operator with
+`tools/fetch_trust_anchors.py`. In deployment the anchors come from the
+European trusted list under ETSI TS 119 612 — a signed artefact, published by
+a body whose authority to publish it is itself established — and the office
+derives from it not only whom to trust but whether a signature is *qualified*,
+which this build cannot say and therefore does not.
+
+What is substituted is the provenance and nothing else. The validation is
+real: a real qualified signature, a real certificate chain, a real timestamp,
+and the revocation material that travels in the document. What is missing is
+the step that makes the anchor trustworthy without anybody having to look. An
+operator downloading a root from the authority's own web server is trusting it
+on first use over a channel that certificate is meant to secure, and the tool
+says so and prints the fingerprint to be checked elsewhere. The manifest then
+makes a later change visible, which is a different and smaller guarantee: it
+protects what was pinned, not the decision to pin it.
+
+One narrowing worth stating, because it makes the pin smaller than it sounds.
+A document signed by the DÁP application carries its own chain — the signer,
+the issuing authority, the timestamp authority and its issuer — and none of
+them is self-signed. The office therefore pins one certificate, and the rest
+of what it needs arrives with each request.
+
+**Label:** *Trust anchors are a snapshot an operator pinned by hand. A
+deployment takes them from the European trusted list, which is also what lets
+an office call a signature qualified.*
+
 ---
 
 ## Absent
@@ -309,8 +341,24 @@ The handover is also where the demonstration is most legible, which is worth
 saying to an audience rather than apologising for: the request can be opened
 and read before it is signed, because it is a file and not a message.
 
+On the qualified-signature route the outbound direction is unchanged — still
+a file the voter carries, still enforcement by discipline — but **the inbound
+direction stops existing**. The signed document never returns to the voting
+application, because the voter hands it to the office themselves on a page the
+office serves. There is no callback to be tempted by and nothing for a later
+edit to shorten; the application's only remaining contact with the exchange is
+collecting `s_c` by presenting `c`, which it generated.
+
+The convenience somebody will eventually propose is an *Upload* button in the
+voting application. It would be one screen, it would save the voter a step,
+and it would put the signed document — and with it `id` — inside the one
+component that holds `k_p^a` and `r`. That is the whole property this route
+was arranged to keep. Nothing in the repository prevents it; this paragraph
+and a reviewer do.
+
 **Label:** *The request moves between the apps as a file you carry, the way it
-moves between two browser origins.*
+moves between two browser origins. On the qualified-signature route nothing
+comes back to the application at all.*
 
 ---
 
