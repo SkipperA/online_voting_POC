@@ -13,4 +13,7 @@ started contradicting the paper.
 
 from .population_register import Certificate, PopulationRegister
 
+# Not imported here. `qualified_signature` needs the `pades` extra, and a
+# package that cannot be imported without it would make a dependency of the
+# second route into a dependency of the first.
 __all__ = ["Certificate", "PopulationRegister"]

@@ -14,7 +14,17 @@ dependencies = ["cryptography>=42.0"]
 # installed `service` alone could not start. It was listed under `dev` until
 # an install without `dev` was attempted for the first time.
 service = ["fastapi>=0.110", "uvicorn>=0.29", "httpx>=0.27"]
-dev = ["pytest>=8.0", "ovpoc[service]"]
+# Validating a qualified electronic signature, for the second route to a
+# token request. Separate because `src/ovpoc` neither imports nor needs it:
+# the protocol declares the seam (`pdfrequest.SignatureValidation`) and
+# `driver/qualified_signature.py` is the only thing that fills it, so an
+# install without this still runs every test that uses a fake. It is the
+# largest dependency in the project by some distance -- fifteen
+# distributions, lxml and aiohttp among them, and a floor of
+# `cryptography>=48` -- which is why it is opt-in and why the trust story
+# for it is written out at the top of that module.
+pades = ["pyhanko[etsi]>=0.38"]
+dev = ["pytest>=8.0", "ovpoc[service]", "ovpoc[pades]"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

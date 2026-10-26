@@ -354,6 +354,46 @@ MUTATIONS = [
         ),
         replace="    pass  # SABOTAGE: ignore what the signature covered",
     ),
+    Mutation(
+        name="revocation_collapsed_into_not_identified",
+        what=(
+            "The signature validator inherits the library's verdict whole, so "
+            "a revoked or expired certificate is reported as no valid "
+            "signature rather than as an identified signer with a problem."
+        ),
+        path="driver/qualified_signature.py",
+        find=(
+            "        if not status.bottom_line and not (revoked or expired):\n"
+            "            return None"
+        ),
+        replace=(
+            "        if not status.bottom_line:  # SABOTAGE\n"
+            "            return None"
+        ),
+    ),
+    Mutation(
+        name="identity_taken_from_the_common_name",
+        what=(
+            "The office identifies a citizen by the name on their certificate "
+            "rather than by the serial number the authority allocated."
+        ),
+        path="driver/qualified_signature.py",
+        find='    serial = subject.get("serial_number")',
+        replace='    serial = subject.get("common_name")  # SABOTAGE',
+    ),
+    Mutation(
+        name="coverage_counted_from_a_range_not_starting_at_zero",
+        what=(
+            "A signature whose ByteRange does not begin at byte zero is "
+            "credited with covering the document's prefix anyway."
+        ),
+        path="driver/qualified_signature.py",
+        find=(
+            "    if len(byte_range) < 2 or byte_range[0] != 0:\n"
+            "        return 0"
+        ),
+        replace="    pass  # SABOTAGE: do not check where the range starts",
+    ),
 ]
 
 

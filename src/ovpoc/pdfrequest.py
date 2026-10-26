@@ -104,9 +104,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Mapping, Protocol, runtime_checkable
 
 from .messages import canonical_bytes, unb64
 
@@ -135,6 +136,64 @@ MARGIN = 56
 #: by nothing at all -- clause A4 exists to say so. Taking the date from there
 #: would make it both honest and recomputable.
 _INFO_DATE = "D:20260101000000Z"
+
+
+# --------------------------------------------------------------------------
+# What the office depends on, declared as the shape it needs
+# --------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class ValidatedSignature:
+    """What an electronic-signature validator reports about one document.
+
+    Declared here and implemented in `driver/`, for the same reason
+    `CertificateLookup` is: validating a qualified signature is EU
+    infrastructure the design consults, not a component the design builds.
+    On this route it *replaces* the population register -- the certificate
+    arrives with the signature instead of being looked up -- so it is the
+    same dependency in the same position.
+
+    `revoked` and `expired` are reported rather than used to refuse, and
+    that is load-bearing.  A revoked certificate still verifies
+    mathematically, so by the time anyone can see revocation they already
+    know who they are speaking to.  `vro.py` sets out at length why that
+    puts revocation *below* the identity boundary; a validator that
+    collapsed it into "no valid signature" would move the check back above
+    the boundary and hand the office's endpoint to anyone who can spell an
+    identifier.  `None` on either field means not determined, which is a
+    third thing and not a quiet "no".
+    """
+
+    #: The signer's distinguished name, field by field, as the certificate
+    #: gives it. Composing an identifier out of it is the identity
+    #: infrastructure's business and happens in `driver/`.
+    subject: Mapping[str, str]
+    #: How many bytes from the start of the file this signature covers.
+    #: Zero when it does not begin at byte zero, which is the honest answer
+    #: for the office's purposes: it covers none of the prefix.
+    covered_prefix_length: int
+    signing_time: datetime | None = None
+    revoked: bool | None = None
+    expired: bool | None = None
+    #: Whether a trust list said this is a qualified signature. `None` when
+    #: no trust list was consulted -- the demonstration pins a dated
+    #: snapshot, and an office running without one should not be able to
+    #: claim the word.
+    qualified: bool | None = None
+
+
+@runtime_checkable
+class SignatureValidation(Protocol):
+    """`document` in, one signature's findings or nothing out.
+
+    `None` covers every pre-identity failure together -- no signature, a
+    signature that does not verify, a certificate that chains to nothing
+    the office trusts -- because the office must answer all of them with
+    one opaque refusal (§3.2). Reasons below the boundary travel in the
+    fields of `ValidatedSignature`, not in the absence of one.
+    """
+
+    def validate(self, document: bytes) -> ValidatedSignature | None: ...
 
 
 class Refusal(Enum):

@@ -50,6 +50,7 @@ with the service layer in place.
 | `voter.py` | The voter's whole flow in one file | 1–4, 8, 9, 13 |
 | `pdfrequest.py` | The token request as a signable document, and the rule that reads it back | 3, 4 (second route) |
 | `driver/population_register.py` | **Not a component.** External identity service | — |
+| `driver/qualified_signature.py` | **Not a component.** Electronic-signature validation | 5 (second route) |
 
 **`driver/` is outside the library deliberately.** The population register
 answers `id` with a qualified certificate; the design consults it and does not
@@ -74,6 +75,21 @@ register is `VRO.register` — a set of ids, and nothing else.
   `tools/sabotage.py` (`eligibility_checked_before_identity`,
   `revocation_reported_before_identity`) exist to catch a refactor that
   reorders this.
+- **The identity boundary runs through the signature validator too, and a
+  library will move it if nothing stops it.** On the qualified-signature
+  route there is no certificate lookup: the certificate arrives with the
+  signature and `driver/qualified_signature.py` reads the subject from it.
+  Every validation library reports a revoked or expired certificate as a
+  failure, pyHanko included -- `bottom_line` is false for a revoked signer
+  exactly as it is for one chaining to nothing trusted. Inheriting that
+  verdict whole would collapse revocation into `NOT_IDENTIFIED` and undo the
+  decision below, through a dependency rather than a refactor. So those two
+  are subtracted from the verdict and reported as fields, and everything
+  else that made it false stays a pre-identity failure answered with
+  `None`. `revocation_collapsed_into_not_identified` in `tools/sabotage.py`
+  is what catches the regression. The signature's own integrity --
+  `intact` and `valid` -- is never subtracted from: that is the check that
+  establishes there is a signer at all.
 - **Revocation is reported *after* the signature verifies, and this diverges
   from the paper on purpose.** A revoked certificate still verifies
   mathematically, so by the time the office can see revocation it already knows
