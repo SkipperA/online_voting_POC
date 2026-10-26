@@ -13,12 +13,12 @@ confident the surrounding comments sound.
 |---|---|
 | token_verification_disabled | `test_a_valid_token_cannot_be_reused_with_a_different_key`<br>`test_finalize_rejects_a_dishonest_vro_response`<br>`test_forged_token_is_rejected_by_the_ballot_box`<br>`test_multiplicative_forgery_is_defeated_by_pss_encoding`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_rsabssa_vectors`<br>`test_signature_does_not_transfer_to_another_message`<br>`test_the_adversarial_scenarios_all_hold` |
 | ed25519_verification_disabled | `test_a_bystander_cannot_forge_such_a_proof`<br>`test_a_receipt_is_evidence_about_one_election_only`<br>`test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_a_tampered_receipt_does_not_verify`<br>`test_an_unauthenticated_release_query_is_refused`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_opening_and_closing_leave_signed_statements`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_tampering_with_the_selection_breaks_the_signature`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_box_signs_the_heads_it_publishes`<br>`test_the_nonce_is_covered_by_the_ballot_signature`<br>`test_the_office_console_shows_recorded_beside_disclosed`<br>`test_the_office_signs_the_count_the_audit_depends_on`<br>`test_the_statement_key_signs_statements_and_nothing_else` |
-| eligibility_check_removed | `test_an_identified_person_not_on_the_electoral_register_is_told_so`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
-| one_token_per_voter_removed | `test_a_second_token_is_refused_for_the_same_voter`<br>`test_a_second_token_request_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold` |
+| eligibility_check_removed | `test_an_identified_person_not_on_the_electoral_register_is_told_so`<br>`test_an_identified_signer_not_on_the_register_is_told_so`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_identifier_never_comes_from_the_document` |
+| one_token_per_voter_removed | `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_second_token_is_refused_for_the_same_voter`<br>`test_a_second_token_request_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold` |
 | wallet_signature_check_removed | `test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_office_console_shows_recorded_beside_disclosed` |
 | finalize_selfcheck_removed | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_finalize_rejects_a_dishonest_vro_response` |
 | chain_verification_disabled | `test_altering_a_recorded_ballot_breaks_the_hash_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain` |
-| ledger_chaining_removed | `test_a_stranger_can_recompute_the_result_from_the_downloads`<br>`test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed`<br>`test_the_verifier_service_runs_the_same_checks` |
+| ledger_chaining_removed | `test_a_stranger_can_recompute_the_result_from_the_downloads`<br>`test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed`<br>`test_the_verifier_service_runs_the_same_checks` |
 | rejected_ballots_supersede | `test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_the_adversarial_scenarios_all_hold` |
 | selection_range_check_removed | `test_a_protest_ballot_is_counted_as_invalid_not_rejected`<br>`test_distinct_protest_codes_are_not_merged`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold` |
 | vro_key_pinning_removed | `test_a_substituted_vro_key_is_refused_by_the_voter_app`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
@@ -34,17 +34,20 @@ confident the surrounding comments sound.
 | tally_available_before_the_close | `test_a_running_tally_is_published_only_when_configured`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_tally_endpoint_cannot_read_around_the_cadence`<br>`test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`<br>`test_three_voters_cast_and_verify` |
 | restored_records_not_re-derived | `test_an_altered_ledger_is_refused_rather_than_served`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | cadence_changeable_while_open | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_cadence_is_fixed_once_the_box_is_open`<br>`test_the_console_refuses_the_cadence_once_the_box_is_open` |
-| reservation_publishes_the_commitment | `test_a_reservation_publishes_nothing`<br>`test_supervision_shows_the_identifiers_and_the_refusals`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed` |
+| reservation_publishes_the_commitment | `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_poll_with_both_routes_survives_being_written_and_read_back`<br>`test_a_reservation_publishes_nothing`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_supervision_shows_the_identifiers_and_the_refusals`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed` |
 | protest_distribution_collapsed | `test_distinct_protest_codes_are_not_merged`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold` |
 | submissions_accepted_after_the_close | `test_a_ballot_arriving_after_the_close_is_not_recorded`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold` |
 | receipt_omits_the_entry_position | `test_a_tampered_receipt_does_not_verify`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_inclusion_check_works_from_the_receipt_alone` |
 | reloaded_register_keeps_the_stored_order | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed` |
 | document_prefix_check_removed | `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`<br>`test_a_signed_document_whose_page_was_altered_is_refused_by_the_rule`<br>`test_a_swapped_payload_cannot_produce_a_false_accept`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | carrier_disagreement_resolved_by_preference | `test_carriers_that_disagree_are_refused_rather_than_resolved`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
-| document_coverage_check_removed | `test_a_refusal_hands_back_no_payload`<br>`test_a_signature_that_stops_short_of_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| document_coverage_check_removed | `test_a_refusal_hands_back_no_payload`<br>`test_a_signature_covering_less_than_the_document_is_refused`<br>`test_a_signature_that_stops_short_of_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | revocation_collapsed_into_not_identified | `test_a_revoked_certificate_still_identifies_its_signer`<br>`test_an_expired_certificate_still_identifies_its_signer`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | identity_taken_from_the_common_name | `test_a_subject_with_no_serial_number_yields_no_identifier`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_identifier_is_the_serial_number_and_not_the_name`<br>`test_the_office_can_decide_a_real_signed_request` |
 | coverage_counted_from_a_range_not_starting_at_zero | `test_a_range_not_starting_at_zero_covers_none_of_the_prefix`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| document_route_keeps_its_own_released_set | `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_poll_with_both_routes_survives_being_written_and_read_back`<br>`test_a_reservation_on_one_route_blocks_the_other`<br>`test_a_token_from_the_document_route_is_an_ordinary_token`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_certificate_status_is_reported_only_after_identity[expired]`<br>`test_certificate_status_is_reported_only_after_identity[revoked]`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_supervision_shows_the_digest_and_not_the_document`<br>`test_the_office_keeps_the_signed_document_as_the_citizens_own_request` |
+| request_payload_accepts_extra_fields | `test_a_payload_with_the_wrong_fields_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| document_check_skipped | `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`<br>`test_a_payload_claiming_an_identifier_is_not_a_token_request`<br>`test_a_signature_covering_less_than_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 
 ## Detail
 
@@ -99,7 +102,9 @@ Patched in `src/ovpoc/vro.py`.
 
 Caught by:
 - `test_an_identified_person_not_on_the_electoral_register_is_told_so`
+- `test_an_identified_signer_not_on_the_register_is_told_so`
 - `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_identifier_never_comes_from_the_document`
 
 ### `one_token_per_voter_removed`
 
@@ -108,6 +113,7 @@ The VRO no longer refuses a second token request from the same id.
 Patched in `src/ovpoc/vro.py`.
 
 Caught by:
+- `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`
 - `test_a_second_token_is_refused_for_the_same_voter`
 - `test_a_second_token_request_is_refused`
 - `test_every_mutation_still_matches_its_target_exactly_once`
@@ -158,6 +164,7 @@ Patched in `src/ovpoc/ledger.py`.
 Caught by:
 - `test_a_stranger_can_recompute_the_result_from_the_downloads`
 - `test_an_outsider_can_recompute_the_result_from_the_public_ledger`
+- `test_both_routes_issue_a_token_and_share_one_chain`
 - `test_deleting_a_ballot_breaks_the_hash_chain`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 - `test_ledger_vectors`
@@ -351,7 +358,10 @@ The office writes the release commitment when it reserves rather than when it re
 Patched in `src/ovpoc/vro.py`.
 
 Caught by:
+- `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`
+- `test_a_poll_with_both_routes_survives_being_written_and_read_back`
 - `test_a_reservation_publishes_nothing`
+- `test_both_routes_issue_a_token_and_share_one_chain`
 - `test_supervision_shows_the_identifiers_and_the_refusals`
 - `test_the_release_log_records_exactly_who_took_a_token`
 - `test_the_reloaded_register_chains_to_the_head_the_office_signed`
@@ -430,6 +440,7 @@ Patched in `src/ovpoc/pdfrequest.py`.
 
 Caught by:
 - `test_a_refusal_hands_back_no_payload`
+- `test_a_signature_covering_less_than_the_document_is_refused`
 - `test_a_signature_that_stops_short_of_the_document_is_refused`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 
@@ -466,7 +477,47 @@ Caught by:
 - `test_a_range_not_starting_at_zero_covers_none_of_the_prefix`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 
+### `document_route_keeps_its_own_released_set`
+
+The qualified-signature route claims identifiers in a set of its own, so one citizen can take a token by each route.
+
+Patched in `src/ovpoc/vro.py`.
+
+Caught by:
+- `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`
+- `test_a_poll_with_both_routes_survives_being_written_and_read_back`
+- `test_a_reservation_on_one_route_blocks_the_other`
+- `test_a_token_from_the_document_route_is_an_ordinary_token`
+- `test_both_routes_issue_a_token_and_share_one_chain`
+- `test_certificate_status_is_reported_only_after_identity[expired]`
+- `test_certificate_status_is_reported_only_after_identity[revoked]`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_supervision_shows_the_digest_and_not_the_document`
+- `test_the_office_keeps_the_signed_document_as_the_citizens_own_request`
+
+### `request_payload_accepts_extra_fields`
+
+A token-request payload may carry fields beyond the three, so a document can assert things the renderer never showed anybody -- an identifier among them.
+
+Patched in `src/ovpoc/pdfrequest.py`.
+
+Caught by:
+- `test_a_payload_with_the_wrong_fields_is_refused`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+
+### `document_check_skipped`
+
+The office issues against a signed document without checking that the document is what its payload renders to.
+
+Patched in `src/ovpoc/vro.py`.
+
+Caught by:
+- `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`
+- `test_a_payload_claiming_an_identifier_is_not_a_token_request`
+- `test_a_signature_covering_less_than_the_document_is_refused`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+
 ## Summary
 
-- 34 of 34 mutations were detected.
+- 37 of 37 mutations were detected.
 - 0 were not.
