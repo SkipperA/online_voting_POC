@@ -406,6 +406,19 @@ class SuiteDidNotRun(RuntimeError):
     """
 
 
+#: How the suite is run, named so that the test which checks the output can
+#: run it the same way.
+#:
+#: `-rfs` and not `-rf -rs`. A second `-r` *replaces* the first rather than
+#: adding to it, so `-rf -rs` summarises skips and silently stops reporting
+#: failures -- which is the half of this tool that matters, since a mutation
+#: is caught by tests that fail. It was written that way for one patch, and
+#: every mutation run after the first died in `SuiteDidNotRun` because eight
+#: tests had failed and none could be parsed. The guard held; the flags did
+#: not.
+PYTEST_ARGS = ("-q", "--no-header", "-rfs")
+
+
 def parse_report(stdout: str) -> tuple[list[str], list[str]]:
     """Failing test names and skip reasons, out of pytest's short summary.
 
@@ -435,7 +448,7 @@ def failing_tests(skipped: list[str] | None = None) -> list[str]:
     anybody wants the skips.
     """
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "--no-header", "-rf", "-rs"],
+        [sys.executable, "-m", "pytest", *PYTEST_ARGS],
         cwd=ROOT, capture_output=True, text=True,
     )
     # pytest: 0 = all passed, 1 = tests failed. Anything else means it did not

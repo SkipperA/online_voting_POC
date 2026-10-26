@@ -19,13 +19,50 @@ the opposite.
 from __future__ import annotations
 
 import pathlib
+import subprocess
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "tools"))
 
-from sabotage import MUTATIONS, parse_report  # noqa: E402
+from sabotage import MUTATIONS, PYTEST_ARGS, parse_report  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+def test_the_runner_asks_pytest_for_both_summaries(tmp_path):
+    """Run pytest for real, with the tool's own arguments, and read it back.
+
+    The tests below feed `parse_report` strings written by hand, which is
+    worth having and was not enough: it pins what the parser does with a
+    line and says nothing about whether pytest emits one. Those are
+    different questions and the second is where this went wrong.
+
+    `-rf -rs` looks like it asks for failures and skips. A second `-r`
+    *replaces* the first, so it asks for skips alone and the failure
+    summary disappears -- and a tool that detects a mutation by its
+    failures then detects nothing at all. The only integration check run
+    before that shipped had no failing tests in it, so the half that broke
+    was the half not exercised.
+
+    This runs a suite with one of each, through `PYTEST_ARGS`, so the
+    arguments under test are the arguments the tool uses.
+    """
+    (tmp_path / "test_sample.py").write_text(
+        "import pytest\n"
+        "def test_fails(): assert False\n"
+        "@pytest.mark.skip(reason='an optional extra is not installed')\n"
+        "def test_skips(): pass\n"
+        "def test_passes(): pass\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", *PYTEST_ARGS, "test_sample.py"],
+        cwd=tmp_path, capture_output=True, text=True,
+    )
+    failures, skips = parse_report(result.stdout)
+    assert failures == ["test_fails"], (
+        "the runner cannot see failures, so it can detect no mutation at all"
+    )
+    assert len(skips) == 1 and "optional extra" in skips[0]
 
 
 def test_failures_are_read_out_of_the_short_summary():
