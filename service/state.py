@@ -19,7 +19,7 @@ from driver.population_register import PopulationRegister
 from ovpoc import keys
 from ovpoc.ballotbox import BallotBox
 from ovpoc.messages import unb64
-from ovpoc.vro import VRO, AuditEntry, Outcome
+from ovpoc.vro import VRO, AuditEntry, Outcome, request_from_stored
 
 from .election import ElectionConfig
 from . import origins, store
@@ -336,8 +336,11 @@ class Deployment:
                                   outcome=Outcome(a["outcome"]),
                                   reason=a["reason"])
                        for a in saved["office"]["audit"]],
-                requests={k: (unb64(c), unb64(sig))
-                          for k, (c, sig) in saved["office"]["requests"].items()},
+                # `request_from_stored` and not a tuple unpack: a signed
+                # request is one of two shapes now, and the office is the
+                # only thing that gets to know which.
+                requests={k: request_from_stored(v)
+                          for k, v in saved["office"]["requests"].items()},
                 supervisor_downloads=saved["office"]["supervisor_downloads"],
                 expected_head=unb64(saved["office"]["head"]),
             )

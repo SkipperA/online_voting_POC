@@ -168,10 +168,16 @@ class ValidatedSignature:
     #: gives it. Composing an identifier out of it is the identity
     #: infrastructure's business and happens in `driver/`.
     subject: Mapping[str, str]
+    #: The subject composed into the identifier the office looks for on its
+    #: electoral register. Composed in `driver/`, because how a scheme
+    #: names its people is the identity infrastructure's business and not
+    #: the protocol's. `None` when the certificate carries nothing that
+    #: could serve, which the office treats as not having been identified.
+    identifier: str | None = None
     #: How many bytes from the start of the file this signature covers.
     #: Zero when it does not begin at byte zero, which is the honest answer
     #: for the office's purposes: it covers none of the prefix.
-    covered_prefix_length: int
+    covered_prefix_length: int = 0
     signing_time: datetime | None = None
     revoked: bool | None = None
     expired: bool | None = None

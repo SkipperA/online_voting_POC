@@ -65,6 +65,25 @@ register is `VRO.register` — a set of ids, and nothing else.
   second, election-administered copy of that association would be redundant and
   would add an attack surface (rebinding). The office looks the certificate up
   per request. `VRO.enrol` therefore takes one argument: an id.
+- **Two routes, one `_claim`.** The office establishes identity two ways --
+  a certificate looked up and an Ed25519 signature over `hash([id, c])`, or
+  a qualified signature that arrived with the document -- and must not
+  differ by a line in anything afterwards. `VRO._claim` is everything below
+  the identity boundary and both routes reach it; `release` is shared too,
+  so there is one chain, one released set and one register of openings. The
+  reason is requirement 2 and the fact that breaking it would be invisible:
+  two commitments for one citizen are indistinguishable from two citizens,
+  the aggregate audit still balances, and each voter's own check answers
+  truthfully. No observer could see it, so no published artefact can be the
+  thing that catches it. `document_route_keeps_its_own_released_set` is the
+  mutation that does.
+- **On the document route the identifier comes from the certificate, and the
+  payload has nowhere to put one.** The schema is exactly
+  `blinded_key`, `config_digest`, `election_id`, and `_well_formed` requires
+  that set and not a superset. A fourth field would be a field the office
+  might one day read, and the first thing anyone would put in it is whose
+  request this is -- which would be a document that names its own author.
+  Relaxing the check to a subset test is `request_payload_accepts_extra_fields`.
 - **Step 5 is a state machine with an identity boundary, and the order is
   load-bearing.** Certificate lookup, then signature verification; both
   failures return the single opaque `Outcome.NOT_IDENTIFIED`. Only below that

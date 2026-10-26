@@ -78,9 +78,9 @@ from typing import Protocol, runtime_checkable
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from . import keys, rsabssa
+from . import keys, pdfrequest, rsabssa
 from .ledger import Ledger
-from .messages import AuthRequest, b64, digest
+from .messages import AuthRequest, b64, digest, unb64
 
 
 # --------------------------------------------------------------------------
@@ -133,11 +133,19 @@ class Outcome(Enum):
     #: has been published, no token exists, and the reservation can be
     #: cancelled. The office knows which, so it says which.
     REQUEST_PENDING = "request_pending"
+    #: The qualified-signature route only. The signature is good and the
+    #: signer is known; the document they signed is not what any token
+    #: request renders to. Reported with a reason because it is below the
+    #: identity boundary -- a qualified signature has already established
+    #: who is being told -- and because a citizen whose document was
+    #: refused can do nothing about it unless they are told.
+    DOCUMENT_REFUSED = "document_refused"
 
 
 #: Outcomes that may only be reported once identity has been established.
 POST_IDENTITY_OUTCOMES = frozenset(
     {
+        Outcome.DOCUMENT_REFUSED,
         Outcome.CERTIFICATE_REVOKED,
         Outcome.CERTIFICATE_EXPIRED,
         Outcome.NOT_ELIGIBLE,
@@ -159,6 +167,74 @@ class TokenResponse:
     @property
     def issued(self) -> bool:
         return self.outcome is Outcome.ISSUED
+
+
+@dataclass(frozen=True)
+class SignedRequest:
+    """The one object in the exchange the office cannot manufacture.
+
+    Kept, not discarded once checked, because a release the office minted
+    for somebody who never asked has none to show -- which is how a
+    supervisor finds a fabricated release for every citizen at once,
+    including the ones who abstain and never perform their own check.
+
+    The two routes produce different objects and the argument is the same
+    for both.  On the wallet route it is `s`, the citizen's Ed25519
+    signature over `hash([id, c])`, verifiable against the key the
+    population register holds.  On the qualified-signature route it is the
+    signed document itself, verifiable by anybody against the European
+    trust lists without this office's cooperation -- which is a stronger
+    thing to hold and, for the same reason, a heavier one. See
+    `docs/threats.md` on what that changes.
+
+    Exactly one of the two is present. A `SignedRequest` with both would
+    be a release claiming to have been asked for twice, and with neither
+    would be the thing this class exists to make impossible.
+    """
+
+    blinded_key: bytes
+    #: Route 1: sig_{k_s^(v)}(hash([id, c])).
+    wallet_signature: bytes | None = None
+    #: Route 2: the whole signed PDF, which is what a third party would
+    #: have to re-validate. Its digest is what the supervision register
+    #: publishes; the document is served separately or not at all.
+    document: bytes | None = None
+
+    def __post_init__(self) -> None:
+        if (self.wallet_signature is None) == (self.document is None):
+            raise ValueError(
+                "a signed request carries exactly one of a wallet signature "
+                "and a signed document"
+            )
+
+    @property
+    def route(self) -> str:
+        return "wallet" if self.wallet_signature is not None else "document"
+
+
+@dataclass(frozen=True)
+class DocumentRequest:
+    """A validated signed document, reduced to what `_claim` needs.
+
+    The counterpart of `AuthRequest` on the qualified-signature route, and
+    the same three attributes -- `voter_id`, `blinded_key`, `evidence` --
+    because `_claim` must not be able to tell which route it is serving.
+
+    `revoked` and `expired` ride along because on this route they are
+    findings of the signature validator rather than fields of a looked-up
+    certificate, and they are still reported below the identity boundary
+    and never above it.
+    """
+
+    voter_id: str
+    blinded_key: bytes
+    document: bytes
+    revoked: bool = False
+    expired: bool = False
+
+    @property
+    def evidence(self) -> "SignedRequest":
+        return SignedRequest(blinded_key=self.blinded_key, document=self.document)
 
 
 @dataclass(frozen=True)
@@ -232,6 +308,57 @@ def _in_chain_order(
     for voter_id, opening in openings.items():
         ordered.setdefault(voter_id, opening)
     return ordered
+
+
+def _request_to_stored(request: SignedRequest) -> dict:
+    """A signed request as `poll.state.json` holds it."""
+    if request.wallet_signature is not None:
+        return {"blinded_key": b64(request.blinded_key),
+                "wallet_signature": b64(request.wallet_signature)}
+    return {"blinded_key": b64(request.blinded_key),
+            "document": b64(request.document)}
+
+
+def request_from_stored(stored) -> SignedRequest:
+    """The inverse, tolerant of the two-element list older polls were written as."""
+    if isinstance(stored, (list, tuple)):
+        return SignedRequest(blinded_key=unb64(stored[0]),
+                             wallet_signature=unb64(stored[1]))
+    document = stored.get("document")
+    signature = stored.get("wallet_signature")
+    return SignedRequest(
+        blinded_key=unb64(stored["blinded_key"]),
+        wallet_signature=unb64(signature) if signature is not None else None,
+        document=unb64(document) if document is not None else None)
+
+
+def _request_for_supervision(request: SignedRequest) -> dict:
+    """What a supervisor is shown about the citizen's own request.
+
+    The wallet route publishes the signature itself: it is 64 bytes and a
+    supervisor can check it against the key the population register holds.
+
+    The qualified-signature route publishes the document's digest and its
+    length, and not the document. Two reasons, and the second is the one
+    that matters. A signed request is some tens of kilobytes, so a register
+    of a few thousand releases would be a download nobody performs -- and a
+    supervision surface nobody opens supervises nothing. But also: that
+    document is verifiable by anyone against the European trust lists,
+    without this office's cooperation, which makes it a far more portable
+    proof that a named citizen took part than anything the first route
+    produces. Publishing it to whoever can reach the supervision origin
+    would hand out exactly the artefact §3.7 spends a page keeping out of
+    circulation. The digest is enough to tie a release to a document the
+    supervisor has obtained by some other route, and not enough to be one.
+    """
+    if request.wallet_signature is not None:
+        return {"blinded_key": b64(request.blinded_key),
+                "request_signature": b64(request.wallet_signature),
+                "route": request.route}
+    return {"blinded_key": b64(request.blinded_key),
+            "request_document_sha256": hashlib.sha256(request.document).hexdigest(),
+            "request_document_bytes": len(request.document),
+            "route": request.route}
 
 
 def release_query_payload(voter_id: str) -> bytes:
@@ -348,6 +475,12 @@ class VRO:
     public_key: rsa.RSAPublicKey                            # k_p^(R), published
     population_register: CertificateLookup                  # external (driver/)
     office_key: keys.SigningKeyPair                         # office statements
+    #: The qualified-signature route's counterpart to
+    #: `population_register`, and on that route its replacement: there is
+    #: no lookup, because the certificate arrives with the signature.
+    #: External infrastructure, injected, implemented in `driver/`. `None`
+    #: in an office that does not offer the route.
+    signature_validation: "pdfrequest.SignatureValidation | None" = None
     #: Bound into the office's statements, so a figure is about one poll.
     election_id: str = ""
     register: set[str] = field(default_factory=set)         # electoral register: ids
@@ -367,7 +500,7 @@ class VRO:
     _audit: list[AuditEntry] = field(default_factory=list)
     #: voter_id -> (c, s), the blinded value and the citizen's signature
     #: over hash([id, c]). Supervision material; never published.
-    _requests: dict[str, tuple[bytes, bytes]] = field(default_factory=dict)
+    _requests: dict[str, SignedRequest] = field(default_factory=dict)
     _supervisor_downloads: int = 0
     #: id -> the blinded value it was reserved for. Internal; never published.
     _reserved: dict[str, bytes] = field(default_factory=dict)
@@ -403,8 +536,8 @@ class VRO:
             "openings": {k: b64(v) for k, v in self._openings.items()},
             "audit": [{"voter_id": a.voter_id, "outcome": a.outcome.value,
                        "reason": a.reason} for a in self._audit],
-            "requests": {k: [b64(c), b64(sig)]
-                         for k, (c, sig) in self._requests.items()},
+            "requests": {k: _request_to_stored(r)
+                         for k, r in self._requests.items()},
             "supervisor_downloads": self._supervisor_downloads,
         }
 
@@ -415,7 +548,7 @@ class VRO:
         released: set[str],
         openings: dict[str, bytes],
         audit: list[AuditEntry],
-        requests: dict[str, tuple[bytes, bytes]],
+        requests: dict[str, SignedRequest],
         supervisor_downloads: int,
         expected_head: bytes,
     ) -> None:
@@ -566,12 +699,45 @@ class VRO:
         # Nothing above this line may report a specific reason, and nothing
         # below it may be reached without a verified signature.  Moving a
         # check across it is a privacy regression, not a refactor.
-        if cert.revoked:
+        return self._claim(request, revoked=cert.revoked,
+                           expired=cert.is_expired(now))
+
+    def _claim(
+        self, request, *, revoked: bool, expired: bool
+    ) -> TokenResponse:
+        """Everything below the identity boundary, shared by both routes.
+
+        Split out when the qualified-signature route arrived, and the split
+        is the point rather than tidiness.  The two routes establish
+        identity differently -- one looks a certificate up and checks an
+        Ed25519 signature over `hash([id, c])`, the other reads the subject
+        out of a qualified signature that arrived with the document -- and
+        they must not differ by so much as a line in what they do
+        afterwards.
+
+        Requirement 2 is the reason.  One citizen gets one token, and if
+        the second route kept its own `_released` set, a citizen could take
+        a token by each and the published artefacts would show two
+        commitments that no observer could tell from two citizens: the
+        aggregate audit still balances, and each voter's own check answers
+        truthfully.  There is no observer who could see it.  So the
+        register, the released set and the reservations are reached through
+        here and through nothing else.
+
+        `revoked` and `expired` are passed rather than read, because the
+        two routes learn them from different places and neither is this
+        method's business.  What is its business is that they are reported
+        *here*, below the boundary, and never above it.
+
+        `request` needs only `voter_id`, `blinded_key` and `evidence`.
+        Declared structurally for the same reason `CertificateLookup` is.
+        """
+        if revoked:
             return self._record(
                 request.voter_id, Outcome.CERTIFICATE_REVOKED, "certificate revoked"
             )
 
-        if cert.is_expired(now):
+        if expired:
             return self._record(
                 request.voter_id, Outcome.CERTIFICATE_EXPIRED, "certificate expired"
             )
@@ -602,6 +768,115 @@ class VRO:
             AuditEntry(request.voter_id, Outcome.RESERVED, "validated and reserved")
         )
         return TokenResponse(outcome=Outcome.RESERVED, blind_signature=None)
+
+    # ------------------------------------------------------------------
+    # The qualified-signature route
+    # ------------------------------------------------------------------
+    def interpret_signed_document(
+        self, document: bytes
+    ) -> tuple[DocumentRequest | None, TokenResponse | None]:
+        """Step 5, as far as identity and the request go. Entitlement is `_claim`.
+
+        The same state machine as `reserve`, with the first two steps
+        answered by a different service:
+
+            1. validate the signature against the trust anchors
+                 fails    -> NOT_IDENTIFIED
+            2. read the subject, and compose the identifier from it
+                 nothing  -> NOT_IDENTIFIED
+            ---- the identity boundary ----
+            3. the document is what its payload renders to, and the
+               signature covers all of it
+                 fails    -> DOCUMENT_REFUSED, with the reason
+
+        Both pre-boundary failures collapse into one opaque outcome, for
+        the reason they do on the other route: an unauthenticated party
+        must not learn from this endpoint whether a certificate is known,
+        and here they must not learn whether one is *trusted* either.
+
+        **The document check sits below the boundary and above
+        eligibility**, which is an order with an argument behind it. A
+        qualified signature has already established who is being spoken to,
+        so saying "that is not a token request" costs nothing and a citizen
+        who is told nothing can do nothing. And it answers *what was
+        asked* before the office begins deciding whether to grant it: a
+        file that is not a token request is not a request this office has
+        received, whatever the sender may be entitled to.
+
+        What it does **not** do is read the document to find out who sent
+        it. The identifier comes from the signing certificate and never
+        from a field in the payload; a document saying whose it is would
+        be a document anyone could write. See
+        `identity_taken_from_the_document` in `tools/sabotage.py`.
+        """
+        if self.signature_validation is None:
+            raise RuntimeError(
+                "this office offers no qualified-signature route: nothing "
+                "was injected to validate a signature with"
+            )
+
+        found = self.signature_validation.validate(document)
+        if found is None:
+            return None, self._record(
+                "", Outcome.NOT_IDENTIFIED,
+                "no valid signature over this document, or none that chains "
+                "to a trusted anchor",
+            )
+        if not found.identifier:
+            return None, self._record(
+                "", Outcome.NOT_IDENTIFIED,
+                "the signing certificate carries nothing that identifies its "
+                "subject to this office",
+            )
+
+        # ==== THE IDENTITY BOUNDARY ====
+        # Nothing above this line may report a specific reason, and nothing
+        # below it may be reached without a signature that verified and
+        # chained. Moving a check across it is a privacy regression, not a
+        # refactor -- the same sentence as in `reserve`, and the same rule.
+        checked = pdfrequest.check(
+            document, covered_prefix_length=found.covered_prefix_length)
+        if not checked.accepted:
+            return None, self._record(
+                found.identifier, Outcome.DOCUMENT_REFUSED,
+                f"the signed document was refused: {checked.refusal.value}",
+            )
+
+        return DocumentRequest(
+            voter_id=found.identifier,
+            blinded_key=unb64(checked.payload["blinded_key"]),
+            document=document,
+            revoked=bool(found.revoked),
+            expired=bool(found.expired),
+        ), None
+
+    def reserve_signed_document(
+        self, document: bytes
+    ) -> tuple[TokenResponse, DocumentRequest | None]:
+        """Step 5 on the second route: validate, and claim the identifier.
+
+        Returns the request alongside the outcome because `release` needs
+        it, exactly as the caller on the other route holds the
+        `AuthRequest` it built.
+        """
+        request, refusal = self.interpret_signed_document(document)
+        if request is None:
+            return refusal, None
+        return self._claim(request, revoked=request.revoked,
+                           expired=request.expired), request
+
+    def issue_token_for_signed_document(self, document: bytes) -> TokenResponse:
+        """Steps 5 -> 6/A -> 7 on the second route, as one act.
+
+        The counterpart of `issue_token`, and it reaches the same
+        `release`: one hash chain, one released set, one register of
+        openings. A citizen who has taken a token by either route has taken
+        their token.
+        """
+        reserved, request = self.reserve_signed_document(document)
+        if reserved.outcome is not Outcome.RESERVED:
+            return reserved
+        return self.release(request)
 
     def cancel_reservation(self, voter_id: str) -> bool:
         """Release a claim that will never complete.
@@ -680,8 +955,7 @@ class VRO:
         # no more about the ballot: the blinding means nothing here reveals
         # whether the token was ever used, let alone for what. Absence from
         # this register is conclusive; presence is not (Section 3.7).
-        self._requests[request.voter_id] = (request.blinded_key,
-                                            request.wallet_signature)
+        self._requests[request.voter_id] = request.evidence
         self.release_log.append({"commitment": b64(commit(request.voter_id, opening))})
 
         # ---- step 6/A: the blind signature ----
@@ -802,8 +1076,7 @@ class VRO:
             "releases": [
                 {"index": i, "voter_id": voter_id, "opening": b64(opening),
                  "commitment": b64(commit(voter_id, opening)),
-                 "blinded_key": b64(self._requests[voter_id][0]),
-                 "request_signature": b64(self._requests[voter_id][1])}
+                 **_request_for_supervision(self._requests[voter_id])}
                 if voter_id in self._requests else
                 {"index": i, "voter_id": voter_id, "opening": b64(opening),
                  "commitment": b64(commit(voter_id, opening))}

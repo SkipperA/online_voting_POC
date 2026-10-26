@@ -64,6 +64,20 @@ class AuthRequest:
         """Exactly the bytes the wallet signs -- hash([id, c])."""
         return digest({"voter_id": self.voter_id, "blinded_key": b64(self.blinded_key)})
 
+    @property
+    def evidence(self):
+        """What the office keeps as proof this citizen asked (`vro.SignedRequest`).
+
+        A property rather than something the office assembles, so that both
+        routes hand `VRO.release` the same shape and neither has to know
+        which one it is holding. Imported here rather than at module scope:
+        `messages` is the bottom of the package and importing `vro` from it
+        would be a cycle.
+        """
+        from .vro import SignedRequest
+        return SignedRequest(blinded_key=self.blinded_key,
+                             wallet_signature=self.wallet_signature)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "voter_id": self.voter_id,

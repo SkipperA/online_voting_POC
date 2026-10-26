@@ -222,10 +222,12 @@ class QualifiedSignatureValidation:
         if not status.bottom_line and not (revoked or expired):
             return None
 
-        subject = dict(status.signing_cert.subject.native)
+        subject = {k: str(v) for k, v in
+                   dict(status.signing_cert.subject.native).items()
+                   if k in SUBJECT_FIELDS}
         return ValidatedSignature(
-            subject={k: str(v) for k, v in subject.items()
-                     if k in SUBJECT_FIELDS},
+            subject=subject,
+            identifier=subject_identifier(subject),
             covered_prefix_length=_covered_prefix(embedded),
             signing_time=_signing_time(status),
             revoked=revoked,

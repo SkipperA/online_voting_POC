@@ -394,6 +394,57 @@ MUTATIONS = [
         ),
         replace="    pass  # SABOTAGE: do not check where the range starts",
     ),
+    Mutation(
+        name="document_route_keeps_its_own_released_set",
+        what=(
+            "The qualified-signature route claims identifiers in a set of "
+            "its own, so one citizen can take a token by each route."
+        ),
+        path="src/ovpoc/vro.py",
+        find=(
+            "        return self._claim(request, revoked=request.revoked,\n"
+            "                           expired=request.expired), request"
+        ),
+        replace=(
+            "        if request.voter_id in getattr(self, '_doc_released', set()):\n"
+            "            return self._record(request.voter_id,\n"
+            "                                Outcome.TOKEN_ALREADY_ISSUED,\n"
+            "                                'already issued on this route'), None\n"
+            "        self._doc_released = getattr(self, '_doc_released', set())\n"
+            "        self._doc_released.add(request.voter_id)  # SABOTAGE\n"
+            "        return TokenResponse(outcome=Outcome.RESERVED), request"
+        ),
+    ),
+    Mutation(
+        name="request_payload_accepts_extra_fields",
+        what=(
+            "A token-request payload may carry fields beyond the three, so a "
+            "document can assert things the renderer never showed anybody -- "
+            "an identifier among them."
+        ),
+        path="src/ovpoc/pdfrequest.py",
+        find="    if not isinstance(candidate, dict) or set(candidate) != set(FIELDS):",
+        replace=(
+            "    if not isinstance(candidate, dict) or not set(FIELDS) <= set(candidate):"
+            "  # SABOTAGE"
+        ),
+    ),
+    Mutation(
+        name="document_check_skipped",
+        what=(
+            "The office issues against a signed document without checking "
+            "that the document is what its payload renders to."
+        ),
+        path="src/ovpoc/vro.py",
+        find=(
+            "        if not checked.accepted:\n"
+            "            return None, self._record(\n"
+            "                found.identifier, Outcome.DOCUMENT_REFUSED,\n"
+            '                f"the signed document was refused: {checked.refusal.value}",\n'
+            "            )"
+        ),
+        replace="        pass  # SABOTAGE: take the document on trust",
+    ),
 ]
 
 
