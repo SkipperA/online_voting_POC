@@ -28,8 +28,6 @@ import hashlib
 import io
 import logging
 import re
-import shutil
-import subprocess
 
 import pytest
 
@@ -359,17 +357,21 @@ def test_a_later_revision_clobbering_an_xref_stream_is_still_read(
     key, cert = _issue(_name(cn="TESZT POLGAR", serial=SERIAL, country="HU"),
                        issuer=ca_cert.subject, issuer_key=ca_key)
 
-    # qpdf rewrites the document with cross-reference streams, which is what
-    # the real file has and what `render` deliberately does not produce.
-    directory = tmp_path_factory.mktemp("streams")
-    (directory / "in.pdf").write_bytes(unsigned)
-    if shutil.which("qpdf") is None:
-        pytest.skip("qpdf is not on PATH")
-    subprocess.run(["qpdf", "--object-streams=generate", "--deterministic-id",
-                    str(directory / "in.pdf"), str(directory / "out.pdf")],
-                   check=True, capture_output=True)
-    signed = _sign((directory / "out.pdf").read_bytes(), key, cert, ca_cert,
-                   tmp_path_factory)
+    # Rewritten with cross-reference streams, which is what the real file
+    # has and what `render` deliberately does not produce. Through
+    # pyHanko's own writer rather than an external tool: a test that skips
+    # when some command is missing defends nothing, and the runner now
+    # refuses to write a report at all when the baseline skipped anything.
+    # That rule arrived one patch before this test, and this test broke it.
+    from pyhanko.pdf_utils.reader import PdfFileReader
+    from pyhanko.pdf_utils.writer import copy_into_new_writer
+
+    out = io.BytesIO()
+    copy_into_new_writer(
+        PdfFileReader(io.BytesIO(unsigned)),
+        writer_kwargs={"stream_xrefs": True},
+    ).write(out)
+    signed = _sign(out.getvalue(), key, cert, ca_cert, tmp_path_factory)
 
     xref_objects = [int(m.group(1)) for m in re.finditer(
         rb"(?<![0-9])(\d+) 0 obj\s*<<[^>]*?/Type\s*/XRef", signed, re.S)]

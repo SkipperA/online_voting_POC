@@ -579,8 +579,11 @@ def main() -> int:
         for reason in sorted(set(not_run)):
             print(f"  - {reason}")
         print("\nRefusing to write a report that describes a different suite")
-        print("from the one CI runs. Install everything first:")
+        print("from the one CI runs. Each reason above says what is missing;")
+        print("supply it and run again. A missing optional extra is")
         print('  pip install -e ".[dev]"')
+        print("-- but a skip for anything else is a test that should not have")
+        print("been written to skip, and the fix belongs in the test.")
         return 1
 
     print("Baseline green.\n")

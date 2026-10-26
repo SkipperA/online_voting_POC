@@ -486,6 +486,15 @@ register is `VRO.register` — a set of ids, and nothing else.
   runner now refuses to write a report when the baseline skipped anything,
   and names what was skipped. Install with `pip install -e ".[dev]"` before
   regenerating.
+
+  The rule is about skips and not about extras, which is worth saying
+  because the next violation was a different kind: a test that called
+  `pytest.skip` when `qpdf` was not on `PATH`, written one patch after this
+  note. An extra can be installed; a command-line tool the suite assumes is
+  a suite that means something different on two machines, and `pip install`
+  cannot fix it. **The test suite depends on what `pyproject.toml`
+  declares, and on nothing else.** `tools/` may shell out to whatever is
+  useful and say so when it is absent; `tests/` may not.
 - Keep `docs/wire-contract.md` in step with the code: it maps every field on
   the wire to the clause it discharges, and ends with two lists worth
   re-reading before any paper edit -- fields with no clause behind them, and
