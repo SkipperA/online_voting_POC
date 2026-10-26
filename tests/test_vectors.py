@@ -21,7 +21,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from ovpoc import keys as ovkeys, ledger, rsabssa
+from ovpoc import keys as ovkeys, ledger, pdfrequest, rsabssa
 from ovpoc.messages import AuthRequest, Ballot, b64, canonical_bytes, unb64
 from ovpoc.vro import denial_payload, release_query_payload
 
@@ -196,3 +196,38 @@ def test_ledger_vectors():
             assert entry.entry_hash.hex() == want["entry_hash_hex"], v["name"]
         assert log.head().hex() == expected["head_hex"], v["name"]
         assert log.verify_chain() is expected["chain_verifies"], v["name"]
+
+
+def test_pdf_request_vectors():
+    """The document the citizen's own wallet signs, byte for byte.
+
+    Pinned at this strength because the office's rule is to *rebuild* a
+    request and compare rather than to read one: a second implementation
+    that renders a single byte differently does not merely format things
+    oddly, it produces requests the office refuses as "not as rendered" --
+    a message about the document which is really a message about the
+    renderer. The whole file is committed rather than only its digest, so
+    the other implementation can see where it diverged.
+    """
+    for v in load("pdf-request")["vectors"]:
+        i, expected = v["input"], v["expected"]
+        blinded = unb64(i["blinded_key_b64url"])
+        payload = pdfrequest.payload_of(
+            i["election_id"], i["config_digest"], blinded)
+
+        assert hashlib.sha256(canonical_bytes(payload)).hexdigest() == \
+            expected["payload_canonical_sha256"], v["name"]
+        assert pdfrequest.fingerprint(blinded) == expected["fingerprint"], v["name"]
+
+        document = pdfrequest.render(payload)
+        assert len(document) == expected["document_bytes"], v["name"]
+        assert hashlib.sha256(document).hexdigest() == \
+            expected["document_sha256"], v["name"]
+        assert document == unb64(expected["document_b64"]), v["name"]
+
+        # And the rule closes over its own output: the office rebuilds what
+        # this vector pins and must accept it.
+        result = pdfrequest.check(document + b"\n%%EOF\n",
+                                  covered_prefix_length=len(document))
+        assert result.accepted is True, v["name"]
+        assert result.payload == payload, v["name"]

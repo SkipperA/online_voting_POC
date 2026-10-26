@@ -48,7 +48,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from cryptography.hazmat.primitives import serialization  # noqa: E402
 from cryptography.hazmat.primitives.asymmetric import ed25519  # noqa: E402
 
-from ovpoc import keys as ovkeys, ledger, rsabssa  # noqa: E402
+from ovpoc import keys as ovkeys, ledger, pdfrequest, rsabssa  # noqa: E402
 from ovpoc.messages import AuthRequest, Ballot, b64, canonical_bytes, digest, unb64  # noqa: E402
 from ovpoc.vro import denial_payload, release_query_payload  # noqa: E402
 
@@ -413,6 +413,72 @@ def group_ledger() -> tuple[str, str, list[dict]]:
 
 # --------------------------------------------------------------------------
 
+def group_pdf_request() -> tuple[str, str, list[dict]]:
+    """The document the citizen's own wallet signs, byte for byte.
+
+    Pinned here because two implementations must produce the same bytes and
+    nothing else would notice if they stopped: the office rebuilds the
+    document from the payload it recovered and compares, so a Swift client
+    one space out produces requests that are refused as "not as rendered" --
+    a message about the document that is really a message about the
+    renderer.
+
+    `document_b64` carries the whole file rather than only its digest. A
+    digest tells a second implementation that it is wrong; the bytes tell it
+    where.
+    """
+    fallback = [
+        {
+            "name": "ordinary",
+            "input": {
+                "election_id": "demo-2026",
+                "config_digest": "a" * 64,
+                "blinded_key_b64url": b64(
+                    hashlib.sha512(b"ovpoc-pdf-request-c").digest() * 6),
+            },
+        },
+        {
+            # The three characters a PDF literal string must escape, in a
+            # field that is rendered on the page and *not* escaped in the
+            # canonical JSON. An implementation that escapes in both places,
+            # or in neither, disagrees only on inputs like this one.
+            "name": "delimiters-in-the-election-id",
+            "input": {
+                "election_id": r"demo (2026) \ beta",
+                "config_digest": "b" * 64,
+                "blinded_key_b64url": b64(
+                    hashlib.sha512(b"ovpoc-pdf-request-c2").digest() * 6),
+            },
+        },
+    ]
+
+    vectors = []
+    for v in inputs_of("pdf-request", fallback):
+        i = v["input"]
+        blinded = unb64(i["blinded_key_b64url"])
+        payload = pdfrequest.payload_of(
+            i["election_id"], i["config_digest"], blinded)
+        document = pdfrequest.render(payload)
+        vectors.append({
+            "name": v["name"],
+            "input": i,
+            "expected": {
+                "payload_canonical_sha256": hashlib.sha256(
+                    canonical_bytes(payload)).hexdigest(),
+                "fingerprint": pdfrequest.fingerprint(blinded),
+                "document_bytes": len(document),
+                "document_sha256": hashlib.sha256(document).hexdigest(),
+                "document_b64": b64(document),
+            },
+        })
+    return ("pdf-request",
+            "The token-request document, byte for byte. The office rebuilds it "
+            "from the payload it recovered and compares, so an implementation "
+            "that renders one byte differently produces requests that are "
+            "refused rather than merely formatted oddly.",
+            vectors)
+
+
 def build() -> dict[str, str]:
     priv, pub, wallet, adhoc = load_keys()
     groups = [
@@ -422,6 +488,7 @@ def build() -> dict[str, str]:
         group_fingerprint(pub),
         group_rsabssa(priv, pub, adhoc),
         group_ledger(),
+        group_pdf_request(),
     ]
     return {suite: render(suite, desc, vecs) for suite, desc, vecs in groups}
 

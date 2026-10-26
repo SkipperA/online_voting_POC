@@ -312,6 +312,48 @@ MUTATIONS = [
         find="        self._openings = _in_chain_order(self.release_log, openings)",
         replace="        self._openings = dict(openings)  # SABOTAGE: storage order",
     ),
+    Mutation(
+        name="document_prefix_check_removed",
+        what=(
+            "The office accepts the payload it extracted from a token-request "
+            "document without rebuilding the document and comparing."
+        ),
+        path="src/ovpoc/pdfrequest.py",
+        find=(
+            "    if document[:len(expected)] != expected:\n"
+            "        return DocumentCheck(accepted=False, refusal=Refusal.NOT_AS_RENDERED,\n"
+            "                             rendered_bytes=len(expected))"
+        ),
+        replace="    pass  # SABOTAGE: trust what was extracted, do not rebuild",
+    ),
+    Mutation(
+        name="carrier_disagreement_resolved_by_preference",
+        what=(
+            "A document whose embedded copy and marker comment disagree is "
+            "resolved in favour of whichever was found first, rather than refused."
+        ),
+        path="src/ovpoc/pdfrequest.py",
+        find=(
+            "    if len(set(found.values())) > 1:\n"
+            "        return None, None, Refusal.CARRIERS_DISAGREE"
+        ),
+        replace="    pass  # SABOTAGE: prefer the first carrier",
+    ),
+    Mutation(
+        name="document_coverage_check_removed",
+        what=(
+            "The office stops requiring the signature to cover the whole of "
+            "the document it rebuilt."
+        ),
+        path="src/ovpoc/pdfrequest.py",
+        find=(
+            "    if covered_prefix_length < len(expected):\n"
+            "        return DocumentCheck(\n"
+            "            accepted=False, refusal=Refusal.SIGNATURE_DOES_NOT_COVER_IT,\n"
+            "            rendered_bytes=len(expected))"
+        ),
+        replace="    pass  # SABOTAGE: ignore what the signature covered",
+    ),
 ]
 
 

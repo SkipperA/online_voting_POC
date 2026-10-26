@@ -48,6 +48,7 @@ with the service layer in place.
 | `vro.py` | Eligibility, token issue, release log | 5, 6, 7, 12 |
 | `ballotbox.py` | Acceptance, storage, publication, tally | 10, 11 |
 | `voter.py` | The voter's whole flow in one file | 1–4, 8, 9, 13 |
+| `pdfrequest.py` | The token request as a signable document, and the rule that reads it back | 3, 4 (second route) |
 | `driver/population_register.py` | **Not a component.** External identity service | — |
 
 **`driver/` is outside the library deliberately.** The population register
