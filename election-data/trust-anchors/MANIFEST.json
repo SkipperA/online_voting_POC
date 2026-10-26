@@ -1,0 +1,13 @@
+{
+  "anchors": [
+    {
+      "file": "govca-ecc-root.cer",
+      "not_after": "2047-08-02T08:57:22+00:00",
+      "self_signed": true,
+      "sha256": "b1ed0b29d0542b2a1371d966f58e420b9ebd9ca19fb9b2af81e6de1e99d5e08a",
+      "source": "http://qca.hiteles.gov.hu/ecc/cer/govca-ecc-root.cer",
+      "subject": "CN=GovCA Főtanúsítványkiadó,2.5.4.97=VATHU-10585560,O=NISZ Nemzeti Infokommunikációs Szolgáltató Zrt.,L=Budapest,C=HU"
+    }
+  ],
+  "pinned": "2026-10-26"
+}

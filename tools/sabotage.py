@@ -467,6 +467,39 @@ MUTATIONS = [
         find="            reader = PdfFileReader(io.BytesIO(document), strict=False)",
         replace="            reader = PdfFileReader(io.BytesIO(document))",
     ),
+    Mutation(
+        name="pinned_anchor_digests_not_checked",
+        what=(
+            "The office loads its trust anchors without checking them "
+            "against the manifest, so a certificate swapped on disk is "
+            "trusted silently."
+        ),
+        path="driver/qualified_signature.py",
+        find=(
+            "            if actual != entry[\"sha256\"]:\n"
+            "                raise TrustAnchorsRefused("
+        ),
+        replace=(
+            "            if False:  # SABOTAGE\n"
+            "                raise TrustAnchorsRefused("
+        ),
+    ),
+    Mutation(
+        name="unrecorded_anchors_are_trusted",
+        what=(
+            "A certificate dropped into the anchor directory that no "
+            "manifest entry accounts for is loaded anyway."
+        ),
+        path="driver/qualified_signature.py",
+        find=(
+            "        if stray:\n"
+            "            raise TrustAnchorsRefused("
+        ),
+        replace=(
+            "        if False:  # SABOTAGE\n"
+            "            raise TrustAnchorsRefused("
+        ),
+    ),
 ]
 
 

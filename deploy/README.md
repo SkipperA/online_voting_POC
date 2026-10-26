@@ -103,6 +103,43 @@ Caddy itself is untouched by an update that changes no file under
 `deploy/`, and its certificates live in a named volume, so nothing is
 re-requested and the rate limit is not approached.
 
+## Telling the office what to trust
+
+Only needed for the qualified-signature route. Without it the office offers
+no such route at all, which is the honest state for one that has not been
+configured for it -- and is a different thing from an office that offers the
+route and refuses every request.
+
+    python tools/fetch_trust_anchors.py --into election-data/trust-anchors \
+        http://qca.hiteles.gov.hu/ecc/cer/govca-ecc-root.cer
+
+The directory sits beside the elections rather than inside one, so minting a
+new election does not silently change whose signatures are accepted, and it
+is in the mounted volume, so a rebuild does not discard it.
+
+One certificate is enough, and that is worth knowing rather than assuming: a
+document signed by the DAP application carries its own chain in a `/DSS` --
+the signer, the issuing authority, the timestamp authority and its issuer --
+and none of them is self-signed. Everything reaches `GovCA
+Fotanusitvanykiado`, and that root is the one thing the document does not
+carry.
+
+**Check the fingerprint the tool prints against something that did not come
+down the same wire.** Downloading a root from the authority's own web server
+and trusting it is trust on first use, and this office will then believe
+whoever that authority vouches for. The authority's published practice
+statement or the national trusted list will do; a second download will not.
+
+The manifest records the digest, and the office refuses to start if a file
+in that directory no longer matches it, or if a certificate is there that
+the manifest does not account for. Verify without starting anything:
+
+    python tools/fetch_trust_anchors.py --into election-data/trust-anchors --check
+
+A deployment takes its anchors from a signed European trusted list instead,
+which is what removes the trust-on-first-use step. That difference is a scope
+clause rather than a detail.
+
 ## Checking that an update reached the wire
 
 Ask the container which code it is:

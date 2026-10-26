@@ -80,6 +80,8 @@ also holds the electoral register.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -120,6 +122,15 @@ def subject_identifier(subject: dict[str, str]) -> str | None:
     return f"{country}-{serial}"
 
 
+class TrustAnchorsRefused(Exception):
+    """The pinned anchors are not the ones the manifest records.
+
+    Not a protocol outcome and never reported to a requester: it says the
+    office's own configuration has been altered, which is an operator's
+    problem and nobody else's business.
+    """
+
+
 @dataclass
 class QualifiedSignatureValidation:
     """pyHanko, behind `ovpoc.pdfrequest.SignatureValidation`.
@@ -133,6 +144,10 @@ class QualifiedSignatureValidation:
     host's certificate store.
     """
 
+    #: The manifest naming every anchor and its digest.
+    MANIFEST = "MANIFEST.json"
+    SUFFIXES = (".cer", ".crt", ".der")
+
     trust_roots: tuple[bytes, ...] = ()
     #: Off. An office that turns this on reaches the certification authority
     #: from the machine that holds the electoral register, and reveals to it
@@ -144,19 +159,65 @@ class QualifiedSignatureValidation:
     crls: tuple[bytes, ...] = ()
 
     @classmethod
-    def from_directory(cls, path: Path, **kwargs) -> "QualifiedSignatureValidation":
-        """Every `.cer`/`.crt`/`.der` under a pinned trust-list directory.
+    def from_pinned(cls, path: Path, **kwargs) -> "QualifiedSignatureValidation":
+        """The anchors an operator pinned, checked against their manifest.
 
-        The directory is the artefact an operator produces out of band and
-        the office then reads offline. Its name and date are what a reader
-        inspects to see what this office was willing to believe.
+        The directory is the artefact an operator produces out of band --
+        `tools/fetch_trust_anchors.py` writes it -- and the office then
+        reads offline.  What it contains is the whole of what this office
+        is willing to believe about who signed a request, so it is the
+        shortest and most consequential configuration file in the project.
+
+        **The digests are checked and a mismatch refuses to load.**  An
+        anchor directory is a folder of certificates on a server, and a
+        certificate quietly added or swapped there is an office that will
+        accept signatures from a new authority without anybody noticing:
+        nothing downstream would look wrong, because a signature under a
+        trusted anchor is exactly what a valid request looks like. The
+        manifest is what makes a change visible, and it is worth nothing
+        unless loading enforces it.
+
+        Failing here rather than later is deliberate. An office that
+        started up and then refused every request would look like a broken
+        wallet; an office that started up having silently trusted an
+        unverified anchor would look like nothing at all.
         """
-        roots = tuple(
-            p.read_bytes()
-            for p in sorted(path.iterdir())
-            if p.suffix.lower() in (".cer", ".crt", ".der")
-        )
-        return cls(trust_roots=roots, **kwargs)
+        manifest_path = path / cls.MANIFEST
+        if not manifest_path.exists():
+            raise TrustAnchorsRefused(
+                f"{path} has no {cls.MANIFEST}: an anchor directory without "
+                f"one is a folder of certificates nobody has vouched for"
+            )
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        roots: list[bytes] = []
+        for entry in manifest.get("anchors", []):
+            anchor = path / entry["file"]
+            if not anchor.exists():
+                raise TrustAnchorsRefused(
+                    f"{entry['file']} is in {cls.MANIFEST} and not in {path}")
+            der = anchor.read_bytes()
+            actual = hashlib.sha256(der).hexdigest()
+            if actual != entry["sha256"]:
+                raise TrustAnchorsRefused(
+                    f"{entry['file']} is not the certificate this office "
+                    f"pinned: the manifest says {entry['sha256'][:16]}… and "
+                    f"the file is {actual[:16]}…"
+                )
+            roots.append(der)
+
+        # Named in the manifest and absent from it are different, and so
+        # are a stray file and a swapped one. A certificate nobody recorded
+        # is not an anchor this office pinned.
+        recorded = {e["file"] for e in manifest.get("anchors", [])}
+        stray = sorted(p.name for p in path.iterdir()
+                       if p.suffix.lower() in cls.SUFFIXES and p.name not in recorded)
+        if stray:
+            raise TrustAnchorsRefused(
+                f"{path} holds certificates no manifest entry accounts for: "
+                f"{', '.join(stray)}"
+            )
+        return cls(trust_roots=tuple(roots), **kwargs)
 
     # ------------------------------------------------------------------
     def validate(self, document: bytes) -> ValidatedSignature | None:

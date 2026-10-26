@@ -34,6 +34,14 @@ from . import origins, store
 _SUFFIX = f"-{origins.OFFSET}" if origins.OFFSET else ""
 DOCUMENT_ROOT = Path(f"/tmp/ovpoc-config{_SUFFIX}")
 DATA_DIR = Path("election-data")
+
+#: Where an operator pins the certificates this office will believe. Beside
+#: the elections rather than inside one, because what the office trusts is a
+#: property of the deployment and not of a poll: minting a new election must
+#: not silently change whose signatures are accepted.
+#: `tools/fetch_trust_anchors.py` writes it; absent, the
+#: qualified-signature route is simply not offered.
+TRUST_ANCHORS = "trust-anchors"
 DEFAULT_ELECTION_ID = "demo-2026"
 DEFAULT_CHOICES = 4
 DEFAULT_BITS = 3072
@@ -44,6 +52,31 @@ DEFAULT_BITS = 3072
 # reader checks the acts against.
 DEFAULT_OPENS = "2026-09-25T08:00:00Z"
 DEFAULT_CLOSES = "2026-09-25T20:00:00Z"
+
+
+def _signature_validation(data_dir: Path | None):
+    """The validator, if this deployment has been told what to trust.
+
+    `None` when there are no pinned anchors, and the office then offers no
+    qualified-signature route at all -- which is the honest state for an
+    office that has not been configured for one. It is *not* an empty
+    anchor list: that would be an office which offers the route and refuses
+    every request, and the two look identical to a voter and are completely
+    different to an operator.
+
+    A directory whose contents disagree with its manifest raises, and the
+    deployment does not start. That is deliberate: an office that came up
+    having silently trusted a swapped certificate would look like nothing
+    at all.
+    """
+    if data_dir is None:
+        return None
+    anchors = data_dir / TRUST_ANCHORS
+    if not anchors.is_dir():
+        return None
+    from driver.qualified_signature import QualifiedSignatureValidation
+
+    return QualifiedSignatureValidation.from_pinned(anchors)
 
 
 @dataclass
@@ -114,6 +147,7 @@ class Deployment:
     ) -> "Deployment":
         population = PopulationRegister()
         vro = VRO.create(population, bits=bits, election_id=election_id)
+        vro.signature_validation = _signature_validation(DATA_DIR)
         ebb = BallotBox(vro_public_key=vro.public_key, num_choices=num_choices,
                         tally_interval_seconds=tally_interval_seconds,
                         election_id=election_id)
@@ -283,6 +317,7 @@ class Deployment:
             office_key=body["statement_key"],
             election_id=body["election_id"],
             register=set(body["electoral_register"]),
+            signature_validation=_signature_validation(path),
         )
         wallets = body["wallet_personas"]
         for voter_id, pair in wallets.items():

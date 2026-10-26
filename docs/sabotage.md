@@ -50,6 +50,8 @@ confident the surrounding comments sound.
 | document_check_skipped | `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`<br>`test_a_payload_claiming_an_identifier_is_not_a_token_request`<br>`test_a_signature_covering_less_than_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | validator_inherits_the_modification_verdict | `test_a_later_revision_clobbering_an_xref_stream_is_still_read`<br>`test_a_later_revision_that_frees_an_object_still_identifies_the_signer`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | pdf_reader_put_back_in_strict_mode | `test_a_later_revision_clobbering_an_xref_stream_is_still_read`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| pinned_anchor_digests_not_checked | `test_a_swapped_certificate_refuses_to_load`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_check_command_reports_what_loading_would_refuse` |
+| unrecorded_anchors_are_trusted | `test_a_certificate_nobody_recorded_refuses_to_load`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_check_command_notices_a_file_nobody_recorded` |
 
 ## Detail
 
@@ -540,7 +542,29 @@ Caught by:
 - `test_a_later_revision_clobbering_an_xref_stream_is_still_read`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 
+### `pinned_anchor_digests_not_checked`
+
+The office loads its trust anchors without checking them against the manifest, so a certificate swapped on disk is trusted silently.
+
+Patched in `driver/qualified_signature.py`.
+
+Caught by:
+- `test_a_swapped_certificate_refuses_to_load`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_check_command_reports_what_loading_would_refuse`
+
+### `unrecorded_anchors_are_trusted`
+
+A certificate dropped into the anchor directory that no manifest entry accounts for is loaded anyway.
+
+Patched in `driver/qualified_signature.py`.
+
+Caught by:
+- `test_a_certificate_nobody_recorded_refuses_to_load`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_check_command_notices_a_file_nobody_recorded`
+
 ## Summary
 
-- 39 of 39 mutations were detected.
+- 41 of 41 mutations were detected.
 - 0 were not.
