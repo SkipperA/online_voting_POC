@@ -42,6 +42,9 @@ confident the surrounding comments sound.
 | document_prefix_check_removed | `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`<br>`test_a_swapped_payload_cannot_produce_a_false_accept` |
 | carrier_disagreement_resolved_by_preference | `test_carriers_that_disagree_are_refused_rather_than_resolved` |
 | document_coverage_check_removed | `test_a_refusal_hands_back_no_payload`<br>`test_a_signature_that_stops_short_of_the_document_is_refused` |
+| revocation_collapsed_into_not_identified | **none** |
+| identity_taken_from_the_common_name | **none** |
+| coverage_counted_from_a_range_not_starting_at_zero | **none** |
 
 ## Detail
 
@@ -404,7 +407,31 @@ Caught by:
 - `test_a_refusal_hands_back_no_payload`
 - `test_a_signature_that_stops_short_of_the_document_is_refused`
 
+### `revocation_collapsed_into_not_identified`
+
+The signature validator inherits the library's verdict whole, so a revoked or expired certificate is reported as no valid signature rather than as an identified signer with a problem.
+
+Patched in `driver/qualified_signature.py`.
+
+**Not caught by any test.** This is a coverage gap.
+
+### `identity_taken_from_the_common_name`
+
+The office identifies a citizen by the name on their certificate rather than by the serial number the authority allocated.
+
+Patched in `driver/qualified_signature.py`.
+
+**Not caught by any test.** This is a coverage gap.
+
+### `coverage_counted_from_a_range_not_starting_at_zero`
+
+A signature whose ByteRange does not begin at byte zero is credited with covering the document's prefix anyway.
+
+Patched in `driver/qualified_signature.py`.
+
+**Not caught by any test.** This is a coverage gap.
+
 ## Summary
 
-- 31 of 31 mutations were detected.
-- 0 were not.
+- 31 of 34 mutations were detected.
+- 3 were not.

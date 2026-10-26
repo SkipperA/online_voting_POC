@@ -406,9 +406,36 @@ class SuiteDidNotRun(RuntimeError):
     """
 
 
-def failing_tests() -> list[str]:
+def parse_report(stdout: str) -> tuple[list[str], list[str]]:
+    """Failing test names and skip reasons, out of pytest's short summary.
+
+    Separated from the subprocess so that it can be tested, which matters
+    more than it looks: everything this tool reports is read through here,
+    and a parser that silently stopped recognising a line would under-report
+    in the direction that looks like success.
+    """
+    failures: list[str] = []
+    skips: list[str] = []
+    for line in stdout.splitlines():
+        if line.startswith("FAILED "):
+            failures.append(line.split()[1].split("::")[-1])
+        elif line.startswith("ERROR "):
+            failures.append("ERROR " + line.split()[1])
+        elif line.startswith("SKIPPED "):
+            # `SKIPPED [1] tests/x.py:36: the pades extra is not installed`
+            skips.append(line.partition("] ")[2] or line)
+    return sorted(set(failures)), skips
+
+
+def failing_tests(skipped: list[str] | None = None) -> list[str]:
+    """Which tests fail, and -- if asked -- which did not run at all.
+
+    `skipped` is filled in rather than returned, because every caller but
+    the baseline wants the failures and nothing else. See `main` for why
+    anybody wants the skips.
+    """
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "--no-header", "-rf"],
+        [sys.executable, "-m", "pytest", "-q", "--no-header", "-rf", "-rs"],
         cwd=ROOT, capture_output=True, text=True,
     )
     # pytest: 0 = all passed, 1 = tests failed. Anything else means it did not
@@ -421,12 +448,9 @@ def failing_tests() -> list[str]:
             f"--- stderr ---\n{result.stderr[-2000:]}"
         )
 
-    names = []
-    for line in result.stdout.splitlines():
-        if line.startswith("FAILED "):
-            names.append(line.split()[1].split("::")[-1])
-        elif line.startswith("ERROR "):
-            names.append("ERROR " + line.split()[1])
+    names, skips = parse_report(result.stdout)
+    if skipped is not None:
+        skipped.extend(skips)
 
     # A non-zero exit with nothing parsed means the output format changed and we
     # would silently under-report. Refuse rather than guess.
@@ -435,12 +459,13 @@ def failing_tests() -> list[str]:
             "pytest reported failures but none could be parsed; "
             f"output format may have changed:\n{result.stdout[-2000:]}"
         )
-    return sorted(set(names))
+    return names
 
 
 def main() -> int:
+    not_run: list[str] = []
     try:
-        baseline = failing_tests()
+        baseline = failing_tests(skipped=not_run)
     except SuiteDidNotRun as exc:
         print("Cannot run the sabotage suite: the test suite itself did not run.")
         print("Install the dev extras first:  pip install -e \".[dev]\"\n")
@@ -449,6 +474,29 @@ def main() -> int:
     if baseline:
         print("Baseline suite is not green; fix that first:", baseline)
         return 1
+
+    # A skipped test cannot catch anything, so a mutation whose only
+    # defenders are skipped is reported NOT CAUGHT -- truthfully, and about
+    # the environment rather than about the code. That is the worst kind of
+    # true: `docs/sabotage.md` is committed and CI diffs it, so a report
+    # written here with the `pades` extra missing says a defence is
+    # undefended when CI, which installs it, will say the opposite. The
+    # report would describe a suite nobody else runs.
+    #
+    # It happened the first time an optional extra appeared. Three
+    # mutations in `driver/qualified_signature.py` came back NOT CAUGHT on
+    # a machine whose virtual environment predated the extra, and the only
+    # thing distinguishing that from a real coverage gap was knowing which
+    # patch had just landed.
+    if not_run:
+        print("Baseline green, but some tests did not run:\n")
+        for reason in sorted(set(not_run)):
+            print(f"  - {reason}")
+        print("\nRefusing to write a report that describes a different suite")
+        print("from the one CI runs. Install everything first:")
+        print('  pip install -e ".[dev]"')
+        return 1
+
     print("Baseline green.\n")
 
     results: list[tuple[Mutation, list[str]]] = []

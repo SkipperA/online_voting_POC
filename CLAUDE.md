@@ -436,6 +436,16 @@ register is `VRO.register` — a set of ids, and nothing else.
   shows a test actually constrains the check it names. Adding the key-pinning
   mutation is how the missing pinning test was found. `docs/sabotage.md` is
   generated -- never hand-edit it.
+- **A mutation defended only by skippable tests is not defended.** The
+  report is committed and CI diffs it, so it has to mean the same thing on
+  every machine that writes it. It did not, the first time an optional
+  extra appeared: the three `driver/qualified_signature.py` mutations came
+  back NOT CAUGHT in a virtual environment predating the `pades` extra,
+  because the tests that defend them are skipped without it -- true, about
+  the environment, and the opposite of what CI would have written. The
+  runner now refuses to write a report when the baseline skipped anything,
+  and names what was skipped. Install with `pip install -e ".[dev]"` before
+  regenerating.
 - Keep `docs/wire-contract.md` in step with the code: it maps every field on
   the wire to the clause it discharges, and ends with two lists worth
   re-reading before any paper edit -- fields with no clause behind them, and
