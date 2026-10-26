@@ -39,6 +39,9 @@ confident the surrounding comments sound.
 | submissions_accepted_after_the_close | `test_a_ballot_arriving_after_the_close_is_not_recorded`<br>`test_the_adversarial_scenarios_all_hold` |
 | receipt_omits_the_entry_position | `test_a_tampered_receipt_does_not_verify`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_inclusion_check_works_from_the_receipt_alone` |
 | reloaded_register_keeps_the_stored_order | `test_the_reloaded_register_chains_to_the_head_the_office_signed` |
+| document_prefix_check_removed | `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`<br>`test_a_swapped_payload_cannot_produce_a_false_accept` |
+| carrier_disagreement_resolved_by_preference | `test_carriers_that_disagree_are_refused_rather_than_resolved` |
+| document_coverage_check_removed | `test_a_refusal_hands_back_no_payload`<br>`test_a_signature_that_stops_short_of_the_document_is_refused` |
 
 ## Detail
 
@@ -372,7 +375,36 @@ Patched in `src/ovpoc/vro.py`.
 Caught by:
 - `test_the_reloaded_register_chains_to_the_head_the_office_signed`
 
+### `document_prefix_check_removed`
+
+The office accepts the payload it extracted from a token-request document without rebuilding the document and comparing.
+
+Patched in `src/ovpoc/pdfrequest.py`.
+
+Caught by:
+- `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`
+- `test_a_swapped_payload_cannot_produce_a_false_accept`
+
+### `carrier_disagreement_resolved_by_preference`
+
+A document whose embedded copy and marker comment disagree is resolved in favour of whichever was found first, rather than refused.
+
+Patched in `src/ovpoc/pdfrequest.py`.
+
+Caught by:
+- `test_carriers_that_disagree_are_refused_rather_than_resolved`
+
+### `document_coverage_check_removed`
+
+The office stops requiring the signature to cover the whole of the document it rebuilt.
+
+Patched in `src/ovpoc/pdfrequest.py`.
+
+Caught by:
+- `test_a_refusal_hands_back_no_payload`
+- `test_a_signature_that_stops_short_of_the_document_is_refused`
+
 ## Summary
 
-- 28 of 28 mutations were detected.
+- 31 of 31 mutations were detected.
 - 0 were not.
