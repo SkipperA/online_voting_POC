@@ -48,6 +48,8 @@ confident the surrounding comments sound.
 | document_route_keeps_its_own_released_set | `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_poll_with_both_routes_survives_being_written_and_read_back`<br>`test_a_reservation_on_one_route_blocks_the_other`<br>`test_a_token_from_the_document_route_is_an_ordinary_token`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_certificate_status_is_reported_only_after_identity[expired]`<br>`test_certificate_status_is_reported_only_after_identity[revoked]`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_supervision_shows_the_digest_and_not_the_document`<br>`test_the_office_keeps_the_signed_document_as_the_citizens_own_request` |
 | request_payload_accepts_extra_fields | `test_a_payload_with_the_wrong_fields_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | document_check_skipped | `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`<br>`test_a_payload_claiming_an_identifier_is_not_a_token_request`<br>`test_a_signature_covering_less_than_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| validator_inherits_the_modification_verdict | `test_a_later_revision_clobbering_an_xref_stream_is_still_read`<br>`test_a_later_revision_that_frees_an_object_still_identifies_the_signer`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| pdf_reader_put_back_in_strict_mode | `test_a_later_revision_clobbering_an_xref_stream_is_still_read`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 
 ## Detail
 
@@ -517,7 +519,28 @@ Caught by:
 - `test_a_signature_covering_less_than_the_document_is_refused`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 
+### `validator_inherits_the_modification_verdict`
+
+The office refuses a signed document because of what a later, unsigned revision did to it -- which is every document the real wallet produces.
+
+Patched in `driver/qualified_signature.py`.
+
+Caught by:
+- `test_a_later_revision_clobbering_an_xref_stream_is_still_read`
+- `test_a_later_revision_that_frees_an_object_still_identifies_the_signer`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+
+### `pdf_reader_put_back_in_strict_mode`
+
+The office reads an uploaded document with a strict parser, which refuses the structure the real wallet writes before any signature is checked.
+
+Patched in `driver/qualified_signature.py`.
+
+Caught by:
+- `test_a_later_revision_clobbering_an_xref_stream_is_still_read`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+
 ## Summary
 
-- 37 of 37 mutations were detected.
+- 39 of 39 mutations were detected.
 - 0 were not.
