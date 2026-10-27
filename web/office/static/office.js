@@ -23,6 +23,36 @@ async function refresh() {
     `<tr><td>its purpose</td><td>${keys['k_p^(O) purpose']}</td></tr>` +
     `</tbody></table>`;
 
+  // Whether the second route is offered at all, and on whose certificates.
+  // An office that is not offering it should say so here rather than only
+  // to the voter it turns away -- and should say which directory it read,
+  // because anchors in the wrong place and no anchors at all look the same
+  // from every other angle.
+  const trust = await (await fetch('/back-office/trust')).json();
+  const where = esc(trust.looked_in ?? 'nowhere — no directory configured');
+  $('trust').innerHTML = trust.offered
+    ? `<div class="row"><span class="label">route</span>`
+      + `<span class="value same">offered</span></div>`
+      + `<div class="row"><span class="label">anchors read from</span>`
+      + `<span class="value mono">${where}</span></div>`
+      + `<div class="row"><span class="label">pinned on</span>`
+      + `<span class="value">${esc(trust.pinned_on || 'not recorded')}</span></div>`
+      + `<table style="margin-top:.7rem"><thead><tr><th>subject</th>`
+      + `<th>sha-256</th><th>fetched from</th></tr></thead><tbody>`
+      + (trust.anchors.length
+          ? trust.anchors.map((a) =>
+              `<tr><td>${esc(a.subject)}</td>`
+              + `<td class="mono">${esc(String(a.sha256).slice(0, 24))}…</td>`
+              + `<td class="mono">${esc(a.source)}</td></tr>`).join('')
+          : `<tr><td colspan="3" class="muted">the validator records no `
+            + `provenance for its anchors</td></tr>`)
+      + `</tbody></table>`
+    : `<div class="row"><span class="label">route</span>`
+      + `<span class="value held">not offered</span></div>`
+      + `<div class="row"><span class="label">looked in</span>`
+      + `<span class="value mono">${where}</span></div>`
+      + `<p class="prose" style="margin:.6rem 0 0">${esc(trust.why)}</p>`;
+
   const held = await (await fetch('/back-office/pending')).json();
   $('manual').checked = held.manual_release;
   $('pending').innerHTML = held.pending.length

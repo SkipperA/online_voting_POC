@@ -119,6 +119,39 @@ def test_an_office_told_nothing_to_trust_says_so(office):
     assert response.json() == {"outcome": "ROUTE_NOT_OFFERED"}
 
 
+def test_an_office_offering_no_route_says_which_directory_it_read(
+        office, deployment):
+    """The question an operator has, answered where an operator looks.
+
+    Without this the only way to find out that an office is not offering
+    the route is to be a voter refused by it -- and that answer is about
+    the office's state, deliberately, not about the configuration behind
+    it. Reporting the path is the point: on a hosted deployment the
+    elections are a mounted volume, so the directory the office reads is
+    not the one in a clone of this repository, and anchors in the wrong
+    place look from every other angle exactly like no anchors at all.
+    """
+    body = office.get("/back-office/trust").json()
+    assert body["offered"] is False
+    assert body["looked_in"] == str(deployment.trust_anchors)
+    assert str(deployment.trust_anchors) in body["why"]
+
+
+def test_the_office_s_own_page_is_where_that_is_reported(office):
+    """And wired up, which is not a given.
+
+    `office.js` fills the whole page in one pass, so a container it reads
+    and the page does not define is not a missing section: it is a
+    `null` dereference that stops the audit table and the release
+    register filling too. The feature this patch adds is a diagnostic,
+    and a diagnostic that takes the page down with it is worse than none.
+    """
+    page = office.get("/").text
+    assert 'id="trust"' in page
+    script = (ROOT / "web" / "office" / "static" / "office.js").read_text()
+    assert "/back-office/trust" in script
+
+
 def test_an_oversized_upload_is_refused_without_being_read(office, deployment):
     """The endpoint is reachable by anyone, and reads into memory to check.
 
@@ -180,7 +213,12 @@ def test_every_outcome_the_office_can_return_is_spelled_out_on_the_page():
 # --------------------------------------------------------------------------
 
 @pytest.fixture
-def pinned_office(tmp_path_factory):
+def pinned_office(pinned_deployment) -> TestClient:
+    return TestClient(apps_module.vro_app(pinned_deployment))
+
+
+@pytest.fixture
+def pinned_deployment(tmp_path_factory):
     """A deployment whose anchors are one invented authority.
 
     Built here rather than borrowed from `election-data/trust-anchors`,
@@ -217,10 +255,9 @@ def pinned_office(tmp_path_factory):
     anchors = tmp_path_factory.mktemp("anchors")
     pinner.add(anchors, cert.public_bytes(serialization.Encoding.DER),
                "test-ca.cer", "file:test")
-    deployment = Deployment.create(
+    return Deployment.create(
         bits=2048, document_root=tmp_path_factory.mktemp("config-root"),
         trust_anchors=anchors)
-    return TestClient(apps_module.vro_app(deployment))
 
 
 def test_an_office_with_anchors_offers_the_route(pinned_office):
@@ -239,3 +276,48 @@ def test_an_office_with_anchors_still_caps_the_upload(pinned_office):
         "/signed-token-requests",
         content=b"%PDF-1.7\n" + b"X" * (3 * 1024 * 1024)).json()
     assert body == {"outcome": "TOO_LARGE"}
+
+
+def test_an_office_publishes_the_anchors_it_will_believe(pinned_office):
+    """What the office trusts is the whole of its answer to "who are you".
+
+    Public certificates, their digests and where each was fetched from.
+    Withholding them would make the one configuration that decides whose
+    signatures this office accepts the one thing nobody outside it can
+    read, which is the opposite of what the route is for.
+    """
+    body = pinned_office.get("/back-office/trust").json()
+    assert body["offered"] is True
+    assert body["pinned_on"]
+    assert [a["subject"] for a in body["anchors"]] == ["CN=TEST CA,C=HU"]
+    assert body["anchors"][0]["sha256"]
+    assert body["anchors"][0]["source"] == "file:test"
+
+
+def test_minting_does_not_change_whose_signatures_are_accepted(pinned_deployment):
+    """The reason the anchors sit beside the elections and not inside one.
+
+    `Deployment.create`'s default names a directory relative to this
+    repository, so a mint that let it default gives the new election
+    whatever anchors a clone happens to carry. Both ways it goes wrong
+    are silent. On a hosted deployment, where the elections are a mounted
+    volume and the repository's own `election-data/` is not it, the route
+    turns off the first time an operator mints. In a clone that carries
+    the pinned GovCA root -- this one does -- an office configured to
+    trust one certification authority comes back trusting a different
+    one, which is the failure `from_pinned` refuses to let a swapped file
+    cause and which a mint would cause anyway.
+
+    Nothing published shows either, and no voter can tell the first from
+    an office that never offered the route.
+    """
+    before = pinned_deployment.vro.signature_validation
+    assert before is not None
+
+    pinned_deployment.mint(
+        election_id="demo-2027", num_choices=4, bits=2048,
+        opens="2027-09-25T08:00:00Z", closes="2027-09-25T20:00:00Z")
+
+    after = pinned_deployment.vro.signature_validation
+    assert after is not None, "minting turned the qualified-signature route off"
+    assert after.trust_roots == before.trust_roots

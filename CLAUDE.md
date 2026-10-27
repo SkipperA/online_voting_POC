@@ -115,6 +115,45 @@ register is `VRO.register` — a set of ids, and nothing else.
   tests behind them reproduce both conditions synthetically -- the only
   real example is a named citizen's qualified signature, which does not
   belong in this repository.
+- **What this office trusts belongs to the deployment, not to the poll, and
+  the code has to carry that rather than re-derive it.** The anchors sit
+  beside the elections rather than inside one precisely so that minting
+  cannot change whose signatures are accepted — and `Deployment.mint` called
+  `create` without passing them along, so the new election got
+  `create`'s default: a path relative to this repository. Both ways that
+  goes wrong are silent. Hosted, where the elections are a mounted volume
+  and the repository's `election-data/` is not it, the route turns off the
+  first time an operator mints. In a clone that carries the pinned GovCA
+  root, an office configured for one certification authority comes back
+  trusting another — the exact failure `from_pinned` refuses to let a
+  swapped file cause. `minting_does_not_change_whose_signatures_are_accepted`
+  is the test; a comment asserting the property is not the property.
+- **Three states, and the office must never be in the third silently.** No
+  anchors: no qualified-signature route, said plainly. Anchors and the
+  `pades` extra: the route is offered and performed. Anchors without the
+  extra: `from_pinned` raises `ValidatorUnavailable` and the deployment does
+  not start. The alternative is an office that advertises the route and
+  meets an `ImportError` inside a citizen's upload, which reaches them as
+  their own fault — the same argument that makes a swapped anchor refuse at
+  load rather than at the first request. `validate` still imports lazily so
+  `driver` stays importable without the extra, so there are two lists of
+  module names; `the_load_probe_covers_every_module_the_validator_imports`
+  reads `validate`'s own imports with `ast` and is the only thing keeping
+  them equal. `deploy/Dockerfile` installs `[service,pades]` for the same
+  reason: the operator who pins the anchors and the line that installs the
+  validator are in different places, and the image should not be the half
+  that is missing.
+- **An office that offers no route says which directory it read.** On the
+  qualified-signature route "not configured" and "anchors in the wrong
+  place" are the same page to a voter and the same page to an operator, and
+  the difference between them is a path — on a hosted deployment, the
+  difference between `election-data/` in the checkout and
+  `deploy/election-data/` in the volume. `GET /back-office/trust` reports
+  the state, the path, and the anchors themselves with their digests and
+  sources. Publishing them is not a leak: they are public certificates, and
+  what an office is willing to believe is the whole of its answer to "who
+  are you" — an office whose anchors nobody can read is one nobody can
+  check.
 - **The identity boundary runs through the signature validator too, and a
   library will move it if nothing stops it.** On the qualified-signature
   route there is no certificate lookup: the certificate arrives with the

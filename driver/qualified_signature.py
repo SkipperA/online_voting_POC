@@ -131,6 +131,48 @@ class TrustAnchorsRefused(Exception):
     """
 
 
+class ValidatorUnavailable(RuntimeError):
+    """Anchors are pinned and nothing installed here can act on them.
+
+    An office is in one of three states and only two of them are honest.
+    With no anchors it offers no qualified-signature route, and says so.
+    With anchors and the `pades` extra it offers the route and performs
+    it. With anchors and no extra it would offer a route it cannot carry
+    out -- and the failure would arrive as an unhandled import error in
+    the middle of a citizen's upload, after the office had told them the
+    route was open.
+
+    So it is raised at load. A deployment configured for something it
+    cannot do should not start, for the same reason a swapped anchor
+    should not: an office that comes up wrong looks like an office.
+    """
+
+
+#: The top-level distributions the `pades` extra provides. Probed at load
+#: so a misconfigured office fails there; imported for real inside
+#: `validate`, which is the only thing that needs them.
+#: `test_qualified_signature.py` reads `validate`'s own imports and
+#: requires this tuple to cover them, so the two cannot drift apart.
+PADES_MODULES = ("asn1crypto", "pyhanko", "pyhanko_certvalidator")
+
+
+def require_validator() -> None:
+    """Fail now if the extra is missing. See `ValidatorUnavailable`."""
+    import importlib
+
+    for name in PADES_MODULES:
+        try:
+            importlib.import_module(name)
+        except ImportError as exc:
+            raise ValidatorUnavailable(
+                "this office has pinned trust anchors and nothing to "
+                f"validate a signature with: {name} is not installed. "
+                'Install the extra -- pip install -e ".[pades]" -- or '
+                "remove the anchor directory, which turns the "
+                "qualified-signature route off rather than breaking it."
+            ) from exc
+
+
 @dataclass
 class QualifiedSignatureValidation:
     """pyHanko, behind `ovpoc.pdfrequest.SignatureValidation`.
@@ -158,6 +200,18 @@ class QualifiedSignatureValidation:
     #: whether or not this is supplied.
     crls: tuple[bytes, ...] = ()
 
+    #: What the manifest said about each anchor, kept so the office can be
+    #: asked what it is willing to believe. Public certificates, their
+    #: digests and where they were fetched from: there is nothing here to
+    #: withhold, and an office whose anchors cannot be read is an office
+    #: nobody can check. Empty when the validator was built directly, as
+    #: the tests build it.
+    anchors: tuple[dict, ...] = ()
+    #: The directory they were read from, and the day the operator pinned
+    #: them. Reported as configuration, not as evidence.
+    pinned_from: str = ""
+    pinned_on: str = ""
+
     @classmethod
     def from_pinned(cls, path: Path, **kwargs) -> "QualifiedSignatureValidation":
         """The anchors an operator pinned, checked against their manifest.
@@ -180,8 +234,11 @@ class QualifiedSignatureValidation:
         Failing here rather than later is deliberate. An office that
         started up and then refused every request would look like a broken
         wallet; an office that started up having silently trusted an
-        unverified anchor would look like nothing at all.
+        unverified anchor would look like nothing at all. The same
+        argument is why the `pades` extra is probed here rather than met
+        on a citizen's first upload -- see `ValidatorUnavailable`.
         """
+        require_validator()
         manifest_path = path / cls.MANIFEST
         if not manifest_path.exists():
             raise TrustAnchorsRefused(
@@ -217,7 +274,13 @@ class QualifiedSignatureValidation:
                 f"{path} holds certificates no manifest entry accounts for: "
                 f"{', '.join(stray)}"
             )
-        return cls(trust_roots=tuple(roots), **kwargs)
+        return cls(
+            trust_roots=tuple(roots),
+            anchors=tuple(manifest.get("anchors", [])),
+            pinned_from=str(path),
+            pinned_on=str(manifest.get("pinned", "")),
+            **kwargs,
+        )
 
     # ------------------------------------------------------------------
     def validate(self, document: bytes) -> ValidatedSignature | None:

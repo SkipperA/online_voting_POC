@@ -35,7 +35,7 @@ import fetch_trust_anchors as pinner  # noqa: E402
 pytest.importorskip("pyhanko", reason="the pades extra is not installed")
 
 from driver.qualified_signature import (  # noqa: E402
-    QualifiedSignatureValidation, TrustAnchorsRefused,
+    QualifiedSignatureValidation, TrustAnchorsRefused, ValidatorUnavailable,
 )
 
 DER = serialization.Encoding.DER
@@ -180,3 +180,70 @@ def test_the_check_command_notices_a_file_nobody_recorded(pinned):
     assert len(problems) == 1 and "extra.cer" in problems[0]
     with pytest.raises(TrustAnchorsRefused):
         QualifiedSignatureValidation.from_pinned(pinned)
+
+
+# --------------------------------------------------------------------------
+# Configured for a route this office cannot perform
+# --------------------------------------------------------------------------
+
+def test_anchors_without_the_validator_refuse_to_load(pinned, monkeypatch):
+    """The third state an office can be in, and the only dishonest one.
+
+    No anchors: no qualified-signature route, and the office says so.
+    Anchors and the `pades` extra: the route is offered and performed.
+    Anchors without the extra: an office that advertises the route and
+    then meets an `ImportError` in the middle of a citizen's upload,
+    after having told them the route was open. That is the one failure
+    here that reaches a voter looking like their fault.
+
+    So it is refused at load, for the same reason a swapped certificate
+    is. An office that comes up wrong looks like an office.
+    """
+    import importlib
+    real = importlib.import_module
+
+    def missing(name, *args, **kwargs):
+        if name == "pyhanko":
+            raise ImportError("no module named pyhanko")
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib, "import_module", missing)
+    with pytest.raises(ValidatorUnavailable) as refused:
+        QualifiedSignatureValidation.from_pinned(pinned)
+    # The message has to name the way out, because the person reading it
+    # is on a server and the fix is one install away.
+    assert "pades" in str(refused.value)
+
+
+def test_the_load_probe_covers_every_module_the_validator_imports():
+    """Two import lists, and nothing but this keeps them the same.
+
+    `validate` imports its dependencies lazily so that `driver` stays
+    importable without the extra; `require_validator` probes for them at
+    load so a misconfigured office fails there rather than mid-upload.
+    Those are two lists of names in two places, and the failure mode of
+    them drifting apart is silent: a probe that passes and a `validate`
+    that raises is exactly the state the probe exists to prevent.
+    """
+    import ast
+    import inspect
+    import sys as _sys
+    import textwrap
+
+    from driver import qualified_signature as module
+
+    tree = ast.parse(textwrap.dedent(
+        inspect.getsource(QualifiedSignatureValidation.validate)))
+    roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            roots |= {alias.name.split(".")[0] for alias in node.names}
+        elif isinstance(node, ast.ImportFrom) and not node.level and node.module:
+            roots.add(node.module.split(".")[0])
+
+    missing = roots - set(_sys.stdlib_module_names) - set(module.PADES_MODULES)
+    assert not missing, (
+        "`validate` imports these and `require_validator` does not probe "
+        f"for them: {sorted(missing)} -- an office with anchors pinned and "
+        "one of them missing would start and then fail on a citizen's "
+        "upload, which is what PADES_MODULES exists to prevent")

@@ -90,6 +90,12 @@ class Deployment:
     #: and never reused: minting clears it so that a new election lands
     #: beside the old one rather than on top of it.
     data_folder: Path | None = None
+    #: Where this office looked for its anchors, kept whether or not it
+    #: found any. An office that offers no qualified-signature route must
+    #: be able to say which directory it read, because "not offered" and
+    #: "looked in the wrong place" are the same page to an operator and
+    #: entirely different problems.
+    trust_anchors: Path | None = None
 
     # Staged signing. Off by default, so every existing caller -- the demos,
     # the scripted runs, the tests -- sees `issue_token` behave as one act.
@@ -171,6 +177,7 @@ class Deployment:
             config=config,
             population=population,
             document_root=document_root,
+            trust_anchors=trust_anchors,
         )
 
     def set_tally_interval(self, seconds: int | None) -> None:
@@ -245,6 +252,15 @@ class Deployment:
             opens=opens,
             closes=closes,
             document_root=self.document_root,
+            # Carried, not re-derived. What this office trusts is a
+            # property of the deployment and not of a poll -- the whole
+            # reason the anchors sit beside the elections rather than
+            # inside one -- and `create`'s default names a directory
+            # relative to this repository, which on a hosted deployment is
+            # not the directory the office was started with. Minting would
+            # then silently turn the qualified-signature route off, or on
+            # under anchors nobody chose.
+            trust_anchors=self.trust_anchors,
         )
         for voter_id, wallet in personas.items():
             fresh.wallets[voter_id] = wallet
@@ -392,4 +408,5 @@ class Deployment:
             population=population,
             document_root=document_root,
             wallets=wallets,
+            trust_anchors=path / TRUST_ANCHORS,
         )

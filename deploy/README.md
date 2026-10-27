@@ -110,8 +110,24 @@ no such route at all, which is the honest state for one that has not been
 configured for it -- and is a different thing from an office that offers the
 route and refuses every request.
 
-    python tools/fetch_trust_anchors.py --into election-data/trust-anchors \
+    python tools/fetch_trust_anchors.py --into deploy/election-data/trust-anchors \
         http://qca.hiteles.gov.hu/ecc/cer/govca-ecc-root.cer
+
+**`deploy/election-data/`, not `election-data/`.** That is the mounted
+volume — the same directory the elections are in, as above — and the one the
+container reads as `/data`. This repository also carries
+`election-data/trust-anchors/` at its root, which arrives on a server with
+every `git pull` and which the container never sees: it is there so the test
+suite and a laptop run have something to pin, and on a server it is a decoy.
+Copying it across is enough, and avoids a second download:
+
+    cp -r election-data/trust-anchors deploy/election-data/
+
+The symptom of getting this wrong is an office that answers every upload
+with *this office is not accepting signed documents* while the anchors sit
+in a directory three lines up in the same checkout. `vro.$OVPOC_DOMAIN`
+says which directory it read, under *Qualified-signature route*; compare it
+with where the files are before looking anywhere else.
 
 The directory sits beside the elections rather than inside one, so minting a
 new election does not silently change whose signatures are accepted, and it
@@ -134,7 +150,7 @@ The manifest records the digest, and the office refuses to start if a file
 in that directory no longer matches it, or if a certificate is there that
 the manifest does not account for. Verify without starting anything:
 
-    python tools/fetch_trust_anchors.py --into election-data/trust-anchors --check
+    python tools/fetch_trust_anchors.py --into deploy/election-data/trust-anchors --check
 
 A deployment takes its anchors from a signed European trusted list instead,
 which is what removes the trust-on-first-use step. That difference is a scope

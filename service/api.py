@@ -586,6 +586,64 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
             ),
         }
 
+    @app.get("/back-office/trust")
+    async def office_trust() -> dict:
+        """Whether the qualified-signature route is offered, and on what.
+
+        An operator's question answered where an operator is already
+        looking. Without it the only way to discover that an office is not
+        offering the route is to be a voter refused by it, and the answer
+        a voter gets is deliberately about the office's state rather than
+        about the configuration behind it.
+
+        **Reporting the directory matters as much as the answer.** An
+        office whose anchors are somewhere else looks exactly like one
+        that was never meant to offer the route, and the difference
+        between those is a path. On a hosted deployment the elections are
+        a mounted volume, so the directory the office reads is not the one
+        in a clone of this repository — which is the mistake this field
+        exists to make visible.
+
+        Nothing here is withheld. Trust anchors are public certificates;
+        the manifest records their digests and where they were fetched
+        from, and publishing what an office is willing to believe is the
+        whole of the oversight a deployment would get from a signed
+        European list.
+        """
+        validation = deployment.vro.signature_validation
+        looked_in = (str(deployment.trust_anchors)
+                     if deployment.trust_anchors is not None else None)
+        if validation is None:
+            return {
+                "offered": False,
+                "looked_in": looked_in,
+                "why": (
+                    (f"there is no anchor directory at {looked_in}"
+                     if looked_in is not None
+                     else "this office was started with no anchor directory "
+                          "to read")
+                    + ", so it offers no qualified-signature route at all. "
+                    "That is the honest state for an office that has not "
+                    "been configured for one, and a different thing from an "
+                    "office that offers the route and refuses everybody."
+                ),
+            }
+        return {
+            "offered": True,
+            "looked_in": looked_in,
+            "pinned_on": getattr(validation, "pinned_on", ""),
+            # `getattr`, because the seam is a Protocol and a test fills it
+            # with something that validates and records no provenance. An
+            # office reporting an empty list is reporting what it knows.
+            "anchors": [
+                {"subject": a.get("subject", ""),
+                 "sha256": a.get("sha256", ""),
+                 "source": a.get("source", ""),
+                 "not_after": a.get("not_after", "")}
+                for a in getattr(validation, "anchors", ())
+            ],
+        }
+
     @app.get("/back-office/pending")
     async def pending() -> dict:
         return {

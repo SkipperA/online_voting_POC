@@ -34,7 +34,16 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir -e ".[service]"
+# `pades` as well as `service`, and it is not optional here even though the
+# extra is optional in the project. An office with anchors pinned and no
+# validator installed refuses to start -- which is the right failure and a
+# miserable one to meet on a server, since the thing that pins the anchors
+# is an operator on the host and the thing that installs the extra is this
+# line. The cost is the image: fifteen distributions, lxml and aiohttp
+# among them. An office that will never offer the route pays it anyway,
+# which is the trade -- an image that cannot perform a route the operator
+# can switch on is worse.
+RUN pip install --no-cache-dir -e ".[service,pades]"
 
 COPY service ./service
 COPY driver ./driver
