@@ -13,7 +13,7 @@ confident the surrounding comments sound.
 |---|---|
 | token_verification_disabled | `test_a_valid_token_cannot_be_reused_with_a_different_key`<br>`test_finalize_rejects_a_dishonest_vro_response`<br>`test_forged_token_is_rejected_by_the_ballot_box`<br>`test_multiplicative_forgery_is_defeated_by_pss_encoding`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_rsabssa_vectors`<br>`test_signature_does_not_transfer_to_another_message`<br>`test_the_adversarial_scenarios_all_hold` |
 | ed25519_verification_disabled | `test_a_bystander_cannot_forge_such_a_proof`<br>`test_a_receipt_is_evidence_about_one_election_only`<br>`test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_a_tampered_receipt_does_not_verify`<br>`test_an_unauthenticated_release_query_is_refused`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_opening_and_closing_leave_signed_statements`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_tampering_with_the_selection_breaks_the_signature`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_box_signs_the_heads_it_publishes`<br>`test_the_nonce_is_covered_by_the_ballot_signature`<br>`test_the_office_console_shows_recorded_beside_disclosed`<br>`test_the_office_signs_the_count_the_audit_depends_on`<br>`test_the_statement_key_signs_statements_and_nothing_else` |
-| eligibility_check_removed | `test_an_identified_person_not_on_the_electoral_register_is_told_so`<br>`test_an_identified_signer_not_on_the_register_is_told_so`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_identifier_never_comes_from_the_document` |
+| eligibility_check_removed | `test_a_real_signature_reaches_the_office_through_the_endpoint`<br>`test_an_identified_person_not_on_the_electoral_register_is_told_so`<br>`test_an_identified_signer_not_on_the_register_is_told_so`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_identifier_never_comes_from_the_document` |
 | one_token_per_voter_removed | `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_second_token_is_refused_for_the_same_voter`<br>`test_a_second_token_request_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold` |
 | wallet_signature_check_removed | `test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_office_console_shows_recorded_beside_disclosed` |
 | finalize_selfcheck_removed | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_finalize_rejects_a_dishonest_vro_response` |
@@ -42,9 +42,10 @@ confident the surrounding comments sound.
 | document_prefix_check_removed | `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`<br>`test_a_signed_document_whose_page_was_altered_is_refused_by_the_rule`<br>`test_a_swapped_payload_cannot_produce_a_false_accept`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | carrier_disagreement_resolved_by_preference | `test_carriers_that_disagree_are_refused_rather_than_resolved`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | document_coverage_check_removed | `test_a_refusal_hands_back_no_payload`<br>`test_a_signature_covering_less_than_the_document_is_refused`<br>`test_a_signature_that_stops_short_of_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| validator_called_on_the_event_loop | `test_a_real_signature_reaches_the_office_through_the_endpoint`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_validator_works_from_inside_an_event_loop` |
 | refusal_reason_collapsed_in_the_audit_log | `test_a_validator_that_gives_no_reason_still_records_a_refusal`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_reason_a_signature_was_refused_is_recorded_and_not_disclosed` |
 | revocation_collapsed_into_not_identified | `test_a_revoked_certificate_still_identifies_its_signer`<br>`test_an_expired_certificate_still_identifies_its_signer`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
-| identity_taken_from_the_common_name | `test_a_subject_with_no_serial_number_yields_no_identifier`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_identifier_is_the_serial_number_and_not_the_name`<br>`test_the_office_can_decide_a_real_signed_request` |
+| identity_taken_from_the_common_name | `test_a_subject_with_no_serial_number_yields_no_identifier`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_identifier_is_the_serial_number_and_not_the_name`<br>`test_the_office_can_decide_a_real_signed_request`<br>`test_the_validator_works_from_inside_an_event_loop` |
 | coverage_counted_from_a_range_not_starting_at_zero | `test_a_range_not_starting_at_zero_covers_none_of_the_prefix`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | document_route_keeps_its_own_released_set | `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_poll_with_both_routes_survives_being_written_and_read_back`<br>`test_a_reservation_on_one_route_blocks_the_other`<br>`test_a_token_from_the_document_route_is_an_ordinary_token`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_certificate_status_is_reported_only_after_identity[expired]`<br>`test_certificate_status_is_reported_only_after_identity[revoked]`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_supervision_shows_the_digest_and_not_the_document`<br>`test_the_office_keeps_the_signed_document_as_the_citizens_own_request` |
 | request_payload_accepts_extra_fields | `test_a_payload_with_the_wrong_fields_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
@@ -108,6 +109,7 @@ The VRO stops requiring that the id appear on the electoral register.
 Patched in `src/ovpoc/vro.py`.
 
 Caught by:
+- `test_a_real_signature_reaches_the_office_through_the_endpoint`
 - `test_an_identified_person_not_on_the_electoral_register_is_told_so`
 - `test_an_identified_signer_not_on_the_register_is_told_so`
 - `test_every_mutation_still_matches_its_target_exactly_once`
@@ -451,6 +453,17 @@ Caught by:
 - `test_a_signature_that_stops_short_of_the_document_is_refused`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 
+### `validator_called_on_the_event_loop`
+
+The signature validator is called directly from the office's async upload handler, where pyHanko's own `asyncio.run` cannot start a loop -- so every genuinely signed request is answered NOT_IDENTIFIED and only on a server.
+
+Patched in `driver/qualified_signature.py`.
+
+Caught by:
+- `test_a_real_signature_reaches_the_office_through_the_endpoint`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_validator_works_from_inside_an_event_loop`
+
 ### `refusal_reason_collapsed_in_the_audit_log`
 
 The office records one sentence for every way a signature can fail to identify anybody, so its own log cannot tell a wrongly pinned trust anchor from a signature it was right to refuse.
@@ -484,6 +497,7 @@ Caught by:
 - `test_every_mutation_still_matches_its_target_exactly_once`
 - `test_the_identifier_is_the_serial_number_and_not_the_name`
 - `test_the_office_can_decide_a_real_signed_request`
+- `test_the_validator_works_from_inside_an_event_loop`
 
 ### `coverage_counted_from_a_range_not_starting_at_zero`
 
@@ -601,5 +615,5 @@ Caught by:
 
 ## Summary
 
-- 44 of 44 mutations were detected.
+- 45 of 45 mutations were detected.
 - 0 were not.
