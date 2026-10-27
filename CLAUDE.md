@@ -478,6 +478,27 @@ register is `VRO.register` — a set of ids, and nothing else.
   that application has any use for one. The same test greps the *wallet*
   for those APIs and requires a hit, because the wallet must import a file
   and a tripwire that matches nothing anywhere cannot be told from a typo.
+- **No client may make the first ballot final.** Re-voting is the design's
+  answer to coercion, not a convenience: a ballot cast under duress is
+  superseded by a later one under the same ad-hoc key, so a coercer who
+  watched the first cannot know it is the one that counts. The browser
+  client reopens its marking step after a receipt and says so. The native
+  one did not — `VoterFlow.cast` permitted it, the ballot box permitted it,
+  and `ContentView` simply had no way back from `.submitted`, which from a
+  voter's side is indistinguishable from the design not allowing it. A
+  client can therefore remove the property the whole system is arranged
+  around while every protocol test still passes, so
+  `testASecondBallotSupersedesTheFirstAndAsksTheOfficeForNothing` is in
+  `swift test` rather than left to the demonstration.
+
+  Two consequences worth keeping. Submitting spends nothing — the token is
+  spent by being *issued* — so a second ballot asks the office for nothing
+  and no second token exists to be needed. And the native disclosure rows
+  are keyed by step, so a second cast overwrites the first rather than
+  appending as the browser's do: the rows carry the attempt number, and
+  `cast` resets the verify row, because a verification of the previous
+  ballot sitting beside a new one reads as current and was true of
+  something else.
 - **The route is chosen before the one tap, on the first screen.** The two
   routes diverge at the handover and the file is written there, so the
   choice cannot be deferred past `enrol` without writing a file and then

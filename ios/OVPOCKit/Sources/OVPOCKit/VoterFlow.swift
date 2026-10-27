@@ -132,6 +132,12 @@ public final class VoterFlow {
     /// The file the voter carries to the wallet. `nil` until blinding.
     public private(set) var requestFile: Data?
 
+    /// How many ballots this voter has marked. One, normally; more when
+    /// they have re-voted, which the design permits and a coerced voter
+    /// depends on. Shown in the disclosure rows so a transcript of a run
+    /// with two ballots in it cannot be read as a run with one.
+    public private(set) var attempt = 0
+
     /// Which route this flow took, and what the file it produced is called.
     public private(set) var route: Route = .wallet
     public var requestFileName: String {
@@ -329,8 +335,20 @@ public final class VoterFlow {
     /// Three words, not two. What is refused is a selection this client
     /// cannot represent at all, which is a different thing and is why the
     /// error names a range rather than a rule.
+    /// Mark a ballot. Callable again after one has been submitted, and
+    /// that is the design rather than an oversight.
+    ///
+    /// Re-voting is the answer to coercion: a ballot cast under duress is
+    /// superseded by a later one under the same ad-hoc key, so a coercer
+    /// watching the first cannot know it is the one that counts. The token
+    /// is not spent by submitting -- it is spent by being *issued* -- so
+    /// no second token is needed and none is available. A client that made
+    /// the first ballot final would remove the property the whole design
+    /// is arranged around, which is why the browser client reopens its
+    /// marking step and why this refuses nothing here.
     public func cast(selection: Int) throws {
         guard let adhoc, let token else { throw Failure.notReady(.cast) }
+        attempt += 1
 
         var ballot = Ballot(
             selection: selection, adhocPublicKey: adhoc.publicBytes, token: token)
@@ -344,8 +362,12 @@ public final class VoterFlow {
             Field("n", ballot.nonce.b64url),
             Field("s_vote", ballot.voteSignature.b64url),
             Field("signed over", "hash([i, k_p^a, n])"),
+            Field("attempt", String(attempt)),
         ])
         set(.submit, .awaitingYou)
+        // A verification of the previous ballot must not sit beside a new
+        // one. It was true when it was made and says nothing about this.
+        set(.verify, .notYet, [Field("of", "attempt \(attempt), once submitted")])
     }
 
     public func submit() async throws -> Receipt {
@@ -366,6 +388,10 @@ public final class VoterFlow {
             Field("position", receipt.index.map(String.init) ?? "not stated"),
             Field("entry hash", receipt.entryHash.b64url),
             Field("signature verifies under k_p^(B)", String(authentic)),
+            Field("attempt", String(attempt)),
+            Field("supersedes", attempt > 1
+                  ? "your attempt \(attempt - 1), among the accepted"
+                  : "nothing; this is your first"),
         ])
         set(.verify, .awaitingYou)
         return receipt

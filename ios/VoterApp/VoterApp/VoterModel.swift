@@ -125,6 +125,22 @@ final class VoterModel {
         }
     }
 
+    /// Back to the ballot, keeping the token.
+    ///
+    /// The first ballot is not final and the application must not behave
+    /// as though it were: a vote cast under duress is answered by casting
+    /// another, and a coercer who watched the first cannot tell whether
+    /// it is the one that counts. Nothing is spent by submitting -- the
+    /// token was spent when the office issued it -- so this asks the
+    /// office for nothing and reaches no network at all.
+    func voteAgain() {
+        guard case .submitted = phase else { return }
+        problem = nil
+        // The previous verification was true of the previous ballot.
+        lastVerification = nil
+        phase = .holdingToken
+    }
+
     func verify() async {
         problem = nil
         do {

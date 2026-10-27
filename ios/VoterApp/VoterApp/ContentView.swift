@@ -186,7 +186,10 @@ struct ContentView: View {
             Section {
                 Stepper("Selection: \(model.selection)",
                         value: $model.selection, in: -9 ... 9)
-                Button("Cast and submit") { Task { await model.castAndSubmit() } }
+                Button(model.flow.attempt == 0 ? "Cast and submit"
+                       : "Cast and submit — attempt \(model.flow.attempt + 1)") {
+                    Task { await model.castAndSubmit() }
+                }
             } header: {
                 Text("Your ballot")
             } footer: {
@@ -211,6 +214,28 @@ struct ContentView: View {
                      + "arrived with it. The article has this last check run "
                      + "from a different device; an application on this one "
                      + "cannot be that.")
+            }
+
+            if accepted {
+                Section {
+                    Button("Cast a different ballot") { model.voteAgain() }
+                } header: {
+                    Text("Changed your mind — or were made to")
+                } footer: {
+                    Text("Your ballot is not final, and this is the design's "
+                         + "answer to coercion rather than a convenience. A "
+                         + "later ballot under the same key on this device "
+                         + "supersedes the one above among the accepted, so "
+                         + "somebody who stood over you while you voted, or "
+                         + "who paid you to, cannot know whether what they "
+                         + "watched is what counts.\n\n"
+                         + "Nothing is spent by submitting — the token was "
+                         + "spent when the office issued it — so no second "
+                         + "token is needed, none is available, and the "
+                         + "office is not asked for anything. Every attempt "
+                         + "stays in the transcript; only the last is "
+                         + "counted.")
+                }
             }
 
         case .stopped:

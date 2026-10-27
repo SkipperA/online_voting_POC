@@ -82,6 +82,89 @@ final class VoterFlowTests: XCTestCase {
         XCTAssertFalse(wrongExpectation, "the check must be able to say no")
     }
 
+    /// Re-voting, which is the design's answer to coercion rather than a
+    /// convenience, and which the native client had no way to reach.
+    ///
+    /// A ballot cast under duress is superseded by a later one under the
+    /// same ad-hoc key, so a coercer who watched the first cannot know it
+    /// is the one that counts. Nothing is spent by submitting -- the
+    /// token is spent by being *issued* -- so the second ballot asks the
+    /// office for nothing, and a second token is neither needed nor
+    /// available. A client that made the first ballot final would remove
+    /// the property the whole design is arranged around, which is a thing
+    /// to catch here rather than in a demonstration.
+    func testASecondBallotSupersedesTheFirstAndAsksTheOfficeForNothing() async throws {
+        let fixture = try Fixture()
+        let office = FakeOffice(fixture)
+        let box = FakeBox(fixture)
+        let flow = makeFlow(fixture, office: office, box: box)
+
+        try await flow.enrol()
+        let wallet = WalletFlow(
+            wallet: WalletKey(voterID: "Kovács Ágnes"),
+            elections: office, office: office)
+        try await wallet.load(try XCTUnwrap(flow.requestFile))
+        _ = try await wallet.consentAndTransmit()
+        _ = try await flow.collect()
+
+        try flow.cast(selection: 1)
+        let first = try await flow.submit()
+        XCTAssertTrue(first.accepted)
+        let firstHolds = try await flow.verify(expecting: 1)
+        XCTAssertTrue(firstHolds)
+        XCTAssertEqual(flow.attempt, 1)
+
+        // Under duress, and then not.
+        try flow.cast(selection: 3)
+        let second = try await flow.submit()
+        XCTAssertTrue(second.accepted)
+        XCTAssertEqual(flow.attempt, 2)
+
+        let laterHolds = try await flow.verify(expecting: 3)
+        XCTAssertTrue(laterHolds, "the later ballot is the one the box holds")
+        let earlierStillHolds = try await flow.verify(expecting: 1)
+        XCTAssertFalse(earlierStillHolds,
+                       "the earlier one must not still answer as intended")
+    }
+
+    /// A transcript of two ballots must not read as a transcript of one.
+    ///
+    /// The rows are keyed by step, so a second cast overwrites the first
+    /// rather than appending as the browser client's do. That is fine --
+    /// the box holds the history and the receipts are kept -- but only if
+    /// the rows say which attempt they describe, and only if a
+    /// verification of the previous ballot does not sit beside the new
+    /// one looking current.
+    func testTheDisclosureSaysWhichAttemptItDescribes() async throws {
+        let fixture = try Fixture()
+        let office = FakeOffice(fixture)
+        let flow = makeFlow(fixture, office: office, box: FakeBox(fixture))
+        try await flow.enrol()
+        let wallet = WalletFlow(
+            wallet: WalletKey(voterID: "Kovács Ágnes"),
+            elections: office, office: office)
+        try await wallet.load(try XCTUnwrap(flow.requestFile))
+        _ = try await wallet.consentAndTransmit()
+        _ = try await flow.collect()
+
+        try flow.cast(selection: 1)
+        _ = try await flow.submit()
+        _ = try await flow.verify(expecting: 1)
+        XCTAssertEqual(flow.record(.verify).progress, .done)
+
+        try flow.cast(selection: 3)
+        XCTAssertEqual(flow.record(.verify).progress, .notYet,
+                       "last ballot's verification still shown as done")
+
+        let cast = flow.record(.cast).payload
+        XCTAssertEqual(cast.first { $0.name == "attempt" }?.value, "2")
+        _ = try await flow.submit()
+        let submitted = flow.record(.submit).payload
+        XCTAssertEqual(
+            submitted.first { $0.name == "supersedes" }?.value,
+            "your attempt 1, among the accepted")
+    }
+
     /// A protest selection is accepted and superseding, not refused.
     ///
     /// Three words, not two. A client that rejected one would take from
