@@ -222,6 +222,35 @@ final class VoterFlowTests: XCTestCase {
         XCTAssertEqual(document, expected)
     }
 
+    /// The one value a voter checks by eye, in the three places it appears.
+    ///
+    /// The screen shows it from the key this application generated, the
+    /// document prints it on the page about to be signed, and the office's
+    /// page recomputes it from the file handed in. A voter comparing the
+    /// first two is checking that the document in their wallet is the
+    /// request this device made — so these two readings disagreeing would
+    /// make that check meaningless while still looking like a check.
+    func testTheFingerprintOnTheScreenIsTheOnePrintedOnTheDocument() async throws {
+        let fixture = try Fixture()
+        let flow = makeFlow(fixture, office: FakeOffice(fixture), box: FakeBox(fixture))
+        XCTAssertNil(flow.blindedKeyFingerprint, "nothing is blinded yet")
+
+        try await flow.enrol(via: .qualifiedSignature)
+        let shown = try XCTUnwrap(flow.blindedKeyFingerprint)
+        XCTAssertEqual(shown.count, 19, "four groups of four, three dashes")
+
+        let document = String(decoding: try XCTUnwrap(flow.requestFile),
+                              as: UTF8.self)
+        XCTAssertTrue(document.contains(shown),
+                      "the document does not print the fingerprint the screen shows")
+
+        // And the disclosure row, which is what ends up in the transcript
+        // the audience takes away.
+        let handover = try XCTUnwrap(flow.records.first { $0.step == .handover })
+        let row = handover.payload.first { $0.name == "fingerprint of c" }
+        XCTAssertEqual(row?.value, shown)
+    }
+
     func testNeitherRouteLetsTheApplicationLearnWhoTheVoterIs() async throws {
         for route in VoterFlow.Route.allCases {
             let fixture = try Fixture()

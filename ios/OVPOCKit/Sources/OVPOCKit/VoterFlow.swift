@@ -138,6 +138,20 @@ public final class VoterFlow {
         route == .wallet ? Self.walletRequestFileName : Self.documentRequestFileName
     }
 
+    /// The fingerprint of `c`, for a surface that must show it beside the
+    /// document rather than only inside a disclosure row. `nil` until
+    /// blinding.
+    ///
+    /// This is the one value a voter can compare by eye: the document
+    /// prints it on the page they are about to sign, the office's page
+    /// recomputes it from the file they hand in, and this application
+    /// shows it from the key it generated. Three independent readings of
+    /// the same eight bytes, which is what makes a swapped document
+    /// visible to a person rather than only to a verifier.
+    public var blindedKeyFingerprint: String? {
+        blinding.map { PDFRequest.fingerprint($0.blindedKey) }
+    }
+
     public init(
         elections: any ElectionReading,
         replies: any TokenReplyCollecting,

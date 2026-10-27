@@ -282,9 +282,19 @@ def test_no_swift_test_awaits_inside_an_assertion():
 # The one shortcut clause A8 names
 # --------------------------------------------------------------------------
 
-#: Things only a component handling the *signed* document would mention.
-#: The upload endpoint and the page that posts to it, by name.
-SIGNED_DOCUMENT_TRACES = ("signed-token-requests", "/upload")
+#: The endpoint that receives a signed document. Only the office and the
+#: page the office serves have any business naming it.
+SIGNED_DOCUMENT_TRACES = ("signed-token-requests",)
+
+#: How a signed document would get back *in*.
+#:
+#: Sharper than a URL, and the thing that was actually missing: an Upload
+#: button needs a file picker, and nothing else in this application has any
+#: use for one. The app may *name* the office's page — it does, through
+#: `Origins.handIn`, handed to `Link` so the browser opens it — because
+#: telling a person where to go is not handling what they take there.
+DOCUMENT_IMPORT_APIS = ("fileImporter", "UIDocumentPicker", "NSOpenPanel",
+                        "onDrop", "importsItemProviders")
 
 
 def test_the_voting_application_has_no_way_to_hand_a_document_in():
@@ -300,6 +310,13 @@ def test_the_voting_application_has_no_way_to_hand_a_document_in():
     would be one screen, it would save a step, and it would put the signed
     document inside the one component that must not see it.
 
+    What this watches is the *inbound* direction: the endpoint that
+    receives a signed document, and the system APIs that would let one be
+    chosen. Naming the office's page is not watched, because the
+    application does name it -- the handover screen offers a `Link` the
+    browser opens -- and a voter who is told to hand the document in
+    themselves and not told where is being set up to look for a button.
+
     A grep is not a mechanism and clause A8 says as much about the sandbox
     itself: "what is here is the discipline, the file, and this clause --
     not a mechanism that makes the shortcut impossible". This makes taking
@@ -309,11 +326,30 @@ def test_the_voting_application_has_no_way_to_hand_a_document_in():
     offenders = {}
     for path in sorted((NATIVE / "VoterApp").rglob("*.swift")):
         source = path.read_text(encoding="utf-8")
-        found = [t for t in SIGNED_DOCUMENT_TRACES if t in source]
+        found = [t for t in SIGNED_DOCUMENT_TRACES + DOCUMENT_IMPORT_APIS
+                 if t in source]
         if found:
             offenders[path.name] = found
     assert not offenders, (
-        "the voting application names the office's upload path, which only a "
-        "component handling the signed document would need:\n  "
+        "the voting application posts to the office's upload endpoint, or "
+        "offers a way to choose a file -- either of which only a component "
+        "handling the signed document would need:\n  "
         + "\n  ".join(f"{name}: {', '.join(found)}" for name, found in offenders.items())
         + "\n(clause A8; the signed document must not pass through this app)")
+
+    # And nothing native posts to that endpoint at all -- not the voting
+    # application, not the package it links, not the wallet. The page the
+    # office serves is the only client it has.
+    for path in sorted(NATIVE.rglob("*.swift")):
+        assert "signed-token-requests" not in path.read_text(encoding="utf-8"), (
+            f"{path.name} names the office's upload endpoint")
+
+    # Calibration. The wallet must choose a file -- that is its whole job --
+    # so the same patterns fire there. A tripwire that matches nothing
+    # anywhere is one nobody can tell apart from a typo.
+    wallet = "\n".join(p.read_text(encoding="utf-8")
+                       for p in (NATIVE / "WalletApp").rglob("*.swift"))
+    assert any(api in wallet for api in DOCUMENT_IMPORT_APIS), (
+        "no wallet source opens a file picker any more: either the wallet "
+        "changed or these patterns have stopped matching anything, and a "
+        "tripwire that matches nothing is not protecting the voter app")

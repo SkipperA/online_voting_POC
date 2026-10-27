@@ -44,6 +44,15 @@ public struct Origins: Sendable, Equatable {
 
     /// 8003 — the office. Token requests, and the reply collection.
     public var vro: URL { origin("vro") }
+    /// Where a voter hands in a signed document, on the office's own
+    /// origin.
+    ///
+    /// An address to *show* a person, never one anything here fetches.
+    /// On the qualified-signature route the signed document carries the
+    /// citizen's identifier, so it must not pass through the voting
+    /// application — the page is served by the office and opened by the
+    /// voter, in their browser. Clause A8.
+    public var handIn: URL { vro.appendingPathComponent("upload") }
     /// 8004 — the ballot box. Submission, receipts, the published view.
     public var ebb: URL { origin("ebb") }
     /// 8005 — the checker. Not called by these apps; here because an

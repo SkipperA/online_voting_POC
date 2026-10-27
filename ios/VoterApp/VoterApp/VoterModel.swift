@@ -26,6 +26,9 @@ final class VoterModel {
     }
 
     private(set) var flow: VoterFlow
+    /// Kept so the handover screen can name the office's page. Nothing
+    /// here fetches it — see `Origins.handIn`.
+    private let origins: Origins
     private(set) var phase: Phase = .fresh
     private(set) var problem: String?
     private(set) var requestFileURL: URL?
@@ -35,6 +38,7 @@ final class VoterModel {
     var selection: Int = 1
 
     init(origins: Origins = .hosted) {
+        self.origins = origins
         let config = ConfigClient(origins: origins)
         self.flow = VoterFlow(
             elections: config,
@@ -47,8 +51,18 @@ final class VoterModel {
 
     /// Which way this voter is asking. Chosen before the one tap, and
     /// fixed once it has happened: the two routes diverge at the handover
-    /// and the file is written there.
+    /// and the file is written there. The view offers the choice in
+    /// `.fresh` and nowhere else, which is the whole of the enforcement.
     var route: VoterFlow.Route = .wallet
+
+    /// The eight bytes the voter compares by eye, before signing.
+    var fingerprintOfC: String? { flow.blindedKeyFingerprint }
+
+    /// Where the voter takes the signed document. Handed to `Link`, so
+    /// the browser opens it and this application does not: the document
+    /// carries the voter's identifier and this is the component that
+    /// must not learn it. Clause A8.
+    var handInPage: URL { origins.handIn }
 
     /// The one tap. Four steps that ask the voter nothing.
     func enrol() async {

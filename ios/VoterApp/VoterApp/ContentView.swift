@@ -1,8 +1,15 @@
-/// The voting application: eight rows and three deliberate acts.
+/// The voting application: eight rows and four deliberate acts.
 ///
-/// *Enrol in election* runs the four steps that ask nothing. Then the
-/// voter carries a file to the wallet, comes back and presses *Collect*,
-/// chooses, and submits. Everything else on this screen is disclosure.
+/// First the route, because the two diverge at the handover and the file
+/// is written there. Then *Enrol in election* runs the four steps that
+/// ask nothing. Then the voter carries a file out — to the demonstration's
+/// wallet, or to their own and on to the office — comes back and presses
+/// *Collect*, chooses, and submits.
+///
+/// Everything else on this screen is disclosure, and one thing on it is
+/// an absence the voter is told about: on the qualified-signature route
+/// there is no way to hand the signed document in from here, and the
+/// footer says so rather than leaving them hunting for it. Clause A8.
 import OVPOCKit
 import SwiftUI
 
@@ -69,10 +76,48 @@ struct ContentView: View {
         }
     }
 
+    /// What the choice above actually changes, said before it is made.
+    ///
+    /// One step differs and the footer says which. Everything a reader
+    /// might worry the choice affects — the blinding, the token, the
+    /// ballot — is the same on both, and saying so here is cheaper than
+    /// leaving them to wonder.
+    private var routeExplanation: String {
+        switch model.route {
+        case .wallet:
+            return "This demonstration's stand-in wallet signs a small JSON "
+                 + "file as bytes, and transmits it to the office itself. "
+                 + "Nothing on this device is a real identity."
+        case .qualifiedSignature:
+            return "The request is written as a PDF you sign in your own "
+                 + "wallet — in Hungary the DÁP application. Your certificate "
+                 + "says who you are, so the office reads your identifier out "
+                 + "of your signature and never from anything this application "
+                 + "sends. You hand the signed document in yourself.\n\n"
+                 + "Only the handover changes. The blinded key, the token and "
+                 + "the ballot are the same either way."
+        }
+    }
+
     @ViewBuilder
     private var actions: some View {
         switch model.phase {
         case .fresh:
+            Section {
+                Picker("Route", selection: $model.route) {
+                    Text("The demonstration's wallet")
+                        .tag(VoterFlow.Route.wallet)
+                    Text("Your own wallet, as a signed PDF")
+                        .tag(VoterFlow.Route.qualifiedSignature)
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } header: {
+                Text("How you will prove you may vote")
+            } footer: {
+                Text(routeExplanation)
+            }
+
             Section {
                 Button("Enrol in election") { Task { await model.enrol() } }
             } footer: {
@@ -85,19 +130,56 @@ struct ContentView: View {
             Section { HStack { ProgressView(); Text(what).font(.callout) } }
 
         case .awaitingWallet:
-            Section {
-                if let url = model.requestFileURL {
-                    ShareLink("Send the request to the wallet", item: url)
+            switch model.route {
+            case .wallet:
+                Section {
+                    if let url = model.requestFileURL {
+                        ShareLink("Send the request to the wallet", item: url)
+                    }
+                    Button("Collect the token") { Task { await model.collect() } }
+                } header: {
+                    Text("Over to the wallet")
+                } footer: {
+                    Text("The file carries the blinded key and the election it is "
+                         + "for. It does not say who you are — the wallet adds "
+                         + "that, and sends it to the office itself. This "
+                         + "application never learns your identifier, and cannot "
+                         + "make the wallet sign anything.")
                 }
-                Button("Collect the token") { Task { await model.collect() } }
-            } header: {
-                Text("Over to the wallet")
-            } footer: {
-                Text("The file carries the blinded key and the election it is "
-                     + "for. It does not say who you are — the wallet adds "
-                     + "that, and sends it to the office itself. This "
-                     + "application never learns your identifier, and cannot "
-                     + "make the wallet sign anything.")
+
+            case .qualifiedSignature:
+                Section {
+                    if let url = model.requestFileURL {
+                        ShareLink("Export the request as a PDF", item: url)
+                    }
+                    if let fingerprint = model.fingerprintOfC {
+                        LabeledContent("fingerprint of c") {
+                            Text(fingerprint).monospaced()
+                        }
+                    }
+                } header: {
+                    Text("Over to your wallet")
+                } footer: {
+                    Text("Export the document and sign it in your wallet. The "
+                         + "document prints that fingerprint on its own page: "
+                         + "check the two agree before you sign, because it is "
+                         + "the only thing tying what you are signing to the key "
+                         + "this application generated.")
+                }
+
+                Section {
+                    Link("Open the office's hand-in page",
+                         destination: model.handInPage)
+                    Button("Collect the token") { Task { await model.collect() } }
+                } footer: {
+                    Text("Then hand the signed document in yourself, in your "
+                         + "browser, and come back and press Collect.\n\n"
+                         + "There is no Upload button here and there will not "
+                         + "be one. Your signature carries who you are, and "
+                         + "this application holds the blinding factor — so it "
+                         + "is the one component that must never see the signed "
+                         + "document. Clause A8.")
+                }
             }
 
         case .holdingToken:

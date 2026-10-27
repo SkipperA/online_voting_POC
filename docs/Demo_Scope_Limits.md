@@ -356,6 +356,13 @@ component that holds `k_p^a` and `r`. That is the whole property this route
 was arranged to keep. Nothing in the repository prevents it; this paragraph
 and a reviewer do.
 
+What the application does do is *name* the office's page, and open it in the
+browser. That is not the same thing and the distinction is worth stating,
+because it is the one a later reader will have to make: telling a person
+where to take a document is not handling what they take there. A voter told
+to hand the signed document in themselves and not told where is a voter
+looking for a button, which is how the button gets built.
+
 **Label:** *The request moves between the apps as a file you carry, the way it
 moves between two browser origins. On the qualified-signature route nothing
 comes back to the application at all.*

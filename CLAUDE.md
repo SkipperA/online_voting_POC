@@ -353,6 +353,27 @@ register is `VRO.register` — a set of ids, and nothing else.
   appeared, and the button for everything else. Clause A8 records that what
   is substituted is the *enforcement* — a browser origin is enforced by the
   browser, an app sandbox by the system that also offers `openURL`.
+- **The voting application names the office's hand-in page and that is not
+  a breach of A8.** What the clause protects is the *inbound* direction:
+  the application holds `k_p^a` and `r`, so it must never see the signed
+  document, which carries `id`. Telling a person where to take that
+  document is not handling it — and a voter told to hand it in themselves
+  and not told where is a voter looking for an Upload button, which is how
+  the button eventually gets built. So `Origins.handIn` exists, is handed
+  to `Link` for the browser to open, and is fetched by nothing. The
+  tripwire in `tests/test_native_sources.py` was sharpened to match:
+  it forbids the `signed-token-requests` endpoint anywhere native and a
+  file picker (`fileImporter`, `UIDocumentPicker`, `NSOpenPanel`, `onDrop`)
+  in the voter app, rather than the page's path. A picker is the sharper
+  signal in any case — an Upload button needs one, and nothing else in
+  that application has any use for one. The same test greps the *wallet*
+  for those APIs and requires a hit, because the wallet must import a file
+  and a tripwire that matches nothing anywhere cannot be told from a typo.
+- **The route is chosen before the one tap, on the first screen.** The two
+  routes diverge at the handover and the file is written there, so the
+  choice cannot be deferred past `enrol` without writing a file and then
+  replacing it. The picker therefore appears in `.fresh` and in no other
+  phase, and that is the whole of the enforcement that it is fixed.
 - **Two renderers write the token-request document, and CI cannot compile
   one of them.** `src/ovpoc/pdfrequest.py` and
   `ios/OVPOCKit/Sources/OVPOCKit/PDFRequest.swift` must agree byte for
