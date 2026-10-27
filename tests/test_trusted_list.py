@@ -409,3 +409,37 @@ def test_the_snapshot_says_how_old_it_is():
     """
     pinned = _pinned(None, pinned_on="2026-10-01")
     assert pinned.age_in_days(datetime.date(2026, 10, 27)) == 26
+
+
+def test_the_tool_says_where_to_run_it_rather_than_raising(tmp_path, capsys,
+                                                           monkeypatch):
+    """The subcommand that needs the extra, run where the extra is not.
+
+    An operator pins anchors on a server, and on a server the `pades`
+    extra is inside the office's container rather than on the host --
+    which is exactly where the command reads as natural to type. A
+    `ModuleNotFoundError` there says the tool is broken; this says the
+    command was typed on the wrong machine, and gives the one that works.
+    """
+    import builtins
+
+    sys.path.insert(0, str(ROOT / "tools"))
+    import fetch_trust_anchors as tool
+
+    real_import = builtins.__import__
+
+    def without_pyhanko(name, *args, **kwargs):
+        if name == "pyhanko":
+            raise ImportError("not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_pyhanko)
+    assert tool._pin_trusted_list(tmp_path, "HU") == 2
+
+    said = capsys.readouterr().out
+    assert "pades" in said
+    assert "docker compose" in said and "exec ovpoc" in said
+    assert "--trusted-list HU" in said
+    # And nothing was written: a directory half-pinned is one an office
+    # would load.
+    assert not list(tmp_path.iterdir())

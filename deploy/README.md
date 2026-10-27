@@ -110,10 +110,18 @@ no such route at all, which is the honest state for one that has not been
 configured for it -- and is a different thing from an office that offers the
 route and refuses every request.
 
-There are two ways, and the first is better. Pin the European trusted list:
+There are two ways, and the first is better. Pin the European trusted list —
+**from inside the office's container**, which is where the `pades` extra is
+installed and which has the volume mounted as `/data`:
 
-    python tools/fetch_trust_anchors.py --into deploy/election-data/trust-anchors \
-        --trusted-list HU
+    docker compose -f deploy/compose.yaml exec ovpoc \
+        python tools/fetch_trust_anchors.py \
+            --into /data/trust-anchors --trusted-list HU
+
+Run on the host instead and it stops with that command rather than a
+traceback: pyHanko is in the image, not on the server. It writes as uid 1000
+into the mounted volume, so the files land beside the elections owned by you
+and survive a rebuild.
 
 That fetches the Union's list-of-the-lists, checks its signature against the
 signer certificates pyHanko ships, reads Hungary's own list from the address
@@ -127,6 +135,15 @@ as "no".
 It is read offline, so re-pin before an election rather than after: a service
 withdrawn from the list since the snapshot is still trusted by it, and every
 surface prints how many days old it is.
+
+The office reads its anchors once, at startup, so it keeps using the old ones
+until it is restarted:
+
+    docker compose -f deploy/compose.yaml restart ovpoc
+
+That costs a poll in progress, like any restart (clause A7). `vro.$OVPOC_DOMAIN`
+then shows the territory and the pin date under *Qualified-signature route*,
+and says it can use the word.
 
 The older way, one root downloaded by hand, still works and is what this
 deployment ran before the above existed:

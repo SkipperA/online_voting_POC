@@ -196,6 +196,23 @@ def _pin_trusted_list(directory: Path, territory: str) -> int:
     from driver.trusted_list import LOTL_URL, TrustedListRefused, pin
     from driver.trusted_list import load as load_trusted_list
 
+    # Said rather than raised. This is the one subcommand here that needs
+    # the `pades` extra, and the place an operator runs it is a server --
+    # where the extra is inside the office's container and not on the host.
+    # A traceback there reads as a broken tool rather than as a command
+    # typed on the wrong machine.
+    try:
+        import pyhanko  # noqa: F401
+    except ImportError:
+        print("This needs the `pades` extra, which is not installed here.\n")
+        print("On a server it is in the office's own container, which also")
+        print("has the volume mounted, so run it there:\n")
+        print("  docker compose -f deploy/compose.yaml exec ovpoc \\")
+        print("      python tools/fetch_trust_anchors.py \\")
+        print(f"          --into /data/trust-anchors --trusted-list {territory}\n")
+        print('Elsewhere: pip install -e ".[pades]"')
+        return 2
+
     print(f"fetching {LOTL_URL}")
     with urllib.request.urlopen(LOTL_URL, timeout=60) as response:
         lotl_xml = response.read().decode("utf-8")
