@@ -19,14 +19,34 @@ over HTTP-01 and a failed attempt counts against the rate limit:
         dig +short "${n}${OVPOC_DOMAIN}"
     done
 
-Then set the domain and generate a password hash:
+Then set the domain. Two consumers want it and they read it from
+different places, which is worth getting right once rather than meeting as
+an error later:
 
+    printf 'OVPOC_DOMAIN=diw.hu\n' > deploy/.env
     export OVPOC_DOMAIN=diw.hu
+
+The file is for **Compose**, which reads `.env` from the directory holding
+the compose file, so every `docker compose -f deploy/compose.yaml …` below
+picks it up with nothing exported. Without it they stop with *required
+variable OVPOC_DOMAIN is missing a value* before doing anything.
+
+The export is for **your shell**, which Compose cannot help with: the `dig`
+loop above, the `caddy validate` runs below and every `curl https://…
+$OVPOC_DOMAIN/…` are ordinary commands and need the variable in the
+environment. A fresh login does not have it.
+
+Both are local files or local state. `deploy/.env` is in `.gitignore`
+beside `deploy/election-data/`, so neither follows a `git add -A` into a
+commit.
+
+Then generate a password hash:
+
     docker run --rm caddy:2-alpine caddy hash-password --plaintext '…'
 
 Paste the hash into `Caddyfile` in place of both `REPLACE_WITH_A_BCRYPT_HASH`.
-That is the only local edit this repository expects, and it is why an
-update touching `Caddyfile` has to be applied by hand.
+That is the only local edit to a *tracked* file this repository expects, and
+it is why an update touching `Caddyfile` has to be applied by hand.
 
 One variable, not two. `OVPOC_ADMIN_CIDRS` used to name the addresses
 allowed to reach `supervisor.` and `setup.`; it is gone, and the
@@ -72,9 +92,12 @@ console once the certificates are up.
 ## Updating a running deployment
 
     git pull --ff-only
-    export OVPOC_DOMAIN=diw.hu
     OVPOC_REVISION=$(git rev-parse --short HEAD) \
       docker compose -f deploy/compose.yaml up -d --build
+
+No `export` here: `deploy/.env` carries the domain for Compose. The
+revision stays inline because it must change on every build, which is the
+one thing a file of settings is bad at.
 
 `--ff-only` so that a commit made on the server stops the pull instead of
 being buried in a merge. The local edit this repository *expects* on a

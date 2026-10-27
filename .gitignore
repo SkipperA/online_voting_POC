@@ -20,3 +20,13 @@ ios/**/.build/
 ios/**/*.xcodeproj/
 ios/**/*.xcworkspace/
 ios/**/xcuserdata/
+
+# A server's own two files, which the repository expects and must never
+# carry. `deploy/.env` is the domain, read by Compose from the compose
+# file's own directory -- untracked and *unignored* it sits in every
+# `git status` and is one `git add -A` from being committed, which for a
+# file whose whole genre is secrets is a habit worth not forming.
+# `deploy/election-data/` is the mounted volume: the elections, the keys,
+# the register and the pinned trust anchors of a live deployment.
+deploy/.env
+deploy/election-data/
