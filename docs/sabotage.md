@@ -52,6 +52,8 @@ confident the surrounding comments sound.
 | pdf_reader_put_back_in_strict_mode | `test_a_later_revision_clobbering_an_xref_stream_is_still_read`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | pinned_anchor_digests_not_checked | `test_a_swapped_certificate_refuses_to_load`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_check_command_reports_what_loading_would_refuse` |
 | unrecorded_anchors_are_trusted | `test_a_certificate_nobody_recorded_refuses_to_load`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_check_command_notices_a_file_nobody_recorded` |
+| unconfigured_office_blames_the_citizen | `test_an_office_told_nothing_to_trust_says_so`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| upload_size_cap_removed | `test_an_office_with_anchors_still_caps_the_upload`<br>`test_an_oversized_upload_is_refused_without_being_read`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 
 ## Detail
 
@@ -564,7 +566,28 @@ Caught by:
 - `test_every_mutation_still_matches_its_target_exactly_once`
 - `test_the_check_command_notices_a_file_nobody_recorded`
 
+### `unconfigured_office_blames_the_citizen`
+
+An office that was never given trust anchors answers an uploaded document NOT_IDENTIFIED instead of saying it offers no such route.
+
+Patched in `service/api.py`.
+
+Caught by:
+- `test_an_office_told_nothing_to_trust_says_so`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+
+### `upload_size_cap_removed`
+
+The office reads an uploaded document of any size into memory before looking at it.
+
+Patched in `service/api.py`.
+
+Caught by:
+- `test_an_office_with_anchors_still_caps_the_upload`
+- `test_an_oversized_upload_is_refused_without_being_read`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+
 ## Summary
 
-- 41 of 41 mutations were detected.
+- 43 of 43 mutations were detected.
 - 0 were not.
