@@ -28,6 +28,31 @@ public final class VoterFlow {
         case verify      // 13 -- find it again under k_p^a
     }
 
+    /// Which way this voter asks for their token.
+    ///
+    /// Two routes, and the voter chooses: the first is not replaced. They
+    /// differ in one step -- what the handover file *is* -- and in nothing
+    /// else. Blinding is unchanged, the token is the same ordinary RSA-PSS
+    /// signature over `k_p^a`, the ballot is untouched, and `collect`
+    /// presents the same `c` to the same endpoint.
+    ///
+    /// On `.wallet` the file is a small JSON object which the stand-in
+    /// wallet signs as bytes. On `.qualifiedSignature` it is a PDF the
+    /// citizen signs in their own wallet -- the European Digital Identity
+    /// Wallet, and in Hungary the DÁP application -- which makes the
+    /// request a legally probative document and needs no cooperation from
+    /// any authority to arrange.
+    ///
+    /// **This application never handles the signed document.** It is the
+    /// component holding `k_p^a` and `r`, so it is the component that must
+    /// not learn `id`; the voter carries the file to the wallet and hands
+    /// the signed one to the office themselves, on a page the office
+    /// serves. Nothing comes back here. See clause A8.
+    public enum Route: String, Sendable, CaseIterable {
+        case wallet
+        case qualifiedSignature
+    }
+
     /// Said in words rather than in colour alone, as the browser client
     /// does, and for the reason `CLAUDE.md` records: a page that marks
     /// completed work and leaves the live step plain outlines everything
@@ -107,6 +132,12 @@ public final class VoterFlow {
     /// The file the voter carries to the wallet. `nil` until blinding.
     public private(set) var requestFile: Data?
 
+    /// Which route this flow took, and what the file it produced is called.
+    public private(set) var route: Route = .wallet
+    public var requestFileName: String {
+        route == .wallet ? Self.walletRequestFileName : Self.documentRequestFileName
+    }
+
     public init(
         elections: any ElectionReading,
         replies: any TokenReplyCollecting,
@@ -138,7 +169,8 @@ public final class VoterFlow {
     /// demonstration *is* the sequence; here the demonstration is that a
     /// citizen can vote without following it, and the sequence is one tap
     /// away for the people who came to check it.
-    public func enrol() async throws {
+    public func enrol(via route: Route = .wallet) async throws {
+        self.route = route
         set(.config, .awaitingYou)
         let election = try await elections.election()
         self.election = election
@@ -175,21 +207,49 @@ public final class VoterFlow {
         ])
 
         set(.handover, .awaitingYou)
-        requestFile = try Self.requestFileBytes(
-            electionID: election.electionID,
-            configDigest: election.publishedDigest,
-            blindedKey: blinding.blindedKey)
-        set(.handover, .done, [
-            Field("file", Self.requestFileName),
-            Field("carries", "c, the election it is for, and that election's digest"),
-            Field("does not carry", "any identifier; the wallet adds that"),
-        ])
+        switch route {
+        case .wallet:
+            requestFile = try Self.requestFileBytes(
+                electionID: election.electionID,
+                configDigest: election.publishedDigest,
+                blindedKey: blinding.blindedKey)
+            set(.handover, .done, [
+                Field("file", requestFileName),
+                Field("carries", "c, the election it is for, and that election's digest"),
+                Field("does not carry", "any identifier; the wallet adds that"),
+                Field("then", "open the wallet and authorise it"),
+            ])
+        case .qualifiedSignature:
+            requestFile = try PDFRequest.render(PDFRequest.payload(
+                electionID: election.electionID,
+                configDigest: election.publishedDigest,
+                blindedKey: blinding.blindedKey))
+            set(.handover, .done, [
+                Field("file", requestFileName),
+                Field("carries", "c, the election it is for, and that election's digest"),
+                Field("does not carry", "any identifier; your certificate carries that"),
+                Field("fingerprint of c",
+                      PDFRequest.fingerprint(blinding.blindedKey)),
+                Field("check on the page", "that fingerprint, before you sign"),
+                // Said here because the application cannot do it, and a
+                // voter who is not told will look for a button. It is the
+                // same reason the upload page is served by the office: the
+                // signed document must not pass through this application.
+                Field("then", "sign it in your wallet, then hand the signed "
+                      + "document to the office yourself"),
+                Field("not done here", "this application never sees the signed "
+                      + "document, and cannot hand it in for you"),
+            ])
+        }
         set(.collect, .awaitingYou)
     }
 
     // -- the file ------------------------------------------------------
 
-    public static let requestFileName = "blinded-key.json"
+    public static let walletRequestFileName = "blinded-key.json"
+
+    /// A PDF, because a real wallet signs documents and not byte strings.
+    public static let documentRequestFileName = "token-request.pdf"
 
     /// Byte-compatible with what `web/voter-app` writes and what
     /// `web/wallet` reads, deliberately: a request saved in the browser

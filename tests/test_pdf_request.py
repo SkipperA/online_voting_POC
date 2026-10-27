@@ -90,6 +90,35 @@ def test_the_document_states_its_payload_where_a_person_can_read_it(payload, doc
         assert payload["blinded_key"][i:i + 64] in page
 
 
+def test_delimiters_are_escaped_on_the_page_and_not_in_the_payload(blinded):
+    """The one input class where two implementations quietly disagree.
+
+    `(`, `)` and `\\` must be escaped in a PDF literal string and must
+    *not* be escaped in the canonical JSON the same value goes into. An
+    implementation that does both, or neither, agrees with this one on
+    every input except this kind -- which is why the vector carries such a
+    case.
+
+    Written out here as well as pinned by bytes, because a byte vector
+    says *that* two renderers differ and never *what* the text should look
+    like. The Swift port's own version of this test asserted a substring
+    beginning `(demo`, forgetting that the value is rendered after the
+    padded label inside one literal; it failed against a renderer that was
+    correct, and there was nothing in Python saying what the right answer
+    was.
+    """
+    payload = pdfrequest.payload_of(r"demo (2026) \ beta", DIGEST, blinded)
+    document = render(payload)
+
+    page = _page_text(document)
+    assert r"(election            demo \(2026\) \\ beta) Tj" in page
+    assert r"demo (2026) \ beta" not in page, "the page must carry the escaped form"
+
+    body = canonical_bytes(payload).decode()
+    assert r'"election_id":"demo (2026) \\ beta"' in body
+    assert r"\(2026\)" not in body, "the payload must not carry PDF escaping"
+
+
 def test_the_document_carries_the_payload_in_both_machine_readable_places(
     payload, document
 ):

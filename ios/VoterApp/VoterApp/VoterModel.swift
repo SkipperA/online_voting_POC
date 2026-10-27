@@ -45,12 +45,17 @@ final class VoterModel {
     var election: Election? { flow.election }
     var records: [VoterFlow.Record] { flow.records }
 
+    /// Which way this voter is asking. Chosen before the one tap, and
+    /// fixed once it has happened: the two routes diverge at the handover
+    /// and the file is written there.
+    var route: VoterFlow.Route = .wallet
+
     /// The one tap. Four steps that ask the voter nothing.
     func enrol() async {
         phase = .working("Pinning the configuration, generating a key, blinding…")
         problem = nil
         do {
-            try await flow.enrol()
+            try await flow.enrol(via: route)
             requestFileURL = try writeRequestFile()
             phase = .awaitingWallet
             refreshTranscript()
@@ -124,8 +129,10 @@ final class VoterModel {
     /// it is for, and nothing that identifies anybody.
     private func writeRequestFile() throws -> URL? {
         guard let bytes = flow.requestFile else { return nil }
+        // The flow's name, not a constant of this type's: the two routes
+        // write different files and only the flow knows which it took.
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(VoterFlow.requestFileName)
+            .appendingPathComponent(flow.requestFileName)
         try bytes.write(to: url, options: .atomic)
         return url
     }

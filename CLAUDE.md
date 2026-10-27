@@ -353,6 +353,21 @@ register is `VRO.register` — a set of ids, and nothing else.
   appeared, and the button for everything else. Clause A8 records that what
   is substituted is the *enforcement* — a browser origin is enforced by the
   browser, an app sandbox by the system that also offers `openURL`.
+- **Two renderers write the token-request document, and CI cannot compile
+  one of them.** `src/ovpoc/pdfrequest.py` and
+  `ios/OVPOCKit/Sources/OVPOCKit/PDFRequest.swift` must agree byte for
+  byte, because the office *rebuilds* a document rather than reading it: a
+  renderer one space out does not produce an oddly formatted request, it
+  produces one refused as "not as rendered", reported to the citizen as a
+  fault in their request. `tests/vectors/pdf-request.json` pins the bytes
+  and pins them only where `swift test` runs, which is a Mac. So
+  `tests/test_native_sources.py` compares the two sources' *prose* and
+  their non-prose constants in Python, reading the sentences out of
+  `_lines` with `ast` rather than listing them, and joining Swift's `+`
+  concatenations first so that a difference in line wrapping is not
+  reported as a difference in the document. It is not a compiler and not a
+  substitute for the vector. It catches the thing that actually gets
+  edited.
 - **The app targets have no tests, so the Python suite balances their
   delimiters.** `swift test` reaches `ios/OVPOCKit` and nothing else:
   `VoterApp` and `WalletApp` are Xcode app targets with no test target, so

@@ -199,6 +199,78 @@ final class VoterFlowTests: XCTestCase {
             XCTAssertFalse(text.contains(forbidden), "the file carries \(forbidden)")
         }
     }
+
+    // -- the second route ------------------------------------------------
+
+    func testTheQualifiedSignatureRouteWritesTheDocumentInstead() async throws {
+        let fixture = try Fixture()
+        let flow = makeFlow(fixture, office: FakeOffice(fixture), box: FakeBox(fixture))
+        try await flow.enrol(via: .qualifiedSignature)
+
+        XCTAssertEqual(flow.route, .qualifiedSignature)
+        XCTAssertEqual(flow.requestFileName, "token-request.pdf")
+        let document = try XCTUnwrap(flow.requestFile)
+        XCTAssertTrue(document.starts(with: Data("%PDF-1.7\n".utf8)))
+
+        // The same document the office will rebuild, not merely a PDF
+        // carrying the same values. If these two ever disagree, every
+        // request this application writes is refused as "not as rendered".
+        let expected = try PDFRequest.render(PDFRequest.payload(
+            electionID: fixture.election.electionID,
+            configDigest: fixture.digest,
+            blindedKey: try XCTUnwrap(Self.blindedKey(of: document))))
+        XCTAssertEqual(document, expected)
+    }
+
+    func testNeitherRouteLetsTheApplicationLearnWhoTheVoterIs() async throws {
+        for route in VoterFlow.Route.allCases {
+            let fixture = try Fixture()
+            let flow = makeFlow(fixture, office: FakeOffice(fixture),
+                                box: FakeBox(fixture))
+            try await flow.enrol(via: route)
+            let text = String(decoding: try XCTUnwrap(flow.requestFile),
+                              as: UTF8.self)
+            for forbidden in ["voter_id", "wallet_signature"] {
+                XCTAssertFalse(text.contains(forbidden),
+                               "\(route): the file carries \(forbidden)")
+            }
+        }
+    }
+
+    /// The step order, the blinding and the ballot are the same on both.
+    ///
+    /// Three things were settled as untouchable when this route was
+    /// designed: `c` is still `c`, the token is still an ordinary RSA-PSS
+    /// signature over `k_p^a`, and the ballot is unchanged. The first is
+    /// what this asserts; the other two never see the route at all.
+    func testTheRouteChangesTheHandoverAndNothingElse() async throws {
+        var files: [VoterFlow.Route: Data] = [:]
+        var steps: [VoterFlow.Route: [VoterFlow.Step]] = [:]
+        for route in VoterFlow.Route.allCases {
+            let fixture = try Fixture()
+            let flow = makeFlow(fixture, office: FakeOffice(fixture),
+                                box: FakeBox(fixture))
+            try await flow.enrol(via: route)
+            files[route] = flow.requestFile
+            steps[route] = flow.records.filter { $0.progress == .done }
+                .map(\.step)
+        }
+        XCTAssertEqual(steps[.wallet], steps[.qualifiedSignature],
+                       "the two routes completed different steps")
+        XCTAssertNotEqual(files[.wallet], files[.qualifiedSignature])
+    }
+
+    /// `c` out of the document's marker comment, which is how the office
+    /// recovers it too.
+    static func blindedKey(of document: Data) -> Data? {
+        let text = String(decoding: document, as: UTF8.self)
+        guard let at = text.range(of: PDFRequest.marker),
+              let end = text[at.upperBound...].firstIndex(of: "\n"),
+              let body = try? JSONSerialization.jsonObject(
+                with: Data(text[at.upperBound..<end].utf8)) as? [String: Any],
+              let encoded = body["blinded_key"] as? String else { return nil }
+        return Base64URL.decode(encoded)
+    }
 }
 
 final class WalletFlowTests: XCTestCase {
@@ -235,9 +307,13 @@ final class WalletFlowTests: XCTestCase {
     func testARequestFromBeforeAMintIsRefused() async throws {
         let fixture = try Fixture(electionID: "same-name")
         let office = FakeOffice(fixture)
+        // Awaited before the assertion rather than inside it. `XCTUnwrap`
+        // takes an autoclosure, which is not async, so an `await` in its
+        // argument is a compile error -- one the Python suite cannot see
+        // and `tests/test_native_sources.py` now looks for.
+        let saved = try await request(for: fixture, office: office)
         var body = try XCTUnwrap(
-            JSONSerialization.jsonObject(
-                with: try await request(for: fixture, office: office)) as? [String: Any])
+            JSONSerialization.jsonObject(with: saved) as? [String: Any])
         body["config_digest"] = String(repeating: "b", count: 64)
 
         let wallet = WalletFlow(wallet: WalletKey(voterID: "Nagy Béla"),
