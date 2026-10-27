@@ -25,7 +25,10 @@ library to find out, which is the whole reason the seam is a protocol.
 from __future__ import annotations
 
 import hashlib
+import pathlib
 from dataclasses import dataclass
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 import pytest
 
@@ -476,3 +479,45 @@ def test_a_poll_with_both_routes_survives_being_written_and_read_back(world):
     assert restored._requests[DOCUMENT_ID].document == document
     assert restored._requests[WALLET_ID].wallet_signature is not None
     assert restored.release_count() == 2
+
+
+def test_the_supervision_page_knows_every_shape_the_office_publishes():
+    """The bug this is here for, in its general form.
+
+    `_request_for_supervision` emits one of two shapes, because there are
+    two routes. The supervision page knew only the first, so a release
+    asked for with a *qualified electronic signature* -- the strongest
+    evidence anywhere in this system -- was rendered "NONE — not asked
+    for" and counted among the releases nobody requested. The page was
+    accusing the office of the one thing this surface exists to detect,
+    on the strength of a field name it had never been told about.
+
+    So: every key either shape can carry must appear in the script. Not
+    a proof that the page handles it well; a guarantee that adding a
+    third shape is a visible edit rather than a silent accusation.
+    """
+    import hashlib
+    import re
+
+    from ovpoc.vro import SignedRequest, _request_for_supervision
+
+    wallet = _request_for_supervision(
+        SignedRequest(blinded_key=b"c", wallet_signature=b"s"))
+    document = _request_for_supervision(
+        SignedRequest(blinded_key=b"c", document=b"%PDF-1.7\n"))
+    assert document["request_document_sha256"] == hashlib.sha256(
+        b"%PDF-1.7\n").hexdigest()
+
+    script = (ROOT / "web" / "supervisor" / "static" / "supervisor.js").read_text()
+    missing = [key for key in {*wallet, *document} if key not in script]
+    assert not missing, (
+        "the supervision page never mentions: " + ", ".join(sorted(missing))
+        + " — a release carrying one of those renders as evidence the page "
+        "does not recognise, and this surface reports what it does not "
+        "recognise as a release nobody asked for")
+
+    # And the page must not decide "not asked for" from the wallet
+    # route's field alone, which is how it did.
+    assert not re.search(r"!\s*r(elease)?\.request_signature", script), (
+        "something still reads the absence of an Ed25519 signature as the "
+        "absence of a request")

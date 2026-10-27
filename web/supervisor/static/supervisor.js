@@ -143,7 +143,12 @@ async function refresh() {
 
   const ids = data.releases.map((r) => r.voter_id);
   const repeated = [...new Set(ids.filter((v, i) => ids.indexOf(v) !== i))];
-  const unasked = data.releases.filter((r) => !r.request_signature);
+  // Neither kind of evidence, not merely "no Ed25519 signature". A
+  // release asked for with a qualified electronic signature carries a
+  // document digest instead, and reading its absence from this field as
+  // "not asked for" accused the office of minting a token for a citizen
+  // who had in fact asked with the strongest evidence in the system.
+  const unasked = data.releases.filter((r) => evidence(r).kind === 'none');
   show('unasked', unasked.length
     ? `NO SIGNED REQUEST FOR: ${unasked.map((r) => r.voter_id).join(', ')}`
     : `every release carries the citizen's own signed request`,
@@ -159,10 +164,8 @@ async function refresh() {
         <td class="mono">${esc(r.commitment.slice(0, 24))}…</td>
         <td class="${rebuilt[i] === r.commitment ? 'ok' : 'warn'}">${
           rebuilt[i] === r.commitment ? 'matches' : 'DOES NOT MATCH'}</td>
-        <td class="${r.request_signature ? 'ok' : 'warn'}">${
-          r.request_signature
-            ? `${esc(r.request_signature.slice(0, 16))}…`
-            : 'NONE — not asked for'}</td></tr>`).join('')
+        <td class="${evidence(r).kind === 'none' ? 'warn' : 'ok'}">${
+          esc(evidence(r).shown)}</td></tr>`).join('')
     : '<tr><td colspan="5">no tokens released</td></tr>';
 
   $('audit').innerHTML = data.audit.length
@@ -174,6 +177,41 @@ async function refresh() {
   $('asof').textContent = `as of ${new Date().toLocaleTimeString()}`;
   show('status', 'Every figure above was recomputed here from the office\u2019s '
      + 'own record, against keys from the published configuration.', 'ok');
+}
+
+/**
+ * What this release carries as the citizen's own request, by route.
+ *
+ * Two shapes, because there are two routes and the office must not differ
+ * by a line below the identity boundary. The wallet route publishes the
+ * Ed25519 signature itself; the qualified-signature route publishes the
+ * signed document's digest and length and *not* the document, because
+ * that document is verifiable by anyone against the European trust lists
+ * without this office's cooperation and is therefore a far more portable
+ * proof that a named citizen took part than anything the first route
+ * produces (§3.7).
+ *
+ * A page that knew only the first shape reported the second as "NONE —
+ * not asked for", which is the worst available misreading: it accuses
+ * the office of inventing a release that was in fact asked for with a
+ * qualified electronic signature.
+ */
+function evidence(release) {
+  if (release.request_signature) {
+    return {
+      kind: 'wallet',
+      shown: `${release.request_signature.slice(0, 16)}…`,
+    };
+  }
+  if (release.request_document_sha256) {
+    return {
+      kind: 'document',
+      digest: release.request_document_sha256,
+      shown: `sha-256 ${release.request_document_sha256.slice(0, 16)}…`
+           + ` (${release.request_document_bytes} bytes)`,
+    };
+  }
+  return { kind: 'none', shown: 'NONE — not asked for' };
 }
 
 /**
@@ -191,14 +229,26 @@ async function verifyRequests() {
   const rows = [];
   let good = 0;
   let missing = 0;
+  let qualified = 0;
   for (const release of data.releases) {
     const key = certificates[release.voter_id];
     let verdict;
     let cls;
-    if (!release.request_signature) {
+    const carried = evidence(release);
+    if (carried.kind === 'none') {
       verdict = 'no signature — this release was not asked for';
       cls = 'warn';
       missing += 1;
+    } else if (carried.kind === 'document') {
+      // Honest about what this page can and cannot establish. The
+      // signature is a qualified one under eIDAS and anybody can check
+      // it against the European trust lists — but not from here, because
+      // the document is deliberately not published. Calling that a
+      // failure would be as wrong as calling it a pass.
+      verdict = 'a qualified signature, over a document this page is not '
+              + 'given; check it against the digest above';
+      cls = '';
+      qualified += 1;
     } else if (!key) {
       verdict = 'no certificate on file for this identifier';
       cls = 'warn';
@@ -213,18 +263,23 @@ async function verifyRequests() {
       if (ok) good += 1;
     }
     rows.push(`<tr><td class="mono">${esc(release.voter_id)}</td>
-      <td class="mono">${release.request_signature
-        ? `${esc(release.request_signature.slice(0, 16))}…` : '—'}</td>
+      <td class="mono">${esc(carried.shown)}</td>
       <td class="${cls}">${esc(verdict)}</td></tr>`);
   }
 
   $('requests').innerHTML = rows.length
     ? rows.join('') : '<tr><td colspan="3">no tokens released</td></tr>';
   const total = data.releases.length;
-  show('verdict', good === total
-    ? `all ${total} releases were asked for, by the citizen named`
-    : `${good} of ${total} verify; ${missing} have no signature at all`,
-    good === total ? 'ok' : 'warn');
+  // Three buckets, not two, and the middle one is not a failure. Folding
+  // the qualified-signature releases into either end would be this page
+  // reporting a limitation of its own as a finding about the office.
+  show('verdict', missing === 0
+    ? `all ${total} releases were asked for: ${good} checked here, `
+      + `${qualified} carrying a qualified signature to be checked against `
+      + 'the document'
+    : `${good} of ${total} verify here, ${qualified} are qualified `
+      + `signatures, and ${missing} have no request behind them at all`,
+    missing === 0 ? 'ok' : 'warn');
   $('verify-asof').textContent = `checked at ${new Date().toLocaleTimeString()}`;
 }
 
@@ -234,3 +289,36 @@ $('verify').onclick = () => verifyRequests()
 $('refresh').onclick = () => refresh();
 $('download').onclick = () => { window.location = '/supervision'; };
 refresh().catch((err) => show('status', `Could not read the register: ${err}`, 'warn'));
+
+
+/**
+ * Tie a signed document to a release, in the supervisor's own browser.
+ *
+ * This is what the published digest is *for*. The office withholds the
+ * document because it is a portable proof that a named citizen took part
+ * (§3.7), and a supervisor who has obtained one by some other route --
+ * from the citizen, from a complaint, from a court -- can establish that
+ * it is the request behind a particular release without asking the office
+ * to confirm anything. The office cannot lie about a digest it published
+ * and signed the chain over.
+ *
+ * Nothing leaves the page. A supervision surface that uploaded the
+ * document in order to check it would be handing the office the one
+ * artefact it was careful not to hold.
+ */
+document.getElementById('match-file')?.addEventListener('change', async (event) => {
+  const where = document.getElementById('match-result');
+  const file = event.target.files[0];
+  if (!file) { where.textContent = '—'; return; }
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))]
+    .map((b) => b.toString(16).padStart(2, '0')).join('');
+
+  const data = await (await fetch('/data')).json();
+  const hit = data.releases.find((r) => r.request_document_sha256 === digest);
+  where.className = hit ? 'value ok' : 'value warn';
+  where.textContent = hit
+    ? `matches release ${hit.index}, ${hit.voter_id}`
+    : `no release carries this digest (${digest.slice(0, 16)}…)`;
+});

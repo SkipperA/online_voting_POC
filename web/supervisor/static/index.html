@@ -57,11 +57,14 @@ never by whom.</p>
   registry, with current eligibility. Not against any list this office
   supplied: that would be comparing the office against its own copy.</p>
   <p class="prose" style="margin:0 0 .6rem">Each release
-  carries the citizen's own signature over their token request — the one
-  object in the exchange this office could not have manufactured. A release
-  with no signature behind it was not asked for. Verify the signatures
-  against certificates from the certification authority, for the same reason
-  as the roll.</p>
+  carries the citizen's own request, and which object that is depends on the
+  route they took. On the wallet route it is an Ed25519 signature over
+  <code>hash([id, c])</code>; on the qualified-signature route it is the
+  SHA-256 digest of the document they signed in their own wallet — the
+  document itself is deliberately not published here, for the reason given
+  below. Either way it is the one object in the exchange this office could
+  not have manufactured, and a release carrying <em>neither</em> was not
+  asked for.</p>
   <table><thead><tr><th>#</th><th>identifier</th><th>commitment</th><th>rebuilt</th>
     <th>signed request</th></tr></thead>
   <tbody id="releases"><tr><td colspan="5">…</td></tr></tbody></table>
@@ -70,18 +73,36 @@ never by whom.</p>
 <section>
   <h2>Was every token actually asked for?</h2>
   <p class="prose" style="margin:0 0 .6rem">Each release
-  carries the citizen's own signature over their token request —
-  <code>s = sig(hash([id, c]))</code> — which is the one object in the
-  exchange this office could not have manufactured. Checking it, rather
-  than noting that something is present, is the difference between finding
-  a fabricated release and finding a release with sixteen plausible
-  characters in the right column.</p>
+  carries the citizen's own request — <code>s = sig(hash([id, c]))</code> on
+  the wallet route — which is the one object in the exchange this office
+  could not have manufactured. Checking it, rather than noting that
+  something is present, is the difference between finding a fabricated
+  release and finding a release with sixteen plausible characters in the
+  right column.</p>
+  <p class="prose" style="margin:0 0 .6rem">A qualified signature cannot be
+  checked from here and this page says so rather than guessing in either
+  direction. Reporting it as a failure would accuse the office of inventing
+  a release that was in fact asked for with the strongest evidence in the
+  system; reporting it as a pass would be this page vouching for something
+  it never saw. It is counted separately, and the tool for closing it is
+  below.</p>
   <p style="margin:0 0 .7rem"><button id="verify">Verify every request
   signature</button>
   <span id="verify-asof" class="stamp" style="margin-left:.6rem">—</span></p>
   <div class="row"><span class="label">verdict</span><span class="value" id="verdict">not checked</span></div>
-  <table><thead><tr><th>identifier</th><th>signature</th><th>verifies under</th></tr></thead>
+  <table><thead><tr><th>identifier</th><th>request</th><th>verifies under</th></tr></thead>
   <tbody id="requests"><tr><td colspan="3">—</td></tr></tbody></table>
+
+  <h3 style="margin:1.4rem 0 .4rem;font-size:1rem">A document obtained elsewhere</h3>
+  <p class="prose" style="margin:0 0 .6rem">The digest in the table is there
+  to be <em>used</em>. A supervisor holding a signed token request — from the
+  citizen, from a complaint, from a court — can tie it to a release here
+  without this office's help, and can check the signature itself against the
+  European trust lists, which is a check no part of this system performs for
+  them. Hashed in this browser; nothing is uploaded.</p>
+  <p style="margin:0 0 .7rem">
+    <input type="file" id="match-file" accept="application/pdf,.pdf">
+    <span id="match-result" class="value">—</span></p>
   <p class="prose" style="margin:.7rem 0 0">The keys come from
   <code>/certificates</code> on this origin, which is the demonstration
   standing in for a certification authority. A supervisor checking an office

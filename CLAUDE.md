@@ -208,6 +208,29 @@ register is `VRO.register` — a set of ids, and nothing else.
   `test_a_real_signature_reaches_the_office_through_the_endpoint` is the
   honest test, `test_the_validator_works_from_inside_an_event_loop` the
   sharp one, and `validator_called_on_the_event_loop` the mutation.
+- **An oversight surface that does not recognise a shape reports it as a
+  finding, and that is worse than not showing it.** `_request_for_supervision`
+  emits two shapes, one per route: the wallet route's Ed25519 signature, or
+  the qualified-signature route's document digest and length. The supervision
+  page knew only the first, so a release asked for with a *qualified
+  electronic signature* — the strongest evidence anywhere in this system —
+  rendered as "NONE — not asked for" and was counted among the releases
+  nobody requested. The page was accusing the office of the one thing the
+  surface exists to detect, on the strength of a field name it had never been
+  told about. Found by a voter looking at his own release, not by a test.
+
+  Three rules out of it. A page must decide "not asked for" from the absence
+  of *every* kind of evidence, never from one field. A check it cannot
+  perform is reported as a third state and counted separately — the qualified
+  signature is verifiable by anyone against the European trust lists but not
+  from this origin, because the document is deliberately withheld (§3.7), and
+  calling that a failure or a pass are both false. And the published digest
+  must be usable: the page takes a document the supervisor has obtained
+  elsewhere, hashes it in the browser and names the release it matches, which
+  is the tie §3.7 left them to make and nothing offered them the means for.
+  `test_the_supervision_page_knows_every_shape_the_office_publishes` is the
+  tripwire, and it is the general form: every key either shape can carry must
+  appear in the script.
 - **§3.2 is about what the office *discloses*, never about what it knows,
   and the document route briefly got that wrong.** Everywhere else the
   office records the true reason for every refusal and hands the requester
