@@ -143,6 +143,35 @@ register is `VRO.register` — a set of ids, and nothing else.
   reason: the operator who pins the anchors and the line that installs the
   validator are in different places, and the image should not be the half
   that is missing.
+- **The word *qualified* is the trusted list's to give, and `None` is not
+  `False`.** Article 3(12) is not a property of a signature on its own: it
+  depends on whether the service that issued the certificate was *granted*
+  for qualified signatures at the moment of signing, which only a trusted
+  list under ETSI TS 119 612 records. So `driver/trusted_list.py` pins one
+  member state's list as a dated snapshot and
+  `QualifiedSignatureValidation.trusted_list` uses it for two things that
+  are really one — a `TSPTrustManager` decides whose certificates count,
+  and `QualificationAssessor` decides whether this one is qualified. An
+  office on hand-pinned roots answers `None`, meaning it has no standing to
+  judge; an office with a list answers `True` or `False`, and the `False`
+  is a finding. Collapsing the first into the second would let an
+  unconfigured office imply something it never established, which is
+  `qualified_claimed_without_a_trust_list`.
+
+  Three things worth not relearning. pyHanko's legacy
+  `validate_pdf_signature` never fills `qualification_result` — it says so
+  in its own source — so the assessment is made separately from
+  `status.validation_path`. The list supplies trust *instead of*
+  `trust_roots`, never alongside: an office told both would trust the union
+  of a list it can justify and a certificate somebody downloaded, and the
+  second would be invisible in everything it reports. And two signatures
+  are checked at pin time, the LOTL against certificates pyHanko ships and
+  the member list against the certificates the signed LOTL names for it —
+  which is what removes the trust-on-first-use step that S6 was about.
+  What S6 still covers is freshness: the snapshot is read offline, because
+  an office that fetched would tell a third party which certificates it was
+  asked about, so a service withdrawn since the pin is still trusted and
+  every surface prints how many days old it is.
 - **An office that offers no route says which directory it read.** On the
   qualified-signature route "not configured" and "anchors in the wrong
   place" are the same page to a voter and the same page to an operator, and

@@ -110,6 +110,27 @@ no such route at all, which is the honest state for one that has not been
 configured for it -- and is a different thing from an office that offers the
 route and refuses every request.
 
+There are two ways, and the first is better. Pin the European trusted list:
+
+    python tools/fetch_trust_anchors.py --into deploy/election-data/trust-anchors \
+        --trusted-list HU
+
+That fetches the Union's list-of-the-lists, checks its signature against the
+signer certificates pyHanko ships, reads Hungary's own list from the address
+the *signed* LOTL gives, and checks that against the certificates the LOTL
+names for it. Nothing is trusted because it came from a plausible address.
+The office then takes its anchors from that list and can say whether a
+signature is *qualified* under Article 3(12) — which an office on a
+hand-pinned root cannot, and reports as "no standing to judge" rather than
+as "no".
+
+It is read offline, so re-pin before an election rather than after: a service
+withdrawn from the list since the snapshot is still trusted by it, and every
+surface prints how many days old it is.
+
+The older way, one root downloaded by hand, still works and is what this
+deployment ran before the above existed:
+
     python tools/fetch_trust_anchors.py --into deploy/election-data/trust-anchors \
         http://qca.hiteles.gov.hu/ecc/cer/govca-ecc-root.cer
 

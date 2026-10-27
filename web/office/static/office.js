@@ -35,6 +35,25 @@ async function refresh() {
       + `<span class="value same">offered</span></div>`
       + `<div class="row"><span class="label">anchors read from</span>`
       + `<span class="value mono">${where}</span></div>`
+      // Whether this office may use the word `qualified` at all, and why.
+      // An office on hand-pinned roots answers `null` to that question
+      // rather than `false`, and the difference is the whole of S6.
+      + (trust.trusted_list
+          ? `<div class="row"><span class="label">trusted list</span>`
+            + `<span class="value same">${esc(trust.trusted_list.territory)}`
+            + `, pinned ${esc(trust.trusted_list.pinned_on)}`
+            + ` (${trust.trusted_list.days_old} days ago)</span></div>`
+            + `<div class="row"><span class="label">it recognises</span>`
+            + `<span class="value">`
+            + `${trust.trusted_list.certification_authorities} certification`
+            + ` and ${trust.trusted_list.timestamp_authorities} timestamp`
+            + ` authorities</span></div>`
+            + `<div class="row"><span class="label">can say qualified</span>`
+            + `<span class="value same">yes</span></div>`
+          : `<div class="row"><span class="label">trusted list</span>`
+            + `<span class="value held">none pinned</span></div>`
+            + `<div class="row"><span class="label">can say qualified</span>`
+            + `<span class="value held">no — clause S6</span></div>`)
       + `<div class="row"><span class="label">pinned on</span>`
       + `<span class="value">${esc(trust.pinned_on || 'not recorded')}</span></div>`
       + `<table style="margin-top:.7rem"><thead><tr><th>subject</th>`

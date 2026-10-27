@@ -66,11 +66,16 @@ on its own side, from the bytes your signature covers.</p>
 <div class="note note--substituted">
   <span class="kind">Substituted · <code>S6</code></span>
   <b>What this demo substitutes</b>
-  The office accepts your signature because it chains to a certificate an
-  operator pinned by hand. A deployment takes its anchors from the European
-  trusted list instead — which is also what would let it say your signature is
-  <i>qualified</i>, a word this build does not use because it cannot
-  establish it.
+  An office may take its anchors two ways, and this page reports which this
+  one did: from the European trusted list, which is signed and names every
+  recognised authority with the dates it was granted — or from a certificate
+  an operator pinned by hand, downloaded from the authority's own server and
+  corroborated by nothing. Only the first lets an office say your signature
+  is <i>qualified</i>; on the second it answers that it has no standing to
+  judge, which is not the same as <i>no</i>. Either way the list is read from
+  a dated snapshot and never fetched while a poll runs, so a service
+  withdrawn since it was taken is still trusted here.
+  <span id="s6-state"></span>
 </div>
 
 <div class="note note--absent">

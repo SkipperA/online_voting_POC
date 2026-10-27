@@ -68,12 +68,21 @@ def _signature_validation(anchors: Path | None):
     deployment does not start. That is deliberate: an office that came up
     having silently trusted a swapped certificate would look like nothing
     at all.
+
+    A pinned European trusted list wins over hand-pinned roots when both
+    are there. Not merged: an office trusting the union of a list it can
+    justify and a certificate somebody downloaded would be trusting the
+    second invisibly, since everything it reports about its anchors would
+    be about the first. The operator removes one or the other.
     """
     if anchors is None or not anchors.is_dir():
         return None
     from driver.qualified_signature import QualifiedSignatureValidation
+    from driver.trusted_list import load as load_trusted_list
 
-    return QualifiedSignatureValidation.from_pinned(anchors)
+    pinned_list = load_trusted_list(anchors)
+    return QualifiedSignatureValidation.from_pinned(
+        anchors, trusted_list=pinned_list)
 
 
 @dataclass

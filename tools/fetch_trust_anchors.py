@@ -162,6 +162,94 @@ def check(directory: Path) -> list[str]:
     return problems
 
 
+def _describe_trusted_list(directory: Path):
+    """What `driver.trusted_list.describe` says, if it can be imported.
+
+    `--check` runs on an operator's machine, which need not have the
+    `pades` extra; `describe` reads the manifest and hashes files and
+    needs none of it, but importing the module at the top of this tool
+    would still tie the two together. Kept local and forgiving.
+    """
+    try:
+        sys.path.insert(0, str(ROOT))
+        from driver.trusted_list import describe
+    except ImportError:  # pragma: no cover - a checkout without `driver/`
+        return None
+    return describe(directory)
+
+
+def _pin_trusted_list(directory: Path, territory: str) -> int:
+    """Fetch the list-of-the-lists, then the member state's own list.
+
+    Two downloads and two signature checks, and the second is why the
+    first matters: the LOTL is signed by certificates pyHanko ships, and
+    it names the certificates that may sign each member state's list. So
+    nothing here is trusted because it arrived from a plausible address.
+    That is the step `--add`ing a root by hand cannot do, and the whole
+    of what clause S6 said a deployment does differently.
+
+    This is the one command in this tool that must reach the internet,
+    and it is an operator's act performed once, not something the office
+    does while a poll runs.
+    """
+    sys.path.insert(0, str(ROOT))
+    from driver.trusted_list import LOTL_URL, TrustedListRefused, pin
+    from driver.trusted_list import load as load_trusted_list
+
+    print(f"fetching {LOTL_URL}")
+    with urllib.request.urlopen(LOTL_URL, timeout=60) as response:
+        lotl_xml = response.read().decode("utf-8")
+
+    # The member state's own URL comes out of the signed LOTL rather than
+    # being typed here: an address an operator pasted is an address an
+    # operator can mistype, and this one decides whose signatures an
+    # electoral office accepts.
+    from pyhanko.sign.validation.qualified.eutl_parse import validate_and_parse_lotl
+
+    parsed = validate_and_parse_lotl(lotl_xml)
+    wanted = territory.upper()
+    reference = next((r for r in parsed.references
+                      if (r.territory or "").upper() == wanted), None)
+    if reference is None:
+        listed = sorted({r.territory for r in parsed.references if r.territory})
+        print(f"the list-of-the-lists names no list for {wanted}.")
+        print(f"It names: {', '.join(listed)}")
+        return 1
+
+    print(f"fetching {reference.location_uri}")
+    with urllib.request.urlopen(reference.location_uri, timeout=60) as response:
+        member_xml = response.read().decode("utf-8")
+
+    try:
+        pinned = pin(directory, territory=wanted,
+                     lotl_xml=lotl_xml, member_xml=member_xml)
+    except TrustedListRefused as refused:
+        print(f"refused: {refused}")
+        return 1
+
+    # Read it back the way the office will, offline, before saying it is
+    # pinned. A snapshot that writes and does not load is a deployment
+    # that will not start, discovered now rather than at the next restart.
+    reloaded = load_trusted_list(directory)
+
+    print(f"\npinned into {directory}\n")
+    print(f"  territory               {pinned.territory}")
+    print(f"  list                    {pinned.location}")
+    print(f"  certification authorities {reloaded.authorities}")
+    print(f"  timestamp authorities   {reloaded.timestamp_authorities}")
+    print(f"  services not understood {len(pinned.skipped)}")
+    print(f"  pinned on               {pinned.pinned_on}")
+    print()
+    print("Both signatures checked: the list-of-the-lists against the signer")
+    print("certificates pyHanko ships, and this list against the certificates")
+    print("the list-of-the-lists names for it. No trust on first use here.")
+    print()
+    print("The office reads this snapshot offline and never reaches the")
+    print("Union while a poll runs, so a service withdrawn after today is")
+    print("still trusted by it. Re-pin before an election rather than after.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Pin trust anchors for the office.")
     parser.add_argument("url", nargs="?", help="a certificate to download and pin")
@@ -171,15 +259,28 @@ def main() -> int:
                         help="pin a certificate already on disk")
     parser.add_argument("--check", action="store_true",
                         help="verify the directory against its manifest")
+    parser.add_argument("--trusted-list", metavar="CC", default=None,
+                        help="pin a member state's EU trusted list, e.g. HU. "
+                             "Replaces hand-pinned roots: the office then "
+                             "takes its anchors from the list and can say "
+                             "whether a signature is qualified")
     args = parser.parse_args()
 
     if args.check:
         problems = check(args.into)
+        described = _describe_trusted_list(args.into)
+        if described is not None:
+            print(f"  trusted list  {described['territory']}, pinned "
+                  f"{described['pinned']}, {described['signers']} signer(s)")
+            problems.extend(described["problems"])
         for problem in problems:
             print(f"  {problem}")
         print("The pinned anchors are as recorded." if not problems
               else f"{len(problems)} problem(s).")
         return 1 if problems else 0
+
+    if args.trusted_list:
+        return _pin_trusted_list(args.into, args.trusted_list)
 
     if args.add is not None:
         der = _as_der(args.add.read_bytes())

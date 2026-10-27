@@ -628,9 +628,27 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
                     "office that offers the route and refuses everybody."
                 ),
             }
+        # A pinned European list, when there is one. This is the answer to
+        # the question S6 named: an office reading it can use the word
+        # *qualified*, and an office that pinned a root by hand cannot.
+        # The age is reported because the snapshot is read offline and a
+        # service withdrawn since it was taken is still trusted here --
+        # a limitation that belongs on a page rather than in a comment.
+        listed = getattr(validation, "trusted_list", None)
+        trusted_list = None if listed is None else {
+            "territory": listed.territory,
+            "pinned_on": listed.pinned_on,
+            "days_old": listed.age_in_days(),
+            "location": listed.location,
+            "certification_authorities": listed.authorities,
+            "timestamp_authorities": listed.timestamp_authorities,
+            "services_not_understood": len(listed.skipped),
+        }
         return {
             "offered": True,
             "looked_in": looked_in,
+            "trusted_list": trusted_list,
+            "can_say_qualified": trusted_list is not None,
             "pinned_on": getattr(validation, "pinned_on", ""),
             # `getattr`, because the seam is a Protocol and a test fills it
             # with something that validates and records no provenance. An

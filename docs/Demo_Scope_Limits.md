@@ -137,15 +137,35 @@ deployment appoints one and records who read the register.*
 
 Covers the qualified-signature route only.
 
-The office accepts a signed token request because its signature chains to a
-certificate in `election-data/trust-anchors/`, pinned by an operator with
-`tools/fetch_trust_anchors.py`. In deployment the anchors come from the
-European trusted list under ETSI TS 119 612 — a signed artefact, published by
-a body whose authority to publish it is itself established — and the office
-derives from it not only whom to trust but whether a signature is *qualified*,
-which this build cannot say and therefore does not.
+An office may take its anchors two ways and this clause is about the
+difference, which has narrowed: `tools/fetch_trust_anchors.py --trusted-list
+HU` now pins the European trusted list under ETSI TS 119 612, and an office
+reading one derives from it both whom to trust and whether a signature is
+*qualified*. `--add`ing a root by hand still works and is what the hosted
+demonstration ran until this was built. Every surface says which of the two
+this office is doing, because the clause is only in force on the second.
 
-What is substituted is the provenance and nothing else. The validation is
+Two signatures are checked when the list is pinned, and the second is why the
+first matters. The list-of-the-lists is signed by certificates pyHanko ships,
+and it names the certificates that may sign each member state's own list. So
+an attacker able to serve Hungary's list cannot change whose signatures this
+office believes without also forging the Union's, and the Union's signers are
+not theirs to choose. That is the trust-on-first-use step removed rather than
+labelled.
+
+**What remains substituted, with the list pinned**, is freshness. The office
+reads a dated snapshot and never reaches the Union's servers while a poll
+runs — `allow_fetching` is off in the validator for the same reason, since an
+office that fetched would tell a third party which certificates it was asked
+about, and the electoral register is the last thing from which to leak a
+query log. So a service withdrawn from the list after the snapshot was taken
+is still trusted here. The manifest records the day and every surface prints
+how many days ago it was, which makes the staleness a thing a reader can see
+rather than a thing they must assume. Re-pin before an election rather than
+after.
+
+**On a hand-pinned root**, what is substituted is the provenance and nothing
+else. The validation is
 real: a real qualified signature, a real certificate chain, a real timestamp,
 and the revocation material that travels in the document. What is missing is
 the step that makes the anchor trustworthy without anybody having to look. An
@@ -161,9 +181,11 @@ the issuing authority, the timestamp authority and its issuer — and none of
 them is self-signed. The office therefore pins one certificate, and the rest
 of what it needs arrives with each request.
 
-**Label:** *Trust anchors are a snapshot an operator pinned by hand. A
-deployment takes them from the European trusted list, which is also what lets
-an office call a signature qualified.*
+**Label:** *Trust anchors come either from the European trusted list, pinned
+as a dated snapshot, or from a root an operator downloaded by hand — the page
+says which. Only the first lets an office call a signature qualified, and
+either way the snapshot is read offline, so a service withdrawn since it was
+taken is still trusted.*
 
 ---
 

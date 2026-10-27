@@ -106,6 +106,26 @@ async function describe(bytes) {
     ? await fingerprint(payload.blinded_key) : '—';
 }
 
+/** Which of the two S6 states this office is in, said on the page rather
+ *  than left as a general statement about deployments. The clause names a
+ *  substitution; whether it is in force here is a fact about this server,
+ *  and a reader should not have to open the back office to learn it. */
+(async () => {
+  let trust;
+  try {
+    trust = await (await fetch('/back-office/trust')).json();
+  } catch { return; }
+  const where = $('s6-state');
+  if (!where || !trust.offered) return;
+  where.textContent = trust.trusted_list
+    ? ` This office reads the ${trust.trusted_list.territory} trusted list,`
+      + ` pinned ${trust.trusted_list.pinned_on}`
+      + ` (${trust.trusted_list.days_old} days ago), so it can establish`
+      + ' the word.'
+    : ' This office is on a hand-pinned root, so it cannot establish the'
+      + ' word and does not use it.';
+})();
+
 $('file').addEventListener('change', async (event) => {
   const file = event.target.files[0];
   $('outcome').className = '';

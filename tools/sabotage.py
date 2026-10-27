@@ -355,6 +355,17 @@ MUTATIONS = [
         replace="    pass  # SABOTAGE: ignore what the signature covered",
     ),
     Mutation(
+        name="qualified_claimed_without_a_trust_list",
+        what=(
+            "The office calls a signature qualified on its own authority, "
+            "with no trusted list to establish it -- turning 'this office "
+            "has no standing to judge' into a finding under Article 3(12)."
+        ),
+        path="driver/qualified_signature.py",
+        find="        if self.trusted_list is None:\n            return None",
+        replace="        if self.trusted_list is None:\n            return True  # SABOTAGE",
+    ),
+    Mutation(
         name="validator_called_on_the_event_loop",
         what=(
             "The signature validator is called directly from the office's "

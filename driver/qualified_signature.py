@@ -124,6 +124,13 @@ def subject_identifier(subject: dict[str, str]) -> str | None:
     return f"{country}-{serial}"
 
 
+def _tsp_trust_manager(trusted_list):
+    """pyHanko's trust manager over a pinned list's registry."""
+    from pyhanko.sign.validation.qualified.tsp import TSPTrustManager
+
+    return TSPTrustManager(tsp_registry=trusted_list.registry)
+
+
 def _off_the_event_loop(call, /, *args, **kwargs):
     """Run something that calls `asyncio.run()` inside itself.
 
@@ -235,6 +242,17 @@ class QualifiedSignatureValidation:
     #: nobody can check. Empty when the validator was built directly, as
     #: the tests build it.
     anchors: tuple[dict, ...] = ()
+    #: One member state's trusted list, pinned. When present it supplies
+    #: the trust anchors *and* answers whether a signature under one of
+    #: them is qualified -- the same question asked twice, which is why
+    #: one object answers both. `driver/trusted_list.py` builds it.
+    #:
+    #: Present, it replaces `trust_roots`: an office told both would be
+    #: an office whose anchors are the union of a list it can justify and
+    #: a certificate somebody downloaded, and the second would be
+    #: invisible in everything the first reports.
+    trusted_list: object | None = None
+
     #: The directory they were read from, and the day the operator pinned
     #: them. Reported as configuration, not as evidence.
     pinned_from: str = ""
@@ -354,8 +372,20 @@ class QualifiedSignatureValidation:
         # statement about a document this office never rendered.
         embedded = signatures[0]
 
+        # A trust *manager* when there is a list, trust *roots* when there
+        # is not. The manager is the list's own answer to "whose
+        # certificates count", service by service and with the dates each
+        # service was granted or withdrawn -- which a flat set of root
+        # certificates cannot express, and which is the difference between
+        # an office that accepts a qualified signature and one that
+        # accepts anything an authority ever signed.
+        anchoring: dict = (
+            {"trust_manager": _tsp_trust_manager(self.trusted_list)}
+            if self.trusted_list is not None else
+            {"trust_roots": [asn1_x509.Certificate.load(r)
+                             for r in self.trust_roots]})
         context = ValidationContext(
-            trust_roots=[asn1_x509.Certificate.load(r) for r in self.trust_roots],
+            **anchoring,
             crls=[asn1_crl.CertificateList.load(c) for c in self.crls] or None,
             allow_fetching=self.allow_fetching,
             # Soft, deliberately. Hard-fail turns "no revocation information
@@ -428,12 +458,39 @@ class QualifiedSignatureValidation:
             signing_time=_signing_time(status),
             revoked=revoked,
             expired=expired,
-            # Only a trust list can answer this, and only pyHanko's
-            # incubating ETSI support reads one. Absent that, `None` --
-            # the office does not get to use the word on its own authority.
-            qualified=(None if status.qualification_result is None
-                       else bool(status.qualification_result.qualified)),
+            # Only a trust list can answer this, and the office does not
+            # get to use the word on its own authority. `None` is not "no":
+            # it is this office saying it has no standing to judge, which
+            # is what a hand-pinned root certificate leaves it with.
+            qualified=self._qualified(status),
         )
+
+    def _qualified(self, status) -> bool | None:
+        """Article 3(12), answered by the list or not at all.
+
+        pyHanko's legacy validation entry point never fills
+        `qualification_result` -- it says so in its own source, qualification
+        checks are not in its scope -- so the assessment is made here, from
+        the path that validation produced and the registry the list built.
+
+        A refusal to answer and an answer of "not qualified" are different
+        and both are reported. The first is an office with no trusted list;
+        the second is an office with one, which looked, and found the
+        service that issued this certificate is not granted for qualified
+        signatures at the time it was made. Collapsing them would let an
+        unconfigured office imply a finding it never made.
+        """
+        if self.trusted_list is None:
+            return None
+        if status.validation_path is None:
+            return None
+        from pyhanko.sign.validation.qualified.assess import QualificationAssessor
+
+        assessor = QualificationAssessor(
+            tsp_registry=self.trusted_list.registry)
+        result = assessor.check_entity_cert_qualified(
+            status.validation_path, _signing_time(status))
+        return bool(result.status.qualified)
 
 
 def _covered_prefix(embedded) -> int:
