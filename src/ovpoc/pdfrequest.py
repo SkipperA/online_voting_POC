@@ -188,18 +188,52 @@ class ValidatedSignature:
     qualified: bool | None = None
 
 
+@dataclass(frozen=True)
+class SignatureRefused:
+    """Why no signature was established. Recorded, never disclosed.
+
+    §3.2 requires that the pre-identity failures be *answered* identically,
+    not that they be indistinguishable to the office. The office records
+    the true reason for every refusal and hands a requester the enum: that
+    is the whole shape of the clause, and it is the arrangement everywhere
+    else in `vro.py`.
+
+    On this route it was not. The validator returned a bare `None` and the
+    office wrote one sentence covering every way a signature can fail to
+    establish anybody -- so the operator's own log was as blind as the
+    answer given to the citizen, and an office refusing every genuine
+    request looked exactly like an office meeting forged ones. That is a
+    thing an operator must be able to tell apart, and nobody else.
+
+    So the reason travels here, where only `_record` reads it. It must
+    never reach a response; `test_two_routes.py` is what holds that.
+    """
+
+    #: Said to an operator reading the audit log, so it names the library's
+    #: finding rather than paraphrasing it. Treated as sensitive: it can
+    #: describe a certificate the office refused.
+    reason: str
+
+
 @runtime_checkable
 class SignatureValidation(Protocol):
     """`document` in, one signature's findings or nothing out.
 
-    `None` covers every pre-identity failure together -- no signature, a
-    signature that does not verify, a certificate that chains to nothing
-    the office trusts -- because the office must answer all of them with
-    one opaque refusal (§3.2). Reasons below the boundary travel in the
-    fields of `ValidatedSignature`, not in the absence of one.
+    Every pre-identity failure -- no signature, a signature that does not
+    verify, a certificate that chains to nothing the office trusts -- is
+    answered with one opaque refusal (§3.2), so none of them returns a
+    `ValidatedSignature`. Reasons below the boundary travel in the fields
+    of that type; reasons above it travel in `SignatureRefused`, which
+    goes to the audit log and nowhere else.
+
+    A bare `None` is still a refusal and still permitted, for a validator
+    with nothing to add. It records as a refusal whose reason was not
+    given, which is honest and is not something a deployment should ship.
     """
 
-    def validate(self, document: bytes) -> ValidatedSignature | None: ...
+    def validate(
+        self, document: bytes
+    ) -> "ValidatedSignature | SignatureRefused | None": ...
 
 
 class Refusal(Enum):

@@ -150,7 +150,11 @@ def test_an_empty_manifest_trusts_nothing_and_says_so_by_refusing_everyone(tmp_p
     (tmp_path / "MANIFEST.json").write_text('{"anchors": []}')
     validator = QualifiedSignatureValidation.from_pinned(tmp_path)
     assert validator.trust_roots == ()
-    assert validator.validate(b"%PDF-1.7\nnot signed\n%%EOF\n") is None
+    refused = validator.validate(b"%PDF-1.7\nnot signed\n%%EOF\n")
+    # A refusal with a reason, not a `ValidatedSignature`. The reason is
+    # for the office's log; what a requester is told is one enum.
+    assert not hasattr(refused, "identifier")
+    assert refused.reason
 
 
 # --------------------------------------------------------------------------

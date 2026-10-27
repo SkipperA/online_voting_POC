@@ -32,7 +32,8 @@ import re
 import pytest
 
 from ovpoc import pdfrequest
-from ovpoc.pdfrequest import SignatureValidation, ValidatedSignature
+from ovpoc.pdfrequest import (
+    SignatureRefused, SignatureValidation, ValidatedSignature)
 
 pyhanko = pytest.importorskip(
     "pyhanko", reason="the pades extra is not installed")
@@ -155,6 +156,26 @@ def trusted(authority) -> QualifiedSignatureValidation:
 # The seam
 # --------------------------------------------------------------------------
 
+def assert_identifies_nobody(found, *, saying: str | None = None) -> None:
+    """No signer established, and the office told why in its own log.
+
+    Both halves matter and they pull against each other, which is the
+    point. Nothing identified means the office answers `NOT_IDENTIFIED`
+    and distinguishes nothing for the requester (§3.2). A reason means
+    the *operator* can still tell a wrongly pinned root from a forged
+    signature, which the office used to make impossible by recording one
+    sentence for every refusal. `test_two_routes.py` holds the other
+    half: the reason never reaches a response.
+    """
+    assert not isinstance(found, ValidatedSignature), f"identified {found}"
+    assert isinstance(found, SignatureRefused), (
+        "a validator in a deployment should say why it refused, so that "
+        "the office's log is not as blind as the answer it gives")
+    assert found.reason
+    if saying is not None:
+        assert saying in found.reason, found.reason
+
+
 def test_the_validator_satisfies_the_seam_the_protocol_declares(trusted):
     """Structural, like `CertificateLookup`, so the implementation can live here."""
     assert isinstance(trusted, SignatureValidation)
@@ -195,17 +216,20 @@ def test_a_tampered_document_identifies_nobody(trusted, citizen, unsigned):
     _cert, signed = citizen
     altered = bytearray(signed)
     altered[len(unsigned) // 2] ^= 0xFF
-    assert trusted.validate(bytes(altered)) is None
+    assert_identifies_nobody(trusted.validate(bytes(altered)),
+                             saying="have changed since")
 
 
 def test_a_signature_chaining_to_nothing_trusted_identifies_nobody(citizen):
     """Not a different message from a tampered file. Deliberately."""
     _cert, signed = citizen
-    assert QualifiedSignatureValidation(trust_roots=()).validate(signed) is None
+    refused = QualifiedSignatureValidation(trust_roots=()).validate(signed)
+    assert_identifies_nobody(refused, saying="does not chain")
 
 
 def test_an_unsigned_document_identifies_nobody(trusted, unsigned):
-    assert trusted.validate(unsigned) is None
+    assert_identifies_nobody(trusted.validate(unsigned),
+                             saying="no signature at all")
 
 
 def test_rubbish_identifies_nobody_rather_than_raising(trusted):
@@ -215,7 +239,7 @@ def test_rubbish_identifies_nobody_rather_than_raising(trusted):
     escaping into a route handler would be one.
     """
     for rubbish in (b"", b"not a pdf at all", b"%PDF-1.7\nbroken", b"\x00" * 500):
-        assert trusted.validate(rubbish) is None
+        assert_identifies_nobody(trusted.validate(rubbish))
 
 
 # --------------------------------------------------------------------------

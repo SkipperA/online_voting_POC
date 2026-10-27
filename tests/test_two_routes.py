@@ -32,7 +32,7 @@ import pytest
 from driver.population_register import PopulationRegister
 from ovpoc import keys, pdfrequest, rsabssa
 from ovpoc.messages import AuthRequest, b64, unb64
-from ovpoc.pdfrequest import ValidatedSignature
+from ovpoc.pdfrequest import SignatureRefused, ValidatedSignature
 from ovpoc.vro import VRO, Outcome, SignedRequest
 
 ELECTION = "demo-2026"
@@ -54,12 +54,15 @@ class FakeValidation:
     that nothing here has to parse a PDF.
     """
 
-    answers: dict[str, ValidatedSignature | None]
+    answers: dict[str, ValidatedSignature | SignatureRefused | None]
 
-    def validate(self, document: bytes) -> ValidatedSignature | None:
+    def validate(
+        self, document: bytes
+    ) -> ValidatedSignature | SignatureRefused | None:
         return self.answers.get(hashlib.sha256(document).hexdigest())
 
-    def says(self, document: bytes, answer: ValidatedSignature | None) -> bytes:
+    def says(self, document: bytes,
+             answer: ValidatedSignature | SignatureRefused | None) -> bytes:
         self.answers[hashlib.sha256(document).hexdigest()] = answer
         return document
 
@@ -203,6 +206,52 @@ def test_an_unvalidatable_signature_is_not_identified(world):
     response = office.issue_token_for_signed_document(document)
     assert response.outcome is Outcome.NOT_IDENTIFIED
     assert office.release_count() == 0
+
+
+def test_the_reason_a_signature_was_refused_is_recorded_and_not_disclosed(world):
+    """Both halves of §3.2, which is about disclosure and not about knowing.
+
+    The requester gets `NOT_IDENTIFIED` and nothing that separates a
+    forged signature from one this office was never configured to accept.
+    The operator gets the validator's own words, because the alternative
+    is an office whose log is as blind as the answer it gives -- and the
+    two states an operator most needs to tell apart, a wrongly pinned
+    root and a genuinely untrusted signer, are exactly the two that one
+    sentence covering everything made identical.
+    """
+    office, _wallet = world
+    document = _document(_c(b"doc"))
+    office.signature_validation.says(document, SignatureRefused(
+        reason="the signing certificate does not chain to any anchor this "
+               "office has pinned (NO_ISSUER_FOUND)"))
+
+    response = office.issue_token_for_signed_document(document)
+    assert response.outcome is Outcome.NOT_IDENTIFIED
+
+    recorded = office.audit_log[-1]
+    assert recorded.outcome is Outcome.NOT_IDENTIFIED
+    assert "NO_ISSUER_FOUND" in recorded.reason
+
+    # And nowhere else. Everything the office hands back on this route is
+    # the response object, and a reason reaching a requester would turn
+    # the endpoint into the certificate oracle the opaque answer exists
+    # to prevent.
+    assert "NO_ISSUER_FOUND" not in repr(response)
+
+
+def test_a_validator_that_gives_no_reason_still_records_a_refusal(world):
+    """`None` stays a refusal. The seam did not become mandatory.
+
+    A validator with nothing to add is permitted -- the tests' own fakes
+    are mostly that -- and the office writes a reason saying the detail
+    was not given rather than leaving the row blank. A blank row reads as
+    a bug in the office rather than a gap in what it was told.
+    """
+    office, _wallet = world
+    document = _document(_c(b"quiet"))
+    office.signature_validation.says(document, None)
+    office.issue_token_for_signed_document(document)
+    assert "no further detail" in office.audit_log[-1].reason
 
 
 def test_a_certificate_naming_nobody_this_office_knows_is_not_identified(world):

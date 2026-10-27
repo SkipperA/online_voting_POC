@@ -355,6 +355,24 @@ MUTATIONS = [
         replace="    pass  # SABOTAGE: ignore what the signature covered",
     ),
     Mutation(
+        name="refusal_reason_collapsed_in_the_audit_log",
+        what=(
+            "The office records one sentence for every way a signature can "
+            "fail to identify anybody, so its own log cannot tell a wrongly "
+            "pinned trust anchor from a signature it was right to refuse."
+        ),
+        path="src/ovpoc/vro.py",
+        find=(
+            "                found.reason if found is not None else\n"
+            "                \"no valid signature over this document, or none that chains \"\n"
+            "                \"to a trusted anchor \u2014 the validator gave no further detail\","
+        ),
+        replace=(
+            "                \"no valid signature over this document, or none \"  # SABOTAGE\n"
+            "                \"that chains to a trusted anchor\","
+        ),
+    ),
+    Mutation(
         name="revocation_collapsed_into_not_identified",
         what=(
             "The signature validator inherits the library's verdict whole, so "
@@ -362,14 +380,8 @@ MUTATIONS = [
             "signature rather than as an identified signer with a problem."
         ),
         path="driver/qualified_signature.py",
-        find=(
-            "        if not status.trusted and not (revoked or expired):\n"
-            "            return None"
-        ),
-        replace=(
-            "        if not status.trusted:  # SABOTAGE\n"
-            "            return None"
-        ),
+        find="        if not status.trusted and not (revoked or expired):",
+        replace="        if not status.trusted:  # SABOTAGE",
     ),
     Mutation(
         name="identity_taken_from_the_common_name",

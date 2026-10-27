@@ -816,11 +816,19 @@ class VRO:
             )
 
         found = self.signature_validation.validate(document)
-        if found is None:
+        if not isinstance(found, pdfrequest.ValidatedSignature):
+            # One answer to the requester, the true reason in the log. The
+            # office records why for every other refusal it makes and this
+            # one was the exception: a single sentence covering every way a
+            # signature can fail to establish anybody, which left the
+            # operator's own log as blind as the citizen's answer. §3.2 is
+            # about what is *disclosed*; it never asked the office to stop
+            # knowing. See `pdfrequest.SignatureRefused`.
             return None, self._record(
                 "", Outcome.NOT_IDENTIFIED,
+                found.reason if found is not None else
                 "no valid signature over this document, or none that chains "
-                "to a trusted anchor",
+                "to a trusted anchor — the validator gave no further detail",
             )
         if not found.identifier:
             return None, self._record(

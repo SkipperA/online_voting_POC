@@ -84,7 +84,10 @@ async function refresh() {
   const audit = await (await fetch('/back-office/audit')).json();
   $('audit').innerHTML = audit.entries.length
     ? audit.entries.map((e) =>
-        `<tr><td class="mono">${e.voter_id}</td>` +
+        // Blank on the document route before the identity boundary: a
+        // refusal there means there is no identifier to file the row
+        // under, which is a fact about the route and not a missing value.
+        `<tr><td class="mono">${e.voter_id || '— (unidentified)'}</td>` +
         `<td class="${e.reason_withheld ? 'held' : ''}">${e.recorded}</td>` +
         `<td class="${e.reason_withheld ? 'held' : 'same'}">${e.disclosed}` +
         `${e.reason_withheld ? ' — reason withheld' : ''}</td></tr>`).join('')

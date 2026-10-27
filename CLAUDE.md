@@ -154,6 +154,22 @@ register is `VRO.register` — a set of ids, and nothing else.
   what an office is willing to believe is the whole of its answer to "who
   are you" — an office whose anchors nobody can read is one nobody can
   check.
+- **§3.2 is about what the office *discloses*, never about what it knows,
+  and the document route briefly got that wrong.** Everywhere else the
+  office records the true reason for every refusal and hands the requester
+  an enum. Here the validator returned a bare `None` and `_record` wrote one
+  sentence covering every way a signature can fail to establish anybody — so
+  the operator's log was as blind as the citizen's answer, and the two states
+  an operator most needs to separate, a wrongly pinned anchor and a signer
+  this office was right to refuse, were written identically. The fix is
+  `pdfrequest.SignatureRefused`: a reason that travels to `_record` and
+  nowhere else, with `None` still permitted for a validator with nothing to
+  add. `refusal_reason_collapsed_in_the_audit_log` is the mutation, and
+  `test_two_routes.py` holds both halves — the reason is in the log and is
+  not in the response. The general form, worth keeping in mind for the next
+  opaque answer: an outcome that is deliberately uninformative to a stranger
+  must be *more* informative to the operator, not less, or the privacy
+  property has been paid for twice.
 - **The identity boundary runs through the signature validator too, and a
   library will move it if nothing stops it.** On the qualified-signature
   route there is no certificate lookup: the certificate arrives with the

@@ -42,6 +42,7 @@ confident the surrounding comments sound.
 | document_prefix_check_removed | `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`<br>`test_a_signed_document_whose_page_was_altered_is_refused_by_the_rule`<br>`test_a_swapped_payload_cannot_produce_a_false_accept`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | carrier_disagreement_resolved_by_preference | `test_carriers_that_disagree_are_refused_rather_than_resolved`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | document_coverage_check_removed | `test_a_refusal_hands_back_no_payload`<br>`test_a_signature_covering_less_than_the_document_is_refused`<br>`test_a_signature_that_stops_short_of_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| refusal_reason_collapsed_in_the_audit_log | `test_a_validator_that_gives_no_reason_still_records_a_refusal`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_reason_a_signature_was_refused_is_recorded_and_not_disclosed` |
 | revocation_collapsed_into_not_identified | `test_a_revoked_certificate_still_identifies_its_signer`<br>`test_an_expired_certificate_still_identifies_its_signer`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | identity_taken_from_the_common_name | `test_a_subject_with_no_serial_number_yields_no_identifier`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_identifier_is_the_serial_number_and_not_the_name`<br>`test_the_office_can_decide_a_real_signed_request` |
 | coverage_counted_from_a_range_not_starting_at_zero | `test_a_range_not_starting_at_zero_covers_none_of_the_prefix`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
@@ -450,6 +451,17 @@ Caught by:
 - `test_a_signature_that_stops_short_of_the_document_is_refused`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 
+### `refusal_reason_collapsed_in_the_audit_log`
+
+The office records one sentence for every way a signature can fail to identify anybody, so its own log cannot tell a wrongly pinned trust anchor from a signature it was right to refuse.
+
+Patched in `src/ovpoc/vro.py`.
+
+Caught by:
+- `test_a_validator_that_gives_no_reason_still_records_a_refusal`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_reason_a_signature_was_refused_is_recorded_and_not_disclosed`
+
 ### `revocation_collapsed_into_not_identified`
 
 The signature validator inherits the library's verdict whole, so a revoked or expired certificate is reported as no valid signature rather than as an identified signer with a problem.
@@ -589,5 +601,5 @@ Caught by:
 
 ## Summary
 
-- 43 of 43 mutations were detected.
+- 44 of 44 mutations were detected.
 - 0 were not.

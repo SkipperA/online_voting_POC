@@ -86,7 +86,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ovpoc.pdfrequest import ValidatedSignature
+from ovpoc.pdfrequest import SignatureRefused, ValidatedSignature
 
 #: The subject attributes this office reads, in the form `asn1crypto` names
 #: them.  Everything else in a distinguished name is left alone.
@@ -283,7 +283,9 @@ class QualifiedSignatureValidation:
         )
 
     # ------------------------------------------------------------------
-    def validate(self, document: bytes) -> ValidatedSignature | None:
+    def validate(
+        self, document: bytes
+    ) -> ValidatedSignature | SignatureRefused:
         # Imported here rather than at module scope so that `driver` stays
         # importable without the `pades` extra. The office that does not use
         # this route should not need a PDF library installed to start.
@@ -306,13 +308,17 @@ class QualifiedSignatureValidation:
             # for.
             reader = PdfFileReader(io.BytesIO(document), strict=False)
             signatures = reader.embedded_signatures
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             # Anything a malformed file can throw is the same answer. The
             # office does not owe a parse error to an unidentified party,
-            # and `pdfrequest.check` will not have been reached.
-            return None
+            # and `pdfrequest.check` will not have been reached. It owes
+            # the operator one, which is what the refusal carries.
+            return SignatureRefused(
+                f"the file could not be read as a PDF: "
+                f"{type(exc).__name__}: {exc}")
         if not signatures:
-            return None
+            return SignatureRefused(
+                "the file is a readable PDF and carries no signature at all")
 
         # The first signature in the file, which is the one that signed the
         # document the citizen was shown. A later one signs that plus
@@ -333,15 +339,21 @@ class QualifiedSignatureValidation:
         try:
             status = validate_pdf_signature(embedded,
                                             signer_validation_context=context)
-        except Exception:  # noqa: BLE001
-            return None
+        except Exception as exc:  # noqa: BLE001
+            return SignatureRefused(
+                f"the validator raised while checking the signature: "
+                f"{type(exc).__name__}: {exc}")
 
         # ---- above the identity boundary: one answer, no detail ----
         #
         # `intact` is the document's digest; `valid` is the signature over
         # it. Either failing means nobody has been identified at all.
         if not (status.intact and status.valid):
-            return None
+            return SignatureRefused(
+                "the bytes the signature covers have changed since it was "
+                "made" if not status.intact else
+                "the signature does not verify under the certificate it "
+                "names")
 
         revoked = status.revocation_details is not None
         expired = _expired(status)
@@ -366,7 +378,16 @@ class QualifiedSignatureValidation:
         # -- no path to an anchor, an untrusted root, a broken chain -- is
         # a pre-identity failure and gets the opaque answer.
         if not status.trusted and not (revoked or expired):
-            return None
+            # `trust_problem_indic` is pyHanko's own word for what went
+            # wrong on the path, and it is the single most useful line an
+            # operator can be given: it separates "this office pinned the
+            # wrong root" from "this citizen's certificate is not one we
+            # were ever meant to accept".
+            return SignatureRefused(
+                "the signing certificate does not chain to any anchor this "
+                f"office has pinned ({status.trust_problem_indic}); the "
+                f"office trusts {len(self.trust_roots)} root(s) from "
+                f"{self.pinned_from or 'an unrecorded directory'}")
 
         subject = {k: str(v) for k, v in
                    dict(status.signing_cert.subject.native).items()
