@@ -74,8 +74,16 @@ const OUTCOMES = {
     + 'it with what you handed in. These did not match. Check that you '
     + 'uploaded the document your voting application wrote, as your wallet '
     + 'exported it, and that nothing edited it in between.'],
-  CERTIFICATE_REVOKED: ['bad', 'The certificate that signed this has been revoked.', ''],
-  CERTIFICATE_EXPIRED: ['bad', 'The certificate that signed this had expired.', ''],
+  CERTIFICATE_REVOKED: ['bad', 'The certificate that signed this has been revoked.',
+    'Read from the revocation material your own wallet put into the document '
+    + 'when it signed, so this is the status as of the moment you signed — '
+    + 'this office does not ask your certification authority anything about '
+    + 'you, deliberately. If that is a surprise, your certificate has been '
+    + 'withdrawn and your wallet is where to find out why.'],
+  CERTIFICATE_EXPIRED: ['bad', 'The certificate that signed this had expired.',
+    'Its validity had run out before the moment of signing. Renewing it in '
+    + 'your wallet and signing the same document again is all this needs; '
+    + 'nothing about your request has to change.'],
   NOT_ELIGIBLE: ['bad', 'You are not on the electoral register for this election.',
     'The office administers that register; it does not populate it. Whoever '
     + 'maintains civil registration in this jurisdiction does.'],

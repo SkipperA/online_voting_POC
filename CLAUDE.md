@@ -262,6 +262,22 @@ register is `VRO.register` — a set of ids, and nothing else.
   is what catches the regression. The signature's own integrity --
   `intact` and `valid` -- is never subtracted from: that is the check that
   establishes there is a signer at all.
+- **Eligibility is fixed at a cut-off, and ours is incidental rather than
+  chosen.** On the qualified-signature route revocation is read from the OCSP
+  responses the wallet embedded in the document's `/DSS` when it signed, so
+  the certificate's status is established as of *signing*, not as of the
+  request arriving. `allow_fetching` is off — an office that asked the
+  certification authority would be telling it which citizens it was asked
+  about, from the machine holding the electoral register — and
+  `revocation_mode` is `soft-fail`, so "not revoked" means nothing in
+  evidence said it was. Every election has this: a paper roll is printed at
+  some moment and a voter who dies that morning is still on it, with the
+  polling-station identity check rather than the roll's freshness doing the
+  work. The criticism is not the gap but that the cut-off here is wherever
+  the signing software's OCSP fetch happened to land, which nobody chose and
+  nothing publishes. `docs/threats.md` carries the full entry and what a
+  deployment would have to decide. Do not "fix" this by turning on fetching
+  without reading that entry first: the privacy cost is the reason it is off.
 - **Revocation is reported *after* the signature verifies, and this diverges
   from the paper on purpose.** A revoked certificate still verifies
   mathematically, so by the time the office can see revocation it already knows
