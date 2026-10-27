@@ -208,6 +208,28 @@ register is `VRO.register` — a set of ids, and nothing else.
   `test_a_real_signature_reaches_the_office_through_the_endpoint` is the
   honest test, `test_the_validator_works_from_inside_an_event_loop` the
   sharp one, and `validator_called_on_the_event_loop` the mutation.
+- **The qualified finding is recorded and never acted on, and `None` has to
+  survive the whole way.** Reading a trusted list establishes Article 3(12),
+  and that was the point of pinning one — but the validator computed
+  `qualified` and nothing read it: `DocumentRequest` dropped it, the release
+  register did not publish it, and the office that had just established the
+  word had nowhere to say it. It now rides to `_claim`'s evidence, into
+  `poll.state.json`, and out through `_request_for_supervision` as
+  `request_qualified`.
+
+  Recorded, not enforced. Whether a deployment should *require* a qualified
+  signature is electoral law rather than protocol — the certificate
+  established who was speaking either way, and the word is about the legal
+  effect of the signature rather than the strength of the identification. An
+  office that refused an advanced signature would be deciding that in
+  `vro.py`, where no legislator can see it.
+
+  And `bool()` is wrong on this value, everywhere. `None` is an office with
+  no trusted list saying it had no standing to judge; `False` is a finding
+  about the signature. Collapsing them has an unconfigured office reporting
+  every citizen's qualified signature as unqualified, which is the
+  supervision page's "NONE — not asked for" mistake again, one field along.
+  `unjudged_signatures_published_as_unqualified` is the mutation.
 - **An oversight surface that does not recognise a shape reports it as a
   finding, and that is worse than not showing it.** `_request_for_supervision`
   emits two shapes, one per route: the wallet route's Ed25519 signature, or

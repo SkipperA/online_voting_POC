@@ -204,11 +204,20 @@ function evidence(release) {
     };
   }
   if (release.request_document_sha256) {
+    // Three states, and `null` is not `false`. The office answers `null`
+    // when it had no trusted list to judge against, which is a fact about
+    // its configuration; `false` is a finding about this signature.
+    const q = release.request_qualified;
     return {
       kind: 'document',
       digest: release.request_document_sha256,
+      qualified: q,
+      note: q === true ? 'qualified electronic signature'
+          : q === false ? 'a signature, but not a qualified one'
+          : 'qualification not established — this office had no trusted list',
       shown: `sha-256 ${release.request_document_sha256.slice(0, 16)}…`
-           + ` (${release.request_document_bytes} bytes)`,
+           + ` (${release.request_document_bytes} bytes)`
+           + (q === true ? ' · qualified' : q === false ? ' · not qualified' : ''),
     };
   }
   return { kind: 'none', shown: 'NONE — not asked for' };
@@ -241,13 +250,14 @@ async function verifyRequests() {
       missing += 1;
     } else if (carried.kind === 'document') {
       // Honest about what this page can and cannot establish. The
-      // signature is a qualified one under eIDAS and anybody can check
-      // it against the European trust lists — but not from here, because
-      // the document is deliberately not published. Calling that a
-      // failure would be as wrong as calling it a pass.
-      verdict = 'a qualified signature, over a document this page is not '
-              + 'given; check it against the digest above';
-      cls = '';
+      // signature is over a document this origin deliberately does not
+      // publish, so it cannot be verified here at all -- calling that a
+      // failure would be as wrong as calling it a pass. What the office
+      // *did* establish, against its pinned trusted list, is reported as
+      // it found it, including that it had no standing to find anything.
+      verdict = `${carried.note}; the document is not published here, so `
+              + 'check it against the digest above';
+      cls = carried.qualified === true ? 'ok' : '';
       qualified += 1;
     } else if (!key) {
       verdict = 'no certificate on file for this identifier';

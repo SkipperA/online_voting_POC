@@ -355,6 +355,17 @@ MUTATIONS = [
         replace="    pass  # SABOTAGE: ignore what the signature covered",
     ),
     Mutation(
+        name="unjudged_signatures_published_as_unqualified",
+        what=(
+            "The release register writes `None` -- this office had no "
+            "trusted list to judge against -- as a finding that the "
+            "signature was not qualified."
+        ),
+        path="src/ovpoc/vro.py",
+        find="            qualified=found.qualified,",
+        replace="            qualified=bool(found.qualified),  # SABOTAGE",
+    ),
+    Mutation(
         name="qualified_claimed_without_a_trust_list",
         what=(
             "The office calls a signature qualified on its own authority, "

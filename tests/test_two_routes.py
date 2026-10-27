@@ -521,3 +521,75 @@ def test_the_supervision_page_knows_every_shape_the_office_publishes():
     assert not re.search(r"!\s*r(elease)?\.request_signature", script), (
         "something still reads the absence of an Ed25519 signature as the "
         "absence of a request")
+
+
+def test_the_office_records_whether_the_signature_was_qualified(world):
+    """Article 3(12), established once and then kept.
+
+    The validator can only answer this with a trusted list behind it, and
+    the answer is the entire reason for pinning one. Before this it was
+    computed and dropped on the floor: `DocumentRequest` did not carry it,
+    the release register did not publish it, and the office that had just
+    established the word had nowhere to say it.
+
+    Recorded, never acted on. Whether a deployment should *require* a
+    qualified signature is electoral law rather than protocol -- the
+    certificate established who was speaking either way -- and an office
+    that refused an advanced signature would be deciding that in `vro.py`,
+    where no legislator can see it.
+    """
+    office, _wallet = world
+    document = _document(_c(b"qualified"))
+    office.signature_validation.says(
+        document, _identified(document, qualified=True))
+
+    assert office.issue_token_for_signed_document(document).issued
+    published = next(r for r in office.supervision_dump()["releases"]
+                     if r["voter_id"] == DOCUMENT_ID)
+    assert published["request_qualified"] is True
+
+
+def test_an_office_with_no_trust_list_publishes_none_and_not_false(world):
+    """The distinction the whole thing turns on, at the far end.
+
+    `None` is the office saying it had no standing to judge; `False` is a
+    finding about the signature. A register that wrote the first as the
+    second would have an unconfigured office reporting every citizen's
+    qualified signature as unqualified -- which is the supervision page's
+    "NONE — not asked for" mistake again, one field along.
+    """
+    office, _wallet = world
+    document = _document(_c(b"unjudged"))
+    office.signature_validation.says(document, _identified(document))
+
+    assert office.issue_token_for_signed_document(document).issued
+    published = next(r for r in office.supervision_dump()["releases"]
+                     if r["voter_id"] == DOCUMENT_ID)
+    assert published["request_qualified"] is None
+
+
+def test_the_finding_survives_being_written_and_read_back(world):
+    """A poll reloaded must not forget what it established.
+
+    `poll.state.json` is where a finished poll's register comes back from,
+    and the qualified finding is part of the evidence a supervisor reads.
+    A poll written before the office could establish it carries no field
+    at all, which reads back as `None` -- did not look -- which is the
+    truthful answer for that office.
+    """
+    office, _wallet = world
+    document = _document(_c(b"roundtrip"))
+    office.signature_validation.says(
+        document, _identified(document, qualified=True))
+    office.issue_token_for_signed_document(document)
+
+    from ovpoc.vro import request_from_stored
+
+    stored = office.stored_state()["requests"][DOCUMENT_ID]
+    assert stored["qualified"] is True
+    assert request_from_stored(stored).qualified is True
+
+    # And a poll written before the office could establish it: no field
+    # at all, which reads back as "did not look" rather than as "no".
+    older = {k: v for k, v in stored.items() if k != "qualified"}
+    assert request_from_stored(older).qualified is None

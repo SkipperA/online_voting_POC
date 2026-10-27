@@ -199,6 +199,20 @@ class SignedRequest:
     #: have to re-validate. Its digest is what the supervision register
     #: publishes; the document is served separately or not at all.
     document: bytes | None = None
+    #: Route 2 only: whether the office established, against a pinned
+    #: European trusted list, that this is a *qualified* electronic
+    #: signature under Article 3(12). `None` means it did not look -- an
+    #: office on hand-pinned roots has no standing to judge, and that is
+    #: not the same answer as `False`.
+    #:
+    #: Recorded and never acted on. Whether a deployment should *require*
+    #: a qualified signature is a question of electoral law rather than of
+    #: this protocol: the certificate established who is speaking either
+    #: way, and the word is about the legal effect of the signature rather
+    #: than about the strength of the identification. An office that
+    #: refused an advanced signature would be making that decision in
+    #: `vro.py`, where no legislator can see it.
+    qualified: bool | None = None
 
     def __post_init__(self) -> None:
         if (self.wallet_signature is None) == (self.document is None):
@@ -231,10 +245,13 @@ class DocumentRequest:
     document: bytes
     revoked: bool = False
     expired: bool = False
+    #: Carried, not consulted. See `SignedRequest.qualified`.
+    qualified: bool | None = None
 
     @property
     def evidence(self) -> "SignedRequest":
-        return SignedRequest(blinded_key=self.blinded_key, document=self.document)
+        return SignedRequest(blinded_key=self.blinded_key, document=self.document,
+                             qualified=self.qualified)
 
 
 @dataclass(frozen=True)
@@ -316,7 +333,8 @@ def _request_to_stored(request: SignedRequest) -> dict:
         return {"blinded_key": b64(request.blinded_key),
                 "wallet_signature": b64(request.wallet_signature)}
     return {"blinded_key": b64(request.blinded_key),
-            "document": b64(request.document)}
+            "document": b64(request.document),
+            "qualified": request.qualified}
 
 
 def request_from_stored(stored) -> SignedRequest:
@@ -329,7 +347,10 @@ def request_from_stored(stored) -> SignedRequest:
     return SignedRequest(
         blinded_key=unb64(stored["blinded_key"]),
         wallet_signature=unb64(signature) if signature is not None else None,
-        document=unb64(document) if document is not None else None)
+        document=unb64(document) if document is not None else None,
+        # Absent from a poll written before the office could establish it,
+        # and absent is exactly `None`: that office did not look.
+        qualified=stored.get("qualified"))
 
 
 def _request_for_supervision(request: SignedRequest) -> dict:
@@ -358,6 +379,12 @@ def _request_for_supervision(request: SignedRequest) -> dict:
     return {"blinded_key": b64(request.blinded_key),
             "request_document_sha256": hashlib.sha256(request.document).hexdigest(),
             "request_document_bytes": len(request.document),
+            # The finding, published because it is the whole point of
+            # reading a trusted list and because a supervisor cannot
+            # reach it themselves from here -- they are not given the
+            # document. `None` is this office saying it had no standing
+            # to judge, which a surface must not round to "no".
+            "request_qualified": request.qualified,
             "route": request.route}
 
 
@@ -856,6 +883,10 @@ class VRO:
             document=document,
             revoked=bool(found.revoked),
             expired=bool(found.expired),
+            # Not `bool(...)`: `None` has to survive as `None`, because an
+            # office with no trusted list did not look and must not be
+            # recorded as having found the signature unqualified.
+            qualified=found.qualified,
         ), None
 
     def reserve_signed_document(
