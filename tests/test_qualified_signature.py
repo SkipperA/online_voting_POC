@@ -27,7 +27,10 @@ import datetime
 import hashlib
 import io
 import logging
+import pathlib
 import re
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 import pytest
 
@@ -240,6 +243,78 @@ def test_rubbish_identifies_nobody_rather_than_raising(trusted):
     """
     for rubbish in (b"", b"not a pdf at all", b"%PDF-1.7\nbroken", b"\x00" * 500):
         assert_identifies_nobody(trusted.validate(rubbish))
+
+
+# --------------------------------------------------------------------------
+# Called from where the office actually calls it
+# --------------------------------------------------------------------------
+
+def test_the_validator_works_from_inside_an_event_loop(trusted, citizen):
+    """The one join this file and `test_upload_surface.py` both missed.
+
+    pyHanko's synchronous entry point calls `asyncio.run()` internally,
+    which refuses to start a loop inside one that is already running.
+    Every test here called `validate` from ordinary synchronous code; the
+    only test that drove a real validator through the HTTP layer posted a
+    document with *no signature*, which returns before that line is ever
+    reached. Two halves, both covered, and the join between them met for
+    the first time by a citizen uploading a genuinely signed request and
+    being told this office could not tell who signed it.
+
+    So this test calls it the way the office does and nowhere near how
+    the rest of this file does.
+    """
+    import asyncio
+
+    _cert, signed = citizen
+
+    async def as_the_endpoint_does():
+        return trusted.validate(signed)
+
+    found = asyncio.run(as_the_endpoint_does())
+    assert isinstance(found, ValidatedSignature), getattr(found, "reason", found)
+    assert found.identifier == f"HU-{SERIAL}"
+
+
+def test_a_real_signature_reaches_the_office_through_the_endpoint(
+        authority, citizen, tmp_path_factory):
+    """End to end on this route: a signed document, posted, over HTTP.
+
+    The assertion is only that the answer is not NOT_IDENTIFIED. What it
+    *is* does not matter here -- this document is rendered against a
+    configuration digest the office does not have, so it is refused below
+    the identity boundary, and being refused below the boundary is the
+    whole point: the office established who signed it.
+
+    Written against the live app rather than against `VRO` because the
+    defect it exists for lived in neither. It was in the join: a `driver`
+    that calls `asyncio.run` and an endpoint that is `async def`.
+    """
+    import sys as _sys
+
+    _ca_key, ca_cert = authority
+    _cert, signed = citizen
+
+    _sys.path.insert(0, str(ROOT / "tools"))
+    import fetch_trust_anchors as pinner
+
+    from fastapi.testclient import TestClient
+
+    from service import apps as apps_module
+    from service.state import Deployment
+
+    anchors = tmp_path_factory.mktemp("anchors")
+    pinner.add(anchors, ca_cert.public_bytes(DER), "test-ca.cer", "file:test")
+    deployment = Deployment.create(
+        bits=2048, document_root=tmp_path_factory.mktemp("config-root"),
+        trust_anchors=anchors)
+    office = TestClient(apps_module.vro_app(deployment))
+
+    outcome = office.post("/signed-token-requests", content=signed).json()
+    assert outcome["outcome"] != "NOT_IDENTIFIED", (
+        "the office could not identify a signature it validates perfectly "
+        "well when called from synchronous code; recorded: "
+        + deployment.vro.audit_log[-1].reason)
 
 
 # --------------------------------------------------------------------------

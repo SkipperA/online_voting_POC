@@ -154,6 +154,31 @@ register is `VRO.register` — a set of ids, and nothing else.
   what an office is willing to believe is the whole of its answer to "who
   are you" — an office whose anchors nobody can read is one nobody can
   check.
+- **A `driver` method the office calls must be callable from where the
+  office is, and that means off the event loop.** pyHanko's
+  `validate_pdf_signature` is a synchronous wrapper around an async
+  implementation and calls `asyncio.run` inside itself; the upload endpoint
+  is an `async def`, because it streams the request body to cap the size
+  before reading it. So on a server every genuinely signed request raised
+  `RuntimeError: asyncio.run() cannot be called from a running event loop`
+  and was answered `NOT_IDENTIFIED`, while the same validator on the same
+  file from a script returned a perfect signer. `_off_the_event_loop` runs
+  it in a worker thread — unconditionally, never on a "is a loop running"
+  branch, because a branch means the tests take one path and the service the
+  other, which is how this survived in the first place. The seam stays
+  synchronous and `src/ovpoc` stays free of transport concerns; the fix
+  belongs on the driver side of the seam, not in the handler.
+
+  **How a suite with two good halves missed the join.** Every test of the
+  validator called it from ordinary synchronous code, and the only test that
+  drove a real validator through the HTTP layer posted a document with *no
+  signature* — which returns before that line is reached. Each half was
+  covered and the join was met first by a citizen. The lesson generalises
+  past this bug: when an adapter is exercised in one calling context and the
+  transport in another, the thing neither test covers is the context itself.
+  `test_a_real_signature_reaches_the_office_through_the_endpoint` is the
+  honest test, `test_the_validator_works_from_inside_an_event_loop` the
+  sharp one, and `validator_called_on_the_event_loop` the mutation.
 - **§3.2 is about what the office *discloses*, never about what it knows,
   and the document route briefly got that wrong.** Everywhere else the
   office records the true reason for every refusal and hands the requester

@@ -82,7 +82,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -120,6 +122,32 @@ def subject_identifier(subject: dict[str, str]) -> str | None:
     if not serial or not country:
         return None
     return f"{country}-{serial}"
+
+
+def _off_the_event_loop(call, /, *args, **kwargs):
+    """Run something that calls `asyncio.run()` inside itself.
+
+    pyHanko's `validate_pdf_signature` is a thin synchronous wrapper
+    around an async implementation, and `asyncio.run` refuses to start a
+    loop when one is already running. The office's upload endpoint is an
+    `async def` -- it has to be, it streams the request body to cap the
+    size before reading it -- so on a server every real upload met
+    `RuntimeError: asyncio.run() cannot be called from a running event
+    loop` and was answered NOT_IDENTIFIED, while the same validator run
+    from a script on the same file returned a perfectly good signer.
+
+    The seam is declared synchronous and `src/ovpoc` must stay free of
+    transport concerns, so the fix belongs on this side of it: a method
+    this office calls has to be callable from wherever the office is,
+    and a worker thread with no loop of its own is what makes that true.
+
+    Unconditionally, rather than only when a loop is running. A branch
+    would mean the tests take one path and the service the other, which
+    is precisely how this survived a suite that tested both halves of
+    the join and never the join.
+    """
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(partial(call, *args, **kwargs)).result()
 
 
 class TrustAnchorsRefused(Exception):
@@ -337,8 +365,9 @@ class QualifiedSignatureValidation:
             revocation_mode="soft-fail",
         )
         try:
-            status = validate_pdf_signature(embedded,
-                                            signer_validation_context=context)
+            status = _off_the_event_loop(
+                validate_pdf_signature, embedded,
+                signer_validation_context=context)
         except Exception as exc:  # noqa: BLE001
             return SignatureRefused(
                 f"the validator raised while checking the signature: "

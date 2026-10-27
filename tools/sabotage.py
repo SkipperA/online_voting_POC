@@ -355,6 +355,25 @@ MUTATIONS = [
         replace="    pass  # SABOTAGE: ignore what the signature covered",
     ),
     Mutation(
+        name="validator_called_on_the_event_loop",
+        what=(
+            "The signature validator is called directly from the office's "
+            "async upload handler, where pyHanko's own `asyncio.run` cannot "
+            "start a loop -- so every genuinely signed request is answered "
+            "NOT_IDENTIFIED and only on a server."
+        ),
+        path="driver/qualified_signature.py",
+        find=(
+            "            status = _off_the_event_loop(\n"
+            "                validate_pdf_signature, embedded,\n"
+            "                signer_validation_context=context)"
+        ),
+        replace=(
+            "            status = validate_pdf_signature(  # SABOTAGE\n"
+            "                embedded, signer_validation_context=context)"
+        ),
+    ),
+    Mutation(
         name="refusal_reason_collapsed_in_the_audit_log",
         what=(
             "The office records one sentence for every way a signature can "
