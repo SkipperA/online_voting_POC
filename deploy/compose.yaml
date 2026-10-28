@@ -22,6 +22,17 @@ services:
       # recognises itself by its own hostname rather than by a port --
       # which matters, because behind the proxy all eight arrive on 443.
       OVPOC_DOMAIN: ${OVPOC_DOMAIN:?set OVPOC_DOMAIN, e.g. diw.hu}
+      # Clause S7: whether a qualified signature is itself the entitlement
+      # to vote. Named here because `deploy/.env` feeds Compose's own
+      # interpolation and nothing else -- a variable set there and absent
+      # from this block is read by the operator as configuration and by
+      # the office as not there at all, which is a setting that silently
+      # does nothing. `tests/test_hosted_origins.py` is what notices.
+      #
+      # Empty by default rather than `:?`, because an office administering
+      # the roll it was given is the article's design and must not need a
+      # variable to be itself.
+      OVPOC_OPEN_ENROLMENT: ${OVPOC_OPEN_ENROLMENT:-}
     volumes:
       # The elections: keys, registers, and the record each closed poll
       # writes. Outside the image on purpose -- rebuilding the container

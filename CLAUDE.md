@@ -230,6 +230,20 @@ register is `VRO.register` — a set of ids, and nothing else.
   attribute attestation presented alongside the signature; it never closes it
   by assuming.
 
+  **A setting the deployment does not deliver is a setting that does
+  nothing.** `deploy/.env` feeds Compose's *interpolation* and nothing else,
+  so a variable written there and absent from `compose.yaml`'s
+  `environment:` block never reaches the office. This shipped exactly that
+  way: documented in the README, written into `.env` on the server, read by
+  the process never, and the symptom was the feature simply not working with
+  no error anywhere.
+  `test_every_variable_the_service_reads_is_delivered_by_the_deployment`
+  scans `service/` for `OVPOC_*` reads and requires each to appear in the
+  compose file or the Dockerfile — the latter counts, because `OVPOC_BIND`
+  and `OVPOC_REVISION` are deployment statements that have no business in
+  compose. Its exception list is checked for staleness in the same test, so
+  it stays a place to explain a variable rather than a place to hide one.
+
   **It is a parameter, and the environment is only its default.** Read
   directly from `os.environ` inside `Deployment.create`, it made the whole
   suite depend on the shell it was started in — an operator who exported the
