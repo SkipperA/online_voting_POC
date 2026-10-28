@@ -611,11 +611,13 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         European list.
         """
         validation = deployment.vro.signature_validation
+        enrols = deployment.vro.enrol_on_qualified_signature
         looked_in = (str(deployment.trust_anchors)
                      if deployment.trust_anchors is not None else None)
         if validation is None:
             return {
                 "offered": False,
+                "enrols_on_signature": enrols,
                 "looked_in": looked_in,
                 "why": (
                     (f"there is no anchor directory at {looked_in}"
@@ -646,6 +648,10 @@ def vro_app(deployment: Deployment, base) -> FastAPI:
         }
         return {
             "offered": True,
+            # Clause S7. Reported here because the page a voter is standing
+            # on has to say whether being on a register is required of
+            # them, and because it is the office's loudest substitution.
+            "enrols_on_signature": enrols,
             "looked_in": looked_in,
             "trusted_list": trusted_list,
             "can_say_qualified": trusted_list is not None,

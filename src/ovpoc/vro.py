@@ -511,6 +511,42 @@ class VRO:
     #: Bound into the office's statements, so a figure is about one poll.
     election_id: str = ""
     register: set[str] = field(default_factory=set)         # electoral register: ids
+    #: Whether a qualified signature is itself an entitlement to vote.
+    #:
+    #: Off, and the article's design is the off case: the electoral
+    #: register is Phase A material authored outside the system (§3.2),
+    #: derived from civil registration, and the office administers it
+    #: rather than populating it.
+    #:
+    #: On, an identifier the office has never heard of is added to the
+    #: register on the strength of its own qualified signature, and then
+    #: everything proceeds unchanged. The argument for allowing it is that
+    #: a qualified certificate is an attestation by a trust service that
+    #: this person exists and is who the signature says -- which is most
+    #: of what a roll is consulted for -- and the mapping from civil
+    #: registration to a DÁP identifier does not exist, so the alternative
+    #: is an operator typing identifiers in by hand.
+    #:
+    #: The argument against is why this is a scope clause and not a
+    #: feature. A DÁP certificate carries no age, no citizenship and no
+    #: address, registration opens at fourteen, and the register's scope
+    #: reaches residents who are not citizens -- so "holds a qualified
+    #: certificate" is not "may vote", and in a real election the gap is
+    #: closed by an attribute attestation rather than by assuming. It also
+    #: changes what the supervision register *means*: an office that
+    #: enrolled a citizen because they asked cannot be checked against its
+    #: own roll, and every surface has to say so. Clause S7.
+    #:
+    #: Never on the wallet route, and that asymmetry is the point rather
+    #: than an omission: those certificates are invented by this
+    #: demonstration, so enrolling from them would be the office enrolling
+    #: from its own fixture.
+    enrol_on_qualified_signature: bool = False
+    #: Identifiers this office added itself, in the order it added them.
+    #: Published, because a supervisor comparing releases against a roll
+    #: from the citizen registry must know which entries that roll was
+    #: never asked about.
+    _self_enrolled: list[str] = field(default_factory=list)
     release_log: Ledger = field(default_factory=Ledger)     # commitments only
     _released: set[str] = field(default_factory=set)
     #: voter_id -> the opening value behind that citizen's commitment.
@@ -565,6 +601,7 @@ class VRO:
                        "reason": a.reason} for a in self._audit],
             "requests": {k: _request_to_stored(r)
                          for k, r in self._requests.items()},
+            "self_enrolled": list(self._self_enrolled),
             "supervisor_downloads": self._supervisor_downloads,
         }
 
@@ -578,6 +615,7 @@ class VRO:
         requests: dict[str, SignedRequest],
         supervisor_downloads: int,
         expected_head: bytes,
+        self_enrolled: list[str] | None = None,
     ) -> None:
         """The office's register of a finished poll, rebuilt from storage.
 
@@ -625,6 +663,10 @@ class VRO:
         self._openings = _in_chain_order(self.release_log, openings)
         self._audit = list(audit)
         self._requests = dict(requests)
+        # Defaulted, because a poll written before clause S7 existed had
+        # no such entries -- and an empty list is the truthful answer for
+        # an office whose roll came entirely from outside it.
+        self._self_enrolled = list(self_enrolled or [])
         self._supervisor_downloads = supervisor_downloads
 
     def enrol(self, voter_id: str) -> None:
@@ -901,8 +943,34 @@ class VRO:
         request, refusal = self.interpret_signed_document(document)
         if request is None:
             return refusal, None
+        self._enrol_on_signature(request)
         return self._claim(request, revoked=request.revoked,
                            expired=request.expired), request
+
+    def _enrol_on_signature(self, request: "DocumentRequest") -> None:
+        """Clause S7. Before `_claim`, and deliberately not inside it.
+
+        `_claim` is everything below the identity boundary and must not
+        differ by a line between the two routes -- so this runs *before*
+        it, adds the identifier, and leaves `_claim` to find a citizen on
+        the register exactly as it would have found one an operator put
+        there. Every check afterwards is the same check: one token per
+        identifier, one commitment, one chain.
+
+        Recorded as it happens. An office that quietly grew its own
+        electoral register would be the single most consequential thing on
+        this page to leave unsaid.
+        """
+        if not self.enrol_on_qualified_signature:
+            return
+        if request.voter_id in self.register:
+            return
+        self.register.add(request.voter_id)
+        self._self_enrolled.append(request.voter_id)
+        self._audit.append(AuditEntry(
+            request.voter_id, Outcome.RESERVED,
+            "enrolled on the strength of their own qualified signature "
+            "(clause S7); this office was not given a roll naming them"))
 
     def issue_token_for_signed_document(self, document: bytes) -> TokenResponse:
         """Steps 5 -> 6/A -> 7 on the second route, as one act.
@@ -1111,14 +1179,24 @@ class VRO:
         self._supervisor_downloads += 1
         head, head_signature = self.signed_release_head()
         count, count_signature = self.signed_release_count()
+        self_enrolled = set(self._self_enrolled)
         return {
+            # Clause S7, published rather than inferred. A supervisor
+            # comparing this register against a roll from the citizen
+            # registry has to know which entries that roll was never asked
+            # about -- otherwise the check reads as a mismatch in the
+            # roll, which is exactly backwards.
+            "enrol_on_qualified_signature": self.enrol_on_qualified_signature,
+            "self_enrolled": sorted(self_enrolled),
             "releases": [
                 {"index": i, "voter_id": voter_id, "opening": b64(opening),
                  "commitment": b64(commit(voter_id, opening)),
+                 "self_enrolled": voter_id in self_enrolled,
                  **_request_for_supervision(self._requests[voter_id])}
                 if voter_id in self._requests else
                 {"index": i, "voter_id": voter_id, "opening": b64(opening),
-                 "commitment": b64(commit(voter_id, opening))}
+                 "commitment": b64(commit(voter_id, opening)),
+                 "self_enrolled": voter_id in self_enrolled}
                 for i, (voter_id, opening) in enumerate(self._openings.items())
             ],
             "audit": [

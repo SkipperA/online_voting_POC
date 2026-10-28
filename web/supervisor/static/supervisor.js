@@ -148,6 +148,26 @@ async function refresh() {
   // document digest instead, and reading its absence from this field as
   // "not asked for" accused the office of minting a token for a citizen
   // who had in fact asked with the strongest evidence in the system.
+  // Clause S7, said before anything below is read. An office that enrols
+  // a citizen because they asked cannot be checked against its own roll,
+  // and the comparison this page opens with is the one that stops meaning
+  // what it says. Printing it here rather than as a footnote, because a
+  // reader who scrolls past it draws the wrong conclusion from every row.
+  const grown = (data.self_enrolled || []).length;
+  $('s7').innerHTML = data.enrol_on_qualified_signature
+    ? `<div class="note note--substituted">`
+      + `<span class="kind">Substituted · <code>S7</code></span>`
+      + `<b>This office enrols citizens on their own signature</b>`
+      + `A qualified signature is treated as the entitlement to vote, so an `
+      + `identifier this office had never heard of was added to the roll when `
+      + `it asked. ${grown} of the entries below arrived that way and are `
+      + `marked. For those, comparing this register against the roll above `
+      + `is not an independent check: the office was not given a roll naming `
+      + `them, and a DÁP certificate carries no age, no citizenship and no `
+      + `address — registration opens at fourteen. A real election closes `
+      + `that gap with an attribute attestation, not by assuming.</div>`
+    : '';
+
   const unasked = data.releases.filter((r) => evidence(r).kind === 'none');
   show('unasked', unasked.length
     ? `NO SIGNED REQUEST FOR: ${unasked.map((r) => r.voter_id).join(', ')}`
@@ -160,7 +180,8 @@ async function refresh() {
 
   $('releases').innerHTML = data.releases.length
     ? data.releases.map((r, i) => `<tr>
-        <td>${r.index}</td><td class="mono">${esc(r.voter_id)}</td>
+        <td>${r.index}</td><td class="mono">${esc(r.voter_id)}${
+          r.self_enrolled ? ' <span class="warn">· self-enrolled</span>' : ''}</td>
         <td class="mono">${esc(r.commitment.slice(0, 24))}…</td>
         <td class="${rebuilt[i] === r.commitment ? 'ok' : 'warn'}">${
           rebuilt[i] === r.commitment ? 'matches' : 'DOES NOT MATCH'}</td>

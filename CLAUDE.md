@@ -208,6 +208,50 @@ register is `VRO.register` — a set of ids, and nothing else.
   `test_a_real_signature_reaches_the_office_through_the_endpoint` is the
   honest test, `test_the_validator_works_from_inside_an_event_loop` the
   sharp one, and `validator_called_on_the_event_loop` the mutation.
+- **An office may treat a qualified signature as the entitlement to vote,
+  and then it must say so on every surface.** Clause S7, off by default,
+  switched on with `OVPOC_OPEN_ENROLMENT` in `deploy/.env`. An identifier the
+  office has never heard of is added to the register on the strength of its
+  own qualified signature, *before* `_claim` and deliberately not inside it:
+  `_claim` then finds a citizen on the register exactly as it would have
+  found one an operator put there, so the two routes still share every check
+  after the identity boundary. Never on the wallet route — those
+  certificates are this demonstration's own fixture, and enrolling from one
+  would make the electoral register a copy of the population register.
+
+  The reason it is defensible is that a qualified certificate is a trust
+  service attesting that this person exists and is who the signature says,
+  and that no mapping from civil registration to a DÁP identifier exists —
+  so the alternative on this route is an operator typing identifiers in by
+  hand, which demonstrates nothing. The reason it is a clause and not a
+  feature is that a DÁP certificate carries no age, no citizenship and no
+  address, registration opens at fourteen, and the register behind it reaches
+  residents who are not citizens. A real deployment closes that with an
+  attribute attestation presented alongside the signature; it never closes it
+  by assuming.
+
+  **It is a parameter, and the environment is only its default.** Read
+  directly from `os.environ` inside `Deployment.create`, it made the whole
+  suite depend on the shell it was started in — an operator who exported the
+  variable to run their own server and then ran the tests got an office that
+  enrolled its own citizens, and the one test that drives a real signature
+  through the endpoint sailed past the eligibility check it exists to stop
+  at. That is the `election-data/trust-anchors` fault for the second time, by
+  a different door, and it is why `tests/conftest.py` now clears the policy
+  variables at the root rather than threading a keyword through thirty call
+  sites: the next variable is covered too. `mint` carries the value rather
+  than re-reading it, for the same reason it carries the anchors.
+
+  **The oversight cost is the part to get right.** The supervision page opens
+  by telling a reader to compare released identifiers against a roll from the
+  citizen registry rather than against anything the office supplied — and for
+  a self-enrolled citizen that is no longer an independent check. So the
+  office records which identifiers it grew itself, publishes them, marks each
+  release, persists the marks for a reloaded poll, and the page says it above
+  the table rather than in a footnote. `self_enrolment_not_marked_in_the_register`
+  is the mutation. The general rule: a substitution that changes what an
+  existing check *means* has to be announced where that check is read, not
+  where the substitution is made.
 - **The qualified finding is recorded and never acted on, and `None` has to
   survive the whole way.** Reading a trusted list establishes Article 3(12),
   and that was the point of pinning one — but the validator computed

@@ -593,3 +593,139 @@ def test_the_finding_survives_being_written_and_read_back(world):
     # at all, which reads back as "did not look" rather than as "no".
     older = {k: v for k, v in stored.items() if k != "qualified"}
     assert request_from_stored(older).qualified is None
+
+
+# --------------------------------------------------------------------------
+# Clause S7 — the office grows its own register
+# --------------------------------------------------------------------------
+
+def test_an_unknown_signer_is_enrolled_and_issued(world):
+    """What the clause buys: no operator typing identifiers in by hand.
+
+    The mapping from civil registration to a DÁP identifier does not
+    exist, so on this route an office administering a roll it was given
+    can only be demonstrated by somebody putting the identifier there
+    first. That is not a demonstration of anything.
+    """
+    office, _wallet = world
+    office.enrol_on_qualified_signature = True
+    stranger = "HU-999999999"
+    assert stranger not in office.register
+
+    document = _document(_c(b"stranger"))
+    office.signature_validation.says(
+        document, _identified(document, identifier=stranger, qualified=True))
+
+    assert office.issue_token_for_signed_document(document).issued
+    assert stranger in office.register
+
+
+def test_without_the_clause_an_unknown_signer_is_refused(world):
+    """Off by default, and off is the article's design.
+
+    The register is Phase A material authored outside the system. An
+    office that silently grew one would be deciding who may vote, which
+    is the one thing §3.2 is careful to put elsewhere.
+    """
+    office, _wallet = world
+    stranger = "HU-999999999"
+    document = _document(_c(b"stranger"))
+    office.signature_validation.says(
+        document, _identified(document, identifier=stranger))
+
+    assert office.issue_token_for_signed_document(document).outcome \
+        is Outcome.NOT_ELIGIBLE
+    assert stranger not in office.register
+
+
+def test_self_enrolment_is_published_and_marked(world):
+    """The oversight cost, paid in the open.
+
+    The supervision page tells a reader to compare these identifiers
+    against a roll from the citizen registry. For a citizen this office
+    enrolled because they asked, that comparison is not an independent
+    check -- the office was never given a roll naming them. A register
+    that did not say which entries it grew itself would be inviting the
+    reader to read a mismatch as a fault in the roll.
+    """
+    office, _wallet = world
+    office.enrol_on_qualified_signature = True
+    stranger = "HU-999999999"
+    document = _document(_c(b"stranger"))
+    office.signature_validation.says(
+        document, _identified(document, identifier=stranger))
+    office.issue_token_for_signed_document(document)
+
+    dump = office.supervision_dump()
+    assert dump["enrol_on_qualified_signature"] is True
+    assert dump["self_enrolled"] == [stranger]
+    row = next(r for r in dump["releases"] if r["voter_id"] == stranger)
+    assert row["self_enrolled"] is True
+
+    # And the audit says why, in the office's own words.
+    assert any("qualified signature" in e.reason and e.voter_id == stranger
+               for e in office.audit_log)
+
+
+def test_a_citizen_already_on_the_roll_is_not_marked(world):
+    """Only the entries the office added itself.
+
+    Marking every release would make the mark meaningless, and would
+    misreport an office running a genuine roll with the clause switched
+    on for the strangers who turn up alongside.
+    """
+    office, _wallet = world
+    office.enrol_on_qualified_signature = True
+    document = _document(_c(b"known"))
+    office.signature_validation.says(document, _identified(document))
+    office.issue_token_for_signed_document(document)
+
+    dump = office.supervision_dump()
+    assert dump["self_enrolled"] == []
+    row = next(r for r in dump["releases"] if r["voter_id"] == DOCUMENT_ID)
+    assert row["self_enrolled"] is False
+
+
+def test_the_wallet_route_never_enrols_anybody(world):
+    """The asymmetry is the point rather than an omission.
+
+    Those certificates are invented by this demonstration, so enrolling
+    from one would be the office enrolling from its own fixture -- which
+    would make the register a copy of the population register and the
+    whole §3.2 separation a formality.
+    """
+    office, wallet = world
+    office.enrol_on_qualified_signature = True
+    stranger = "HU-1970-9999"
+    request = _wallet_request(wallet, _c(b"wallet-stranger"), voter_id=stranger)
+
+    assert office.issue_token(request).outcome is Outcome.NOT_IDENTIFIED
+    assert stranger not in office.register
+    assert office.supervision_dump()["self_enrolled"] == []
+
+
+def test_self_enrolment_survives_a_reload(world):
+    """A finished poll's register must still say which entries it grew.
+
+    The marks are what a supervisor reads months later, when nobody
+    remembers how the office was configured on the day.
+    """
+    office, _wallet = world
+    office.enrol_on_qualified_signature = True
+    stranger = "HU-999999999"
+    document = _document(_c(b"stranger"))
+    office.signature_validation.says(
+        document, _identified(document, identifier=stranger))
+    office.issue_token_for_signed_document(document)
+
+    stored = office.stored_state()
+    assert stored["self_enrolled"] == [stranger]
+
+    revived = VRO.create(PopulationRegister(), bits=2048, election_id=ELECTION)
+    revived.restore_releases(
+        releases=stored["releases"], released=set(stored["released"]),
+        openings={k: unb64(v) for k, v in stored["openings"].items()},
+        audit=[], requests={}, supervisor_downloads=0,
+        self_enrolled=stored["self_enrolled"],
+        expected_head=unb64(stored["head"]))
+    assert revived.supervision_dump()["self_enrolled"] == [stranger]

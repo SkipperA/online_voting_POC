@@ -355,6 +355,20 @@ MUTATIONS = [
         replace="    pass  # SABOTAGE: ignore what the signature covered",
     ),
     Mutation(
+        name="self_enrolment_not_marked_in_the_register",
+        what=(
+            "The release register does not say which identifiers the office "
+            "added itself, so a supervisor comparing it against the citizen "
+            "registry's roll reads the office's own additions as a fault in "
+            "the roll."
+        ),
+        path="src/ovpoc/vro.py",
+        find='                 "self_enrolled": voter_id in self_enrolled,\n'
+             '                 **_request_for_supervision',
+        replace='                 "self_enrolled": False,  # SABOTAGE\n'
+                '                 **_request_for_supervision',
+    ),
+    Mutation(
         name="unjudged_signatures_published_as_unqualified",
         what=(
             "The release register writes `None` -- this office had no "

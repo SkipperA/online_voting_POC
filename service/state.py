@@ -54,6 +54,37 @@ DEFAULT_OPENS = "2026-09-25T08:00:00Z"
 DEFAULT_CLOSES = "2026-09-25T20:00:00Z"
 
 
+#: Clause S7. Whether a qualified signature is itself an entitlement to
+#: vote, or whether this office administers a roll it was given.
+#:
+#: An environment variable rather than a setup-console switch, because it
+#: is a property of the deployment in the same way the trust anchors are:
+#: an election minted over a running one must not quietly change who may
+#: ask for a token. Set it in `deploy/.env` beside `OVPOC_DOMAIN`.
+OPEN_ENROLMENT = "OVPOC_OPEN_ENROLMENT"
+
+
+def _open_enrolment(explicit: bool | None = None) -> bool:
+    """True for `1`, `true`, `yes`, `on`; false for everything else.
+
+    Deliberately not `bool(os.environ.get(...))`, which makes the string
+    `"0"` true and would turn the clause on for an operator who wrote the
+    variable down in order to turn it off.
+
+    `explicit` wins over the environment and `None` means "ask it". A
+    caller that passes the value is a caller whose behaviour does not
+    depend on the shell it was started from -- which is what the tests
+    need, and is the same correction `trust_anchors` needed one patch
+    after it was introduced, for the same reason and by the same mistake.
+    """
+    import os
+
+    if explicit is not None:
+        return explicit
+    return os.environ.get(OPEN_ENROLMENT, "").strip().lower() in {
+        "1", "true", "yes", "on"}
+
+
 def _signature_validation(anchors: Path | None):
     """The validator, if this deployment has been told what to trust.
 
@@ -162,10 +193,18 @@ class Deployment:
         # anchors -- which is the same fault as a test that skips when a
         # tool is missing, arriving through configuration instead.
         trust_anchors: Path | None = DATA_DIR / TRUST_ANCHORS,
+        # Explicit for the same reason, and learned the same way: with
+        # the variable set in a shell, `test_a_real_signature_reaches_the
+        # _office_through_the_endpoint` self-enrolled its citizen and ran
+        # on past the eligibility check it exists to stop at. A suite
+        # whose result depends on the environment is a suite that means
+        # something different on two machines.
+        open_enrolment: bool | None = None,
     ) -> "Deployment":
         population = PopulationRegister()
         vro = VRO.create(population, bits=bits, election_id=election_id)
         vro.signature_validation = _signature_validation(trust_anchors)
+        vro.enrol_on_qualified_signature = _open_enrolment(open_enrolment)
         ebb = BallotBox(vro_public_key=vro.public_key, num_choices=num_choices,
                         tally_interval_seconds=tally_interval_seconds,
                         election_id=election_id)
@@ -270,6 +309,11 @@ class Deployment:
             # then silently turn the qualified-signature route off, or on
             # under anchors nobody chose.
             trust_anchors=self.trust_anchors,
+            # Carried, not re-read, exactly as the anchors are. Who this
+            # office is willing to enrol is a property of the deployment,
+            # and minting an election must not change it -- least of all
+            # by picking up an environment that has moved since start-up.
+            open_enrolment=self.vro.enrol_on_qualified_signature,
         )
         for voter_id, wallet in personas.items():
             fresh.wallets[voter_id] = wallet
@@ -324,7 +368,8 @@ class Deployment:
 
     @classmethod
     def load(
-        cls, path: Path = DATA_DIR, document_root: Path = DOCUMENT_ROOT
+        cls, path: Path = DATA_DIR, document_root: Path = DOCUMENT_ROOT,
+        open_enrolment: bool | None = None,
     ) -> "Deployment":
         """Restore an election. Raises rather than inventing one.
 
@@ -346,6 +391,7 @@ class Deployment:
             election_id=body["election_id"],
             register=set(body["electoral_register"]),
             signature_validation=_signature_validation(path / TRUST_ANCHORS),
+            enrol_on_qualified_signature=_open_enrolment(open_enrolment),
         )
         wallets = body["wallet_personas"]
         for voter_id, pair in wallets.items():
@@ -402,6 +448,7 @@ class Deployment:
                 # `request_from_stored` and not a tuple unpack: a signed
                 # request is one of two shapes now, and the office is the
                 # only thing that gets to know which.
+                self_enrolled=saved["office"].get("self_enrolled", []),
                 requests={k: request_from_stored(v)
                           for k, v in saved["office"]["requests"].items()},
                 supervisor_downloads=saved["office"]["supervisor_downloads"],

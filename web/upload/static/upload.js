@@ -123,6 +123,22 @@ async function describe(bytes) {
   try {
     trust = await (await fetch('/back-office/trust')).json();
   } catch { return; }
+  // S7, shown only when it is in force. A clause a reader meets on a
+  // page where it does not apply teaches them to skip the clauses.
+  if (trust.enrols_on_signature) {
+    const note = $('s7-note');
+    if (note) {
+      note.style.display = '';
+      $('s7-text').textContent =
+        'You do not have to be on an electoral register to take part here: '
+        + 'this demonstration treats a valid qualified signature as the '
+        + 'entitlement itself. A real election could not. Your certificate '
+        + 'says who you are and nothing about your age, citizenship or '
+        + 'address, and DÁP registration opens at fourteen — so what is '
+        + 'being substituted is the whole question of who may vote.';
+    }
+  }
+
   const where = $('s6-state');
   if (!where || !trust.offered) return;
   where.textContent = trust.trusted_list

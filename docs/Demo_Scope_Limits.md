@@ -187,6 +187,63 @@ says which. Only the first lets an office call a signature qualified, and
 either way the snapshot is read offline, so a service withdrawn since it was
 taken is still trusted.*
 
+### S7 — A qualified signature is treated as the entitlement to vote
+
+Covers the qualified-signature route only, and only where
+`OVPOC_OPEN_ENROLMENT` is set.
+
+The article's design has the electoral register authored outside the system:
+Phase A material derived from civil registration, which the office
+administers and does not populate (§3.2). With this on, an identifier the
+office has never heard of is added to the register on the strength of its own
+qualified signature, and everything afterwards is unchanged — one token per
+identifier, one commitment, one chain, the same `_claim`.
+
+What makes it defensible is that a qualified certificate is an attestation by
+a trust service that this person exists and is who the signature says, which
+is most of what a roll is consulted for; and that the mapping from civil
+registration to a DÁP identifier does not exist, so the alternative in this
+demonstration is an operator typing identifiers in by hand. That is not a
+demonstration of anything, and it is why the clause exists rather than the
+practice being quietly adopted.
+
+What is substituted is the whole question of who may vote. A DÁP certificate
+carries no date of birth, no citizenship and no address — its subject is
+specified exhaustively as country, given name, surname, serial number and
+common name — and registration opens at fourteen. The register behind it
+reaches residents who are not citizens. So *holds a qualified certificate* is
+not *may vote*, and the two are not close. A real deployment closes the gap
+with an attribute attestation presented alongside the signature, from whoever
+maintains the electoral register: the signature establishes who, the
+attestation establishes entitled, and the office then holds no roll at all —
+only a trust anchor for the attestation's issuer. That is the same shape as
+this build already has for signatures, and it also dissolves the mapping
+problem, because the issuer binds the attestation to the identifier at
+issuance.
+
+It is deliberately *not* a switch on the setup console. What an office is
+willing to accept is a property of the deployment, like its trust anchors, and
+an election minted over a running one must not quietly change who may ask for
+a token.
+
+**The oversight cost is specific and is published.** The supervision page opens
+by telling a reader to compare the released identifiers against a roll from the
+citizen registry rather than against anything the office supplied. For a
+self-enrolled citizen that comparison is no longer an independent check — the
+office was never given a roll naming them. So the register publishes which
+entries it grew itself, each release is marked, and the page says so above the
+table rather than in a footnote, because a reader who scrolls past it draws the
+wrong conclusion from every row.
+
+Never on the wallet route. Those certificates are invented by this
+demonstration, so enrolling from them would be the office enrolling from its
+own fixture.
+
+**Label:** *This office treats a valid qualified signature as the entitlement
+to vote, and adds citizens to its own register when they ask. A real election
+cannot: the certificate attests who you are and nothing about your age,
+citizenship or address.*
+
 ---
 
 ## Absent

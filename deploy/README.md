@@ -40,6 +40,24 @@ Both are local files or local state. `deploy/.env` is in `.gitignore`
 beside `deploy/election-data/`, so neither follows a `git add -A` into a
 commit.
 
+### Who may ask for a token
+
+Nothing more is needed for the article's design: the office administers an
+electoral register it was given, and the setup console is where identifiers
+go in. On the qualified-signature route that means typing them by hand,
+because no mapping from civil registration to a DÁP identifier exists.
+
+For a public demonstration, `deploy/.env` can say that a qualified signature
+*is* the entitlement:
+
+    OVPOC_OPEN_ENROLMENT=1
+
+Anyone with a valid DÁP signature can then take a token and cast one ballot,
+self-limiting at one per citizen by the certificate. It is clause S7, it is
+announced on the upload page and across the supervision register, and it
+changes what the supervision page's roll comparison means — read the clause
+before switching it on for anything that matters.
+
 Then generate a password hash:
 
     docker run --rm caddy:2-alpine caddy hash-password --plaintext '…'

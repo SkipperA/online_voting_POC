@@ -321,3 +321,64 @@ def test_minting_does_not_change_whose_signatures_are_accepted(pinned_deployment
     after = pinned_deployment.vro.signature_validation
     assert after is not None, "minting turned the qualified-signature route off"
     assert after.trust_roots == before.trust_roots
+
+
+# --------------------------------------------------------------------------
+# The policy is the caller's, never the shell's
+# --------------------------------------------------------------------------
+
+def test_a_deployment_told_its_policy_ignores_the_environment(
+        monkeypatch, tmp_path_factory):
+    """Clause S7, and the correction `trust_anchors` already needed.
+
+    `OVPOC_OPEN_ENROLMENT` is how an operator configures a server, and a
+    caller that passes the value must not inherit the shell the process
+    happened to start in. Both directions, because a default that
+    silently won either way would be a configuration nobody could
+    override.
+    """
+    monkeypatch.setenv("OVPOC_OPEN_ENROLMENT", "1")
+    told_no = Deployment.create(
+        bits=2048, document_root=tmp_path_factory.mktemp("a"),
+        trust_anchors=None, open_enrolment=False)
+    assert told_no.vro.enrol_on_qualified_signature is False
+
+    monkeypatch.setenv("OVPOC_OPEN_ENROLMENT", "0")
+    told_yes = Deployment.create(
+        bits=2048, document_root=tmp_path_factory.mktemp("b"),
+        trust_anchors=None, open_enrolment=True)
+    assert told_yes.vro.enrol_on_qualified_signature is True
+
+
+def test_the_word_is_read_as_a_word(monkeypatch):
+    """`OVPOC_OPEN_ENROLMENT=0` turns it off.
+
+    `bool(os.environ.get(...))` is true for the string `"0"`, so an
+    operator writing the variable down in order to disable the clause
+    would have enabled it. Worth a test because the bug is invisible:
+    the office works, and admits everybody.
+    """
+    from service.state import _open_enrolment
+
+    for value, expected in (("1", True), ("true", True), ("YES", True),
+                            ("on", True), ("0", False), ("false", False),
+                            ("", False), ("no", False)):
+        monkeypatch.setenv("OVPOC_OPEN_ENROLMENT", value)
+        assert _open_enrolment() is expected, value
+
+    monkeypatch.delenv("OVPOC_OPEN_ENROLMENT")
+    assert _open_enrolment() is False
+
+
+def test_minting_does_not_change_who_may_ask(tmp_path_factory):
+    """The same rule as the trust anchors, and the same way of getting it
+    wrong: `create`'s default would re-read the environment, so an
+    election minted after the variable changed would quietly admit a
+    different set of people than the one before it.
+    """
+    deployment = Deployment.create(
+        bits=2048, document_root=tmp_path_factory.mktemp("config-root"),
+        trust_anchors=None, open_enrolment=True)
+    deployment.mint(election_id="demo-2027", num_choices=4, bits=2048,
+                    opens="2027-09-25T08:00:00Z", closes="2027-09-25T20:00:00Z")
+    assert deployment.vro.enrol_on_qualified_signature is True
