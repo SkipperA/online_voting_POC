@@ -84,6 +84,56 @@ Steps 3–4. The article's package $`[\,id,\, c,\, s\,]`$ (§5.3).
 
 ---
 
+## 2a. Signed token request — voter → VRO (the qualified-signature route)
+
+Steps 3–4 again, by the other route. The article has one way of asking; this
+is a second, added so that a real wallet can be used without any authority's
+cooperation. The European Digital Identity Wallet — in Hungary the DÁP
+application — signs **documents**, not arbitrary byte strings, so the request
+is a PDF the citizen signs in their own wallet and hands to the office
+themselves.
+
+What does **not** change is what the article's §5.2 and §5.4 are about:
+$`c`$ is the same blinded value, the token is the same ordinary RSA-PSS
+signature over $`k_p^a`$, and the ballot is untouched. One `VRO._claim`
+serves both routes below the identity boundary.
+
+The payload is the whole of what the document asserts, carried three ways in
+one file — an embedded attachment, a marker comment, and the visible page —
+which must agree:
+
+| Field | Code | Discharges | Note |
+|---|---|---|---|
+| `blinded_key` | `pdfrequest.FIELDS` | Req. 3, §5.2 | The same $`c`$, base64url. The document is rendered *from* it |
+| `election_id` | `pdfrequest.FIELDS` | §5.1 | Which poll this asks for. A request for another election is refused below the boundary |
+| `config_digest` | `pdfrequest.FIELDS` | §5.1 | The configuration the voter pinned, so a request made under superseded keys is visible as one |
+| — (no identifier) | `pdfrequest._well_formed` | Req. 1, §3.2 | The schema is exactly those three and `_well_formed` requires that set, not a superset. A document naming its own author would be a document anybody could write |
+
+**The office rebuilds rather than reads.** `render` is a pure function of the
+payload, so the office recovers a candidate payload, renders it again, and
+requires the signed file to *begin* with those bytes. Extraction may be
+fragile; it cannot cause a wrong acceptance. This is what makes a PDF library
+affordable here — pyHanko is never trusted for what the document says, only
+for who signed it and how much it covered.
+
+| Field | Code | Discharges | Note |
+|---|---|---|---|
+| the document | `POST /signed-token-requests` | Req. 1 | `application/pdf`, capped at 2 MiB. Unauthenticated, and that is not a gap: anyone holding a citizen's signed document can hand it in, and the only consequence is that the citizen's own token is released to a reply only their application can collect |
+| `id` | `subject_identifier` | Req. 1, §3.2 | Country code and the certificate's `serialNumber`, composed as `HU-471570820`. **Never** from the payload. See the gaps list — this is the open question of the route |
+| covered prefix | `ValidatedSignature.covered_prefix_length` | Req. 1 | The run from byte zero the signature actually covers. A signature over part of a document is a signature over a different document |
+| `revoked`, `expired` | `ValidatedSignature` | §3.2 | Findings of the validator rather than fields of a looked-up certificate. Post-identity only, as on the other route |
+| `qualified` | `ValidatedSignature.qualified` | *no section* | Article 3(12) of Regulation 910/2014, established against a pinned trusted list. `None` is an office with no list saying it has no standing to judge, which is not `False`. Recorded, never acted on: whether to *require* it is electoral law |
+| `DOCUMENT_REFUSED` | `Outcome.DOCUMENT_REFUSED` | *no section* | The signature is good and the file is not a token request. Below the boundary, because a qualified signature has already established who is speaking |
+| `ROUTE_NOT_OFFERED` | `Outcome.ROUTE_NOT_OFFERED` | *no section* | This office was told no trust anchors. Not `NOT_IDENTIFIED`: a deployment's state is not a citizen's failure |
+
+Nothing comes back to the voting application. The signed document carries
+$`id`$, and the application is the one component holding $`k_p^a`$ and
+$`r`$ — so it writes the unsigned document and never sees the signed one
+(clause A8). It collects $`s_c`$ by presenting $`c`$, exactly as on the
+other route.
+
+---
+
 ## 3. Token response — VRO → voting application
 
 Steps 6/A and 6/B. The article gives $`s_c`$ and a rejection; the outcome
@@ -262,7 +312,12 @@ is the console, `GET /data` the same content for that page, `GET
 
 | Field | Note |
 |---|---|
-| `releases[]` | `{index, voter_id, opening, commitment, blinded_key, request_signature}`. The openings are here because a supervisor cannot verify the commitments without them; `request_signature` is the citizen's own signature over `hash([id, c])`, the one object the office could not have manufactured, so a release with none behind it was not asked for |
+| `releases[]` | `{index, voter_id, opening, commitment, blinded_key, self_enrolled}` plus the evidence, which differs by route. The openings are here because a supervisor cannot verify the commitments without them |
+| `request_signature` | Wallet route. The citizen's signature over `hash([id, c])`, the one object the office could not have manufactured, so a release with none behind it was not asked for |
+| `request_document_sha256`, `request_document_bytes` | Qualified-signature route. The digest of the signed document and its length, and **not** the document: that file is verifiable by anyone against the European trust lists without this office's cooperation, which makes it a far more portable proof that a named citizen took part than anything the first route produces — the artefact §3.7 spends a page keeping out of circulation. The digest is enough to tie a release to a document a supervisor obtained elsewhere, and not enough to be one |
+| `request_qualified` | Whether the office established Article 3(12) against its pinned trusted list. `None` means it had no list and did not look |
+| `self_enrolled` | Clause S7. True where this office added the identifier itself on the strength of a qualified signature, which is exactly where comparing against the citizen registry's roll stops being an independent check |
+| `enrol_on_qualified_signature` | Whether it is doing that at all |
 | `audit[]` | `{voter_id, outcome, reason}` in order, including the true reason behind refusals the requester saw as one indistinguishable answer (§3.2). No timestamps |
 | `head`, `head_signature`, `count`, `count_signature` | As in the public dump, so the two can be compared |
 | `supervisor_downloads` | Also published on `/releases` and `/release-log`, so the office cannot hand the register out quietly |
@@ -279,12 +334,52 @@ data.
 What it catches that nothing else does: a release naming somebody not on
 the roll, and two releases for one identifier — the atomicity failure of
 §5.4, still invisible in the public artefacts but demonstrable here
-afterwards. What it does not catch is a single well-formed release for an
-eligible citizen who abstained and never checked; only the voter's signed
-request would separate that from a genuine one, and the office does not
-retain it. That residual belongs to distributed issuance.
+afterwards. It also catches a release the office invented for a citizen who
+abstained and never checked, because the office now retains the request and
+a fabricated release has none; what remains uncaught is an office colluding
+with a willing citizen. That residual belongs to distributed issuance.
 
 The electoral register is not in the file. A supervisor comparing these
 identifiers against a roll this office supplied would be comparing the
 office against its own copy; the roll comes from the citizen registry, with
 current eligibility.
+
+
+---
+
+## Fields with no clause behind them
+
+Short on purpose. A field here is not necessarily wrong — it may be the code
+knowing something the article has not yet had to say — but each one is a place
+where the implementation is ahead of the text, and the text is what a
+legislator reads.
+
+| Field | Where | Why it has no clause |
+|---|---|---|
+| `NOT_IDENTIFIED` as one answer for two failures | §3 above | §3.2 and §5.4 enumerate certificate validity *before* signature verification, which would let an unauthenticated party learn whether an identifier holds a certificate. The merge is this implementation's, deliberately, and `docs/threats.md` records the divergence rather than reconciling it silently |
+| `DOCUMENT_REFUSED`, `ROUTE_NOT_OFFERED` | §2a | The second route is not in the article at all. Both are outcomes the first route has no analogue for |
+| `qualified` | §2a | The article never uses the word, because it never contemplated the office reading a trusted list. Recorded and not acted on, so nothing turns on it yet |
+| `self_enrolled`, `enrol_on_qualified_signature` | Supervision register | Clause S7, which contradicts §3.2's "the electoral register is a prerequisite of the election rather than a part of this design". It exists because the mapping below does not, and it is labelled on every surface |
+| `protest_codes` — the distribution rather than a count | §6 | Requirement 7 says invalid ballots must be public and countable; it does not say the distribution of out-of-range selections must be reported. The ledger exposed it all along and the summary used to discard it |
+| `supervisor_downloads` | Supervision register, `/releases` | Nothing in the article asks the office to publish how often its own register was read. It is here so the office cannot hand it out quietly, which is a §3.7 concern the §3.7 text does not reach |
+| `config_digest` | §2a, configuration | The article has the voter pin the office's key fingerprint (§5.2) and says nothing about the rest of the configuration moving underneath them |
+
+## Requirements with no field
+
+The uncomfortable list, and the one to re-read before a paper edit.
+
+| Requirement | What is missing |
+|---|---|
+| **1. Eligibility** — *"only citizens listed in the electoral register"* | Nothing on the wire carries eligibility. The office holds a set of identifiers and §3.2 puts its authorship outside the design, which is correct — but on the qualified-signature route there is then no field anywhere that says this signer may vote. Clause S7 answers it by assuming, which is a demonstration's answer and not an election's. The field a deployment needs is an attribute attestation presented beside the signature: the signature establishes *who*, the attestation establishes *entitled*, and the office keeps no roll at all, only a trust anchor for the attestation's issuer |
+| **1. Eligibility**, again | §3.2 requires the office to accept a request signed under **any** valid certificate naming the requester. `CertificateLookup.lookup` returns one, and the second route sidesteps the question by taking whatever arrived. Neither interface has a field for the second certificate |
+| **2. Equality** | Discharged by the commitment and the released set, both of which are the office's own state rather than anything on the wire. A second office would share no field with the first, which is why distributed issuance is a redesign of this row and not an addition to it |
+| **4. Verifiability** | The voter's check runs in the same application that cast the ballot. The article has it run from a different device; no field identifies which device asked, and none should — but that means nothing on the wire distinguishes the stronger check from the weaker one. Clause O2 |
+| **6. Freedom from coercion** | Re-voting is carried entirely by the ad-hoc key, and the design intends that. What has no field is the *delegated signing* case in `docs/threats.md`: nothing binds $`c`$ to the wallet that signs it, so a voter can spend their entitlement on a key somebody else holds, and no value in any message would show it |
+| **8. Provability** | Variant B gives the voter a handle they control, so provability is carried by possession of the ad-hoc key rather than by a field. Variant A — the anonymous random-number tracker — would add one, and is the open design work |
+
+**The pattern worth noticing.** Five of these six are the same shape: the
+property is held by something the office *knows* or the voter *possesses*,
+not by anything that crosses a boundary. That is usually a good sign — a
+field is an attack surface — but it is also why distributed issuance keeps
+appearing as the answer. A property held by one party's state is a property
+that party can be wrong about, and no amount of wire format fixes it.
