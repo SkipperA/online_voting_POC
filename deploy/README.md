@@ -107,6 +107,59 @@ The elections live in `deploy/election-data/`, mounted into the container,
 so rebuilding the image does not discard one. Mint the first from the setup
 console once the certificates are up.
 
+## Serving a past election
+
+Minting writes a **new** directory and moves the pointer; nothing is
+overwritten. So every election this server has ever run is still on disk
+with its keys, its register and — if the poll was closed rather than
+interrupted — its record. That is what lets a ledger somebody downloaded
+months ago still be checked against the configuration it was published
+under, which is most of what "verifiable" is worth after the fact.
+
+    ls deploy/election-data/
+    cat deploy/election-data/current
+
+`current` is a one-line file naming the directory being served. On a laptop
+you select another with `python -m service --data … --election <directory>`.
+Behind the proxy there is no equivalent flag to pass, because Caddy reaches
+the office by its compose service name and a second container is not that
+name — so you move the pointer and restart, which is precisely what
+`--election` does before it starts:
+
+    E=009-demo-261027_D
+    test -f deploy/election-data/$E/election.store.json \
+      && echo $E > deploy/election-data/current \
+      && docker compose -f deploy/compose.yaml restart ovpoc
+
+The `test -f` is not decoration, though the failure it avoids is a loud one
+rather than a quiet one. A pointer naming a directory that holds no election
+makes the service refuse to start, with a message naming the directories
+that do:
+
+    /data/current names 002-nope, which holds no election.
+    Point it at one of 001-demo-2026, 002-demo-2026, …
+
+Which is the right behaviour — an office that guessed would be worse — but
+behind Compose it arrives as a container that exits and is restarted for
+ever, and the message is only in `docker compose logs ovpoc`. Checking
+before writing the pointer is cheaper than reading the logs afterwards.
+
+Three things to expect, because none of them is a fault:
+
+**It replaces rather than adds.** The past election is now *the* election;
+the current one is not served alongside it. Point `current` back and restart
+to return.
+
+**Every open page will say it is stale.** A different election means
+different keys and a different `election.json`, so `config-watch.js` tells
+every reader to reload — correctly, since what they pinned no longer
+describes what the origins serve.
+
+**A poll that was interrupted rather than closed does not come back.** The
+election survives, its keys and register survive, and the poll does not:
+clause A7, and no amount of pointing at the directory recovers it. A closed
+poll returns whole, through its `poll.state.json`.
+
 ## Updating a running deployment
 
     git pull --ff-only
