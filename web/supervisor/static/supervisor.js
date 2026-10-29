@@ -229,16 +229,28 @@ function evidence(release) {
     // when it had no trusted list to judge against, which is a fact about
     // its configuration; `false` is a finding about this signature.
     const q = release.request_qualified;
+    // And whether the moment the office judged the certificate against was
+    // vouched for. `null` means there was no timestamp at all, so the time
+    // is the signer's own assertion; `false` means there was one and it
+    // did not authenticate. A reader weighing CERTIFICATE_EXPIRED needs
+    // this, and no other party can supply it.
+    const t = release.request_time_vouched;
     return {
       kind: 'document',
       digest: release.request_document_sha256,
       qualified: q,
-      note: q === true ? 'qualified electronic signature'
-          : q === false ? 'a signature, but not a qualified one'
-          : 'qualification not established — this office had no trusted list',
+      timeVouched: t,
+      note: (q === true ? 'qualified electronic signature'
+           : q === false ? 'a signature, but not a qualified one'
+           : 'qualification not established — this office had no trusted list')
+          + (t === true ? ', over a timestamp this office authenticated'
+           : t === false ? ', over a timestamp it could not authenticate'
+           : ', with no timestamp — the signing time is the signer\'s own'),
       shown: `sha-256 ${release.request_document_sha256.slice(0, 16)}…`
            + ` (${release.request_document_bytes} bytes)`
-           + (q === true ? ' · qualified' : q === false ? ' · not qualified' : ''),
+           + (q === true ? ' · qualified' : q === false ? ' · not qualified' : '')
+           + (t === false ? ' · time not vouched'
+            : t === null || t === undefined ? ' · no timestamp' : ''),
     };
   }
   return { kind: 'none', shown: 'NONE — not asked for' };

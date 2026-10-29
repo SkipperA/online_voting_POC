@@ -187,6 +187,24 @@ class ValidatedSignature:
     #: claim the word.
     qualified: bool | None = None
 
+    #: Whether `signing_time` was vouched for by a timestamp this office
+    #: could authenticate.
+    #:
+    #: Three states, because two would lose the distinction that matters.
+    #: `True`: a timestamp token validated against this office's anchors.
+    #: `False`: there is a timestamp and it did not. `None`: there is no
+    #: timestamp at all, so the time is whatever the signer asserted --
+    #: which is a time the signer chose.
+    #:
+    #: It travels beside the time because the office *decides* with that
+    #: time: a certificate's expiry is judged against the moment of
+    #: signing, deliberately, since a certificate valid when it signed does
+    #: not become invalid later. That is the right question and it rests
+    #: entirely on the answer being authentic. An office reporting
+    #: `CERTIFICATE_EXPIRED` against a moment nobody vouched for has made a
+    #: finding a supervisor should be able to discount, and could not.
+    signing_time_vouched: bool | None = None
+
 
 @dataclass(frozen=True)
 class SignatureRefused:

@@ -43,6 +43,7 @@ confident the surrounding comments sound.
 | carrier_disagreement_resolved_by_preference | `test_carriers_that_disagree_are_refused_rather_than_resolved`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | document_coverage_check_removed | `test_a_refusal_hands_back_no_payload`<br>`test_a_signature_covering_less_than_the_document_is_refused`<br>`test_a_signature_that_stops_short_of_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | self_enrolment_not_marked_in_the_register | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_self_enrolment_is_published_and_marked` |
+| unvouched_time_published_as_vouched | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_timestamp_is_judged_under_the_office_s_own_anchors` |
 | unjudged_signatures_published_as_unqualified | `test_an_office_with_no_trust_list_publishes_none_and_not_false`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | qualified_claimed_without_a_trust_list | `test_a_good_signature_is_reported_whole`<br>`test_an_office_with_a_pinned_root_says_nothing_at_all`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | validator_called_on_the_event_loop | `test_a_real_signature_reaches_the_office_through_the_endpoint`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_validator_works_from_inside_an_event_loop` |
@@ -50,7 +51,7 @@ confident the surrounding comments sound.
 | revocation_collapsed_into_not_identified | `test_a_revoked_certificate_still_identifies_its_signer`<br>`test_an_expired_certificate_still_identifies_its_signer`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | identity_taken_from_the_common_name | `test_a_certificate_without_the_statements_is_not_qualified`<br>`test_a_subject_with_no_serial_number_yields_no_identifier`<br>`test_an_office_with_a_pinned_root_says_nothing_at_all`<br>`test_an_office_with_a_trusted_list_can_say_qualified`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_identifier_is_the_serial_number_and_not_the_name`<br>`test_the_office_can_decide_a_real_signed_request`<br>`test_the_validator_works_from_inside_an_event_loop` |
 | coverage_counted_from_a_range_not_starting_at_zero | `test_a_range_not_starting_at_zero_covers_none_of_the_prefix`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
-| document_route_keeps_its_own_released_set | `test_a_citizen_already_on_the_roll_is_not_marked`<br>`test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_poll_with_both_routes_survives_being_written_and_read_back`<br>`test_a_reservation_on_one_route_blocks_the_other`<br>`test_a_token_from_the_document_route_is_an_ordinary_token`<br>`test_an_office_with_no_trust_list_publishes_none_and_not_false`<br>`test_an_unknown_signer_is_enrolled_and_issued`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_certificate_status_is_reported_only_after_identity[expired]`<br>`test_certificate_status_is_reported_only_after_identity[revoked]`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_self_enrolment_is_published_and_marked`<br>`test_supervision_shows_the_digest_and_not_the_document`<br>`test_the_finding_survives_being_written_and_read_back`<br>`test_the_office_keeps_the_signed_document_as_the_citizens_own_request`<br>`test_the_office_records_whether_the_signature_was_qualified` |
+| document_route_keeps_its_own_released_set | `test_a_citizen_already_on_the_roll_is_not_marked`<br>`test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_poll_with_both_routes_survives_being_written_and_read_back`<br>`test_a_reservation_on_one_route_blocks_the_other`<br>`test_a_token_from_the_document_route_is_an_ordinary_token`<br>`test_an_office_with_no_trust_list_publishes_none_and_not_false`<br>`test_an_unknown_signer_is_enrolled_and_issued`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_certificate_status_is_reported_only_after_identity[expired]`<br>`test_certificate_status_is_reported_only_after_identity[revoked]`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_self_enrolment_is_published_and_marked`<br>`test_supervision_shows_the_digest_and_not_the_document`<br>`test_the_finding_survives_being_written_and_read_back`<br>`test_the_office_keeps_the_signed_document_as_the_citizens_own_request`<br>`test_the_office_records_whether_the_signature_was_qualified`<br>`test_the_provenance_of_the_signing_time_is_recorded[False]`<br>`test_the_provenance_of_the_signing_time_is_recorded[None]`<br>`test_the_provenance_of_the_signing_time_is_recorded[True]`<br>`test_the_provenance_survives_being_written_and_read_back` |
 | request_payload_accepts_extra_fields | `test_a_payload_with_the_wrong_fields_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | document_check_skipped | `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`<br>`test_a_payload_claiming_an_identifier_is_not_a_token_request`<br>`test_a_signature_covering_less_than_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | validator_inherits_the_modification_verdict | `test_a_later_revision_clobbering_an_xref_stream_is_still_read`<br>`test_a_later_revision_that_frees_an_object_still_identifies_the_signer`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
@@ -468,6 +469,16 @@ Caught by:
 - `test_every_mutation_still_matches_its_target_exactly_once`
 - `test_self_enrolment_is_published_and_marked`
 
+### `unvouched_time_published_as_vouched`
+
+The office reports the moment it judged the certificate against as authenticated whenever a timestamp is present, whether or not that timestamp validated -- so an expiry finding made against a time nobody vouched for is published as one made against a time somebody did.
+
+Patched in `driver/qualified_signature.py`.
+
+Caught by:
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_timestamp_is_judged_under_the_office_s_own_anchors`
+
 ### `unjudged_signatures_published_as_unqualified`
 
 The release register writes `None` -- this office had no trusted list to judge against -- as a finding that the signature was not qualified.
@@ -571,6 +582,10 @@ Caught by:
 - `test_the_finding_survives_being_written_and_read_back`
 - `test_the_office_keeps_the_signed_document_as_the_citizens_own_request`
 - `test_the_office_records_whether_the_signature_was_qualified`
+- `test_the_provenance_of_the_signing_time_is_recorded[False]`
+- `test_the_provenance_of_the_signing_time_is_recorded[None]`
+- `test_the_provenance_of_the_signing_time_is_recorded[True]`
+- `test_the_provenance_survives_being_written_and_read_back`
 
 ### `request_payload_accepts_extra_fields`
 
@@ -660,5 +675,5 @@ Caught by:
 
 ## Summary
 
-- 48 of 48 mutations were detected.
+- 49 of 49 mutations were detected.
 - 0 were not.

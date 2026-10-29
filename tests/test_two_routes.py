@@ -729,3 +729,56 @@ def test_self_enrolment_survives_a_reload(world):
         self_enrolled=stored["self_enrolled"],
         expected_head=unb64(stored["head"]))
     assert revived.supervision_dump()["self_enrolled"] == [stranger]
+
+
+# --------------------------------------------------------------------------
+# The time the office judged the certificate against
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("vouched", [True, False, None])
+def test_the_provenance_of_the_signing_time_is_recorded(world, vouched):
+    """Three states, published as three.
+
+    `expired` is decided against the moment of signing -- deliberately,
+    since a certificate valid when it signed does not become invalid
+    later. That is the right question and it rests entirely on the moment
+    being authentic. `True` is a timestamp this office authenticated,
+    `False` one it could not, and `None` no timestamp at all, which makes
+    the time the signer's own assertion. A reader weighing
+    `CERTIFICATE_EXPIRED` needs to know which, and no other party can
+    tell them.
+    """
+    office, _wallet = world
+    document = _document(_c(b"timed"))
+    office.signature_validation.says(
+        document, _identified(document, signing_time_vouched=vouched))
+
+    assert office.issue_token_for_signed_document(document).issued
+    published = next(r for r in office.supervision_dump()["releases"]
+                     if r["voter_id"] == DOCUMENT_ID)
+    assert published["request_time_vouched"] is vouched
+
+
+def test_the_provenance_survives_being_written_and_read_back(world):
+    """A reloaded poll must not forget it, for the same reason it must not
+    forget whether the signature was qualified: these are read months
+    later by somebody who was not there.
+
+    A poll written before the field existed carries no key, which reads
+    back as `None` -- and `None` is already the weakest of the three, so
+    an old record cannot come back claiming more than it knew.
+    """
+    from ovpoc.vro import request_from_stored
+
+    office, _wallet = world
+    document = _document(_c(b"timed"))
+    office.signature_validation.says(
+        document, _identified(document, signing_time_vouched=True))
+    office.issue_token_for_signed_document(document)
+
+    stored = office.stored_state()["requests"][DOCUMENT_ID]
+    assert stored["signing_time_vouched"] is True
+    assert request_from_stored(stored).signing_time_vouched is True
+
+    older = {k: v for k, v in stored.items() if k != "signing_time_vouched"}
+    assert request_from_stored(older).signing_time_vouched is None

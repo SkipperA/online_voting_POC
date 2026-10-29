@@ -213,6 +213,13 @@ class SignedRequest:
     #: refused an advanced signature would be making that decision in
     #: `vro.py`, where no legislator can see it.
     qualified: bool | None = None
+    #: Route 2 only: whether the moment this office judged the certificate
+    #: against was vouched for by a timestamp it could authenticate. See
+    #: `pdfrequest.ValidatedSignature.signing_time_vouched`. Recorded for
+    #: the same reason as `qualified` and acted on for as little: the
+    #: office's answer does not change, only what a reader can tell about
+    #: how much it rests on.
+    signing_time_vouched: bool | None = None
 
     def __post_init__(self) -> None:
         if (self.wallet_signature is None) == (self.document is None):
@@ -247,11 +254,15 @@ class DocumentRequest:
     expired: bool = False
     #: Carried, not consulted. See `SignedRequest.qualified`.
     qualified: bool | None = None
+    #: Likewise, and it is the provenance of the moment `expired` above
+    #: was decided against. See `SignedRequest.signing_time_vouched`.
+    signing_time_vouched: bool | None = None
 
     @property
     def evidence(self) -> "SignedRequest":
         return SignedRequest(blinded_key=self.blinded_key, document=self.document,
-                             qualified=self.qualified)
+                             qualified=self.qualified,
+                             signing_time_vouched=self.signing_time_vouched)
 
 
 @dataclass(frozen=True)
@@ -334,7 +345,8 @@ def _request_to_stored(request: SignedRequest) -> dict:
                 "wallet_signature": b64(request.wallet_signature)}
     return {"blinded_key": b64(request.blinded_key),
             "document": b64(request.document),
-            "qualified": request.qualified}
+            "qualified": request.qualified,
+            "signing_time_vouched": request.signing_time_vouched}
 
 
 def request_from_stored(stored) -> SignedRequest:
@@ -350,7 +362,8 @@ def request_from_stored(stored) -> SignedRequest:
         document=unb64(document) if document is not None else None,
         # Absent from a poll written before the office could establish it,
         # and absent is exactly `None`: that office did not look.
-        qualified=stored.get("qualified"))
+        qualified=stored.get("qualified"),
+        signing_time_vouched=stored.get("signing_time_vouched"))
 
 
 def _request_for_supervision(request: SignedRequest) -> dict:
@@ -385,6 +398,11 @@ def _request_for_supervision(request: SignedRequest) -> dict:
             # document. `None` is this office saying it had no standing
             # to judge, which a surface must not round to "no".
             "request_qualified": request.qualified,
+            # The provenance of the moment the office judged the
+            # certificate against. A reader comparing `CERTIFICATE_EXPIRED`
+            # against a signing time has to know whether anybody vouched
+            # for that time, and only the office can tell them.
+            "request_time_vouched": request.signing_time_vouched,
             "route": request.route}
 
 
@@ -929,6 +947,7 @@ class VRO:
             # office with no trusted list did not look and must not be
             # recorded as having found the signature unqualified.
             qualified=found.qualified,
+            signing_time_vouched=found.signing_time_vouched,
         ), None
 
     def reserve_signed_document(

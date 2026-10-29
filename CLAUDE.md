@@ -266,6 +266,28 @@ register is `VRO.register` — a set of ids, and nothing else.
   is the mutation. The general rule: a substitution that changes what an
   existing check *means* has to be announced where that check is read, not
   where the substitution is made.
+- **A finding is published with the provenance of what it was decided
+  against.** `_expired` judges the certificate at the *moment of signing*,
+  deliberately, because a certificate valid when it signed does not become
+  invalid later — which is the right question and rests entirely on that
+  moment being authentic. The moment comes from the timestamp token, and
+  nothing recorded whether the token authenticated, so an office could report
+  `CERTIFICATE_EXPIRED` against a time nobody vouched for and a supervisor
+  had no way to discount it. `signing_time_vouched` travels beside the time:
+  `True` a timestamp this office authenticated, `False` one it could not,
+  `None` no timestamp at all, so the time is the signer's own assertion.
+  `unvouched_time_published_as_vouched` is the mutation.
+
+  The reason this went unnoticed is worth keeping. ETSI registers a timestamp
+  authority as a trust service of a *different type* from a certificate
+  issuer (QTST against CA/QC), so one provider offering both runs two
+  hierarchies and appears twice on a trusted list — Hungary's lists 52
+  certification authorities and 96 timestamp authorities. An office pinning
+  one root by hand can therefore authenticate the signer and not the time, and
+  it looks like nothing: `trusted` is about the signer, and the office is
+  right not to ask `bottom_line`. A trusted list covers both with no extra
+  configuration, because pyHanko's `ts_validation_context` defaults to the
+  signer's.
 - **The qualified finding is recorded and never acted on, and `None` has to
   survive the whole way.** Reading a trusted list establishes Article 3(12),
   and that was the point of pinning one — but the validator computed

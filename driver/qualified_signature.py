@@ -463,6 +463,7 @@ class QualifiedSignatureValidation:
             # it is this office saying it has no standing to judge, which
             # is what a hand-pinned root certificate leaves it with.
             qualified=self._qualified(status),
+            signing_time_vouched=_time_vouched(status),
         )
 
     def _qualified(self, status) -> bool | None:
@@ -527,6 +528,30 @@ def _signing_time(status) -> datetime | None:
     if timestamp is not None and timestamp.timestamp is not None:
         return timestamp.timestamp
     return status.signer_reported_dt
+
+
+def _time_vouched(status) -> bool | None:
+    """Whether the time `_signing_time` returned was authenticated.
+
+    `None` where there is no timestamp token: the time is then the
+    signer's own assertion, and the absence is what says so. Otherwise
+    pyHanko's verdict on the token's own signer, under the same anchors
+    the office uses for everything else -- `ts_validation_context`
+    defaults to the signer's, so a trusted list covering timestamp
+    authorities covers this with no extra configuration.
+
+    Worth knowing why the two hierarchies differ at all: ETSI treats a
+    timestamp authority as a trust service of a *different type* from a
+    certificate issuer (QTST against CA/QC), so one provider offering
+    both runs two and appears twice on a trusted list. Hungary's lists 52
+    certification authorities and 96 timestamp authorities. An office
+    that pinned one root by hand can therefore authenticate the signer
+    and not the time, which is exactly what this field is for.
+    """
+    timestamp = status.timestamp_validity
+    if timestamp is None:
+        return None
+    return bool(timestamp.trusted)
 
 
 def _expired(status) -> bool:

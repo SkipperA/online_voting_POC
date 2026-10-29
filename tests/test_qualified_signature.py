@@ -622,3 +622,40 @@ def test_a_signed_document_whose_page_was_altered_is_refused_by_the_rule(
         signed, covered_prefix_length=found.covered_prefix_length)
     assert result.accepted is False
     assert result.refusal is pdfrequest.Refusal.NOT_AS_RENDERED
+
+
+def test_a_signature_with_no_timestamp_says_the_time_is_the_signers(
+        trusted, citizen):
+    """`None`, and the absence is what says so.
+
+    These fixtures sign without a timestamp token, so the time comes from
+    the signer's own assertion if it comes at all. The office records
+    that rather than presenting an unvouched moment as if somebody had
+    vouched for it -- which matters because `expired` is decided against
+    exactly this value.
+    """
+    _cert, signed = citizen
+    found = trusted.validate(signed)
+    assert isinstance(found, ValidatedSignature)
+    assert found.signing_time_vouched is None
+
+
+def test_the_timestamp_is_judged_under_the_office_s_own_anchors(trusted):
+    """`_time_vouched` asks pyHanko's verdict and adds nothing.
+
+    `ts_validation_context` defaults to the signer's, so an office whose
+    anchors come from a trusted list covers timestamp authorities with no
+    extra configuration -- which is the whole reason the hand-pinned root
+    could authenticate a DÁP signer and not the time behind it. ETSI
+    registers a timestamp authority as a different *type* of trust
+    service, so one provider offering both appears twice on a list.
+    """
+    from types import SimpleNamespace
+
+    from driver.qualified_signature import _time_vouched
+
+    assert _time_vouched(SimpleNamespace(timestamp_validity=None)) is None
+    assert _time_vouched(SimpleNamespace(
+        timestamp_validity=SimpleNamespace(trusted=True))) is True
+    assert _time_vouched(SimpleNamespace(
+        timestamp_validity=SimpleNamespace(trusted=False))) is False

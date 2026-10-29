@@ -369,6 +369,19 @@ MUTATIONS = [
                 '                 **_request_for_supervision',
     ),
     Mutation(
+        name="unvouched_time_published_as_vouched",
+        what=(
+            "The office reports the moment it judged the certificate "
+            "against as authenticated whenever a timestamp is present, "
+            "whether or not that timestamp validated -- so an expiry "
+            "finding made against a time nobody vouched for is published "
+            "as one made against a time somebody did."
+        ),
+        path="driver/qualified_signature.py",
+        find="    return bool(timestamp.trusted)",
+        replace="    return True  # SABOTAGE",
+    ),
+    Mutation(
         name="unjudged_signatures_published_as_unqualified",
         what=(
             "The release register writes `None` -- this office had no "
