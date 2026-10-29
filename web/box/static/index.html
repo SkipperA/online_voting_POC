@@ -23,6 +23,17 @@
 the poll.</p>
 
 <div class="note note--absent">
+  <span class="kind">Absent · <code>A6</code></span>
+  <b>One machine cannot show it is not equivocating</b>
+  The hash chain makes a deleted or reordered entry detectable to anyone who
+  recorded an earlier head. It cannot show that this box serves the same
+  history to everybody, because there is only one of it and one of you.
+  Mirroring the head somewhere the box does not control — other servers, a
+  gossip protocol, print — is what turns rollback detection into equivocation
+  detection, and is not implemented.
+</div>
+
+<div class="note note--absent">
   <span class="kind">Absent · <code>A7</code></span>
   <b>What does not survive a restart</b>
   The registry, the hash chain and the accepted ballots are in memory. A real

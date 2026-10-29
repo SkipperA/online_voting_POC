@@ -31,6 +31,27 @@ no part in the poll itself — the service runs with it stopped.</p>
   a finished poll, which is not the same as a registry that survives.
 </div>
 
+<div class="note note--substituted">
+  <span class="kind">Substituted · <code>S3</code></span>
+  <b>The electoral register is a handful of invented people</b>
+  Enrolment is outside the system by construction: the register derives from
+  civil registration under the law of the jurisdiction, and the office
+  administers it without populating it. Here you type identifiers into a box.
+  Presence in the register is the whole of the eligibility statement — there
+  is no second predicate — which is why this console can hand somebody a vote
+  and why a deployment would not have this page.
+</div>
+
+<div class="note note--absent">
+  <span class="kind">Absent · <code>A5</code></span>
+  <b>Selections are stored in clear</b>
+  The schedule and the tally interval set below are recorded rather than
+  enforced, and the ballot box holds each selection as it was cast. Where no
+  running tally is published the design says the selection should be encrypted
+  under a key held in shares by several independent bodies, so that an
+  operator cannot read a ballot before the close. This build does not do that.
+</div>
+
 <section>
   <h2>Compare this by eye</h2>
   <p class="prose" style="margin:0 0 .6rem">

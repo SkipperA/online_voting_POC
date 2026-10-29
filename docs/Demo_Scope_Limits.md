@@ -66,6 +66,23 @@ can reach — which on the hosted deployment sits behind an address allowance
 and a password. Until both exist, adoption is the substitution and this
 paragraph is the disclosure.
 
+**The stand-in wallet is permanent, and the reason is not cost.** It would be
+easy to read the second route as the honest one and this clause as a
+confession awaiting a fix. It is not. A demonstration cannot ask the people in
+the room to make a legally binding electronic signature over a blinded value
+they have no way to understand, and then upload it to a site nobody has
+audited. The signature is qualified, which is the whole point of it elsewhere
+on this page — it is non-repudiable, it is evidence in a court, and it is
+theirs for everything they will ever sign. Asking a volunteer for one in
+exchange for a few minutes of someone else's software is not a reasonable
+request, and it does not become reasonable because the software is this one.
+
+So the two routes are not a stopgap and a destination. The stand-in exists so
+that a room can be shown the protocol without anybody signing anything that
+matters; the qualified route exists so that the same protocol can be shown to
+work with the real instrument, performed by somebody who understands exactly
+what they are signing and chooses to. Both stay.
+
 **On the qualified-signature route this clause does not apply at all.** The
 wallet is the citizen's own DÁP application, the key is generated and held in
 a qualified signature-creation device the trust service operates, and it never

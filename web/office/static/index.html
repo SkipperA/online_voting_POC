@@ -21,6 +21,29 @@ office in the ordinary course; none of it is disclosed to anyone.</p>
   office knows and what it says can be seen at once, and nowhere else.
 </div>
 
+<div class="note note--absent">
+  <span class="kind">Absent · <code>A1</code></span>
+  <b>One office issues every token</b>
+  The design requires this power to be split across mutually distrustful
+  bodies, because a single office — corrupt, breached, or merely mistaken —
+  can mint valid-looking tokens for citizens who did not ask, and nothing in
+  the published artefacts distinguishes them from genuine ones. The register
+  below records the citizen's own signed request for every release, which is
+  what lets a supervisor find a fabricated one; distributing the issuing power
+  is what would <i>prevent</i> it. This demo does not.
+</div>
+
+<div class="note note--substituted">
+  <span class="kind">Substituted · <code>S2</code></span>
+  <b>The certificate lookup is a fixture</b>
+  On the wallet route the office asks <code>driver/population_register.py</code>
+  for a citizen's certificate and gets one row of a table. In a deployment that
+  is the real trust infrastructure — a published trust list and a real
+  revocation check. On the qualified-signature route there is no lookup at
+  all: the certificate arrives with the signature, and what is substituted
+  there is the trust anchors instead (<code>S6</code>).
+</div>
+
 <section>
   <h2>Two key pairs, and why there are two</h2>
   <div id="keys">…</div>

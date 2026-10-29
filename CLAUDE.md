@@ -532,6 +532,18 @@ register is `VRO.register` — a set of ids, and nothing else.
   `Element.animate`, and an explicit `behavior: 'smooth'` overrides the CSS
   `scroll-behavior` it would otherwise obey. `main.ts` asks
   `matchMedia` for both.
+- **The stand-in wallet is permanent; the two routes are not a stopgap and a
+  destination.** A demonstration cannot ask people in a room to make a legally
+  binding electronic signature over a blinded value they have no way to
+  understand and upload it to an unaudited site. The qualified signature is
+  non-repudiable, admissible, and theirs for everything they will ever sign —
+  that is the point of it on the second route and exactly why it cannot be
+  asked of a volunteer. So the stand-in exists so the protocol can be shown
+  without anybody signing anything that matters, and the qualified route
+  exists so the same protocol can be shown working with the real instrument,
+  by somebody who knows what they are signing. Do not "finish" the wallet
+  route into the other one, and do not let a future clause imply the
+  substitution is waiting to be removed.
 - **A clause is checked in both directions, and one of them was never
   checked.** `test_every_scope_note_names_a_kind_and_a_real_clause` asks that
   every aside on a page cite a real clause of the right kind. Nothing asked

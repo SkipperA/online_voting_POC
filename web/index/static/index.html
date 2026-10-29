@@ -21,6 +21,18 @@
 Private, and Coercion-Resistant Online Voting System</em>. Eight origins, one
 process — for now.</p>
 
+<div class="note note--scope">
+  <span class="kind">Out of scope · <code>O3</code></span>
+  <b>This build implements the provable variant</b>
+  Every published ballot carries the voter's ad-hoc public key, so a voter can
+  prove which ballot was theirs — to an adjudicator, and equally to somebody
+  buying their vote. The coercion-resistant alternative binds the ballot to a
+  random identifier the voter can check but cannot use as proof. That is a
+  different system rather than a setting on this one, and where the balance
+  between the two belongs is a decision for a legislator rather than a
+  technical question.
+</div>
+
 <div class="note note--exposed">
   <span class="kind">Exposed here · <code>X4</code></span>
   <b>This is a demonstration, not an election</b>

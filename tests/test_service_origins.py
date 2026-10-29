@@ -700,20 +700,11 @@ def test_every_clause_reaches_a_surface_or_is_named_as_not_doing_so():
         "O2",   # the voter's check runs on the device that cast
     }
 
-    #: **Debt, not exemption.** These are about something a reader is
-    #: standing on and are shown to them nowhere. The list is here so it
-    #: can only shrink by work and grow by a visible edit; every entry is
-    #: a page that should carry a note and does not.
-    NOT_YET_SHOWN = {
-        "A1",   # one office issues every token — belongs on the office page
-        "A3",   # browser-delivered code — belongs on every browser surface
-        "A5",   # the schedule is recorded, not enforced — the setup console
-        "A6",   # the box's close is an operator's act
-        "A8",   # the handover is a file and a discipline — the voter app
-        "O3",   # one operator holds several roles
-        "S2",   # the certificate lookup is a fixture — the office page
-        "S3",   # the register is a handful of invented identifiers
-    }
+    #: **Debt, not exemption.** A clause here is about something a reader
+    #: is standing on and is shown to them nowhere. Empty is the goal and
+    #: the only honest steady state; the list exists so that it can grow
+    #: solely by a visible edit.
+    NOT_YET_SHOWN: set[str] = set()
 
     shown = ""
     for page in sorted((root / "web").rglob("*.html")):
