@@ -532,6 +532,18 @@ register is `VRO.register` — a set of ids, and nothing else.
   `Element.animate`, and an explicit `behavior: 'smooth'` overrides the CSS
   `scroll-behavior` it would otherwise obey. `main.ts` asks
   `matchMedia` for both.
+- **A clause is checked in both directions, and one of them was never
+  checked.** `test_every_scope_note_names_a_kind_and_a_real_clause` asks that
+  every aside on a page cite a real clause of the right kind. Nothing asked
+  the reverse — that a clause reach a surface at all — and eight do not,
+  including A8, which the first test's own docstring cites as the example of
+  a clause reaching no surface. `test_every_clause_reaches_a_surface_or_is
+  _named_as_not_doing_so` closes it with two lists: `OFF_SCREEN` for clauses
+  about the repository or an operator's machine, where there is no surface a
+  reader stands on, and `NOT_YET_SHOWN`, which is **debt rather than
+  exemption** — every entry is a page that should carry a note and does not.
+  The debt list is checked for staleness in both directions, so a clause shown
+  on a page cannot stay listed as unfinished.
 - **Four kinds of scope clause, four treatments on screen.**
   `docs/Demo_Scope_Limits.md` is the single list; the pages derive their
   labels from it and `test_every_scope_note_names_a_kind_and_a_real_clause`

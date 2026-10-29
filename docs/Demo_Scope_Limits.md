@@ -66,10 +66,35 @@ can reach — which on the hosted deployment sits behind an address allowance
 and a password. Until both exist, adoption is the substitution and this
 paragraph is the disclosure.
 
-**Label:** *Wallet is a software stub, and on the phone it borrows one of the
-demonstration's citizens — key and all. In deployment the signing key is
-generated in hardware, cannot be exported, and is enrolled before any
-election.*
+**On the qualified-signature route this clause does not apply at all.** The
+wallet is the citizen's own DÁP application, the key is generated and held in
+a qualified signature-creation device the trust service operates, and it never
+leaves it — so no private key crosses a network, which is the one sentence of
+the paragraphs above an audience is told to listen for. There is no stand-in
+to disclose, because there is no stand-in: the signature arrives having been
+made by the thing the article describes, and the office validates it against
+the European trusted list rather than against a fixture.
+
+That is worth stating as a discharge rather than as an aside. A demonstration
+whose every component is a substitute teaches an audience to discount all of
+it; a demonstration with one component that is the real thing establishes what
+the substitutes are standing in *for*.
+
+Two labels, therefore, and a surface must show the one belonging to the route
+in play. The voting application names its route at the handover step and the
+upload page carries S6 and S7 rather than this clause.
+`test_every_scope_note_names_a_kind_and_a_real_clause` checks that a cited
+clause exists; it cannot check that the *right* clause is cited for the route,
+and nothing does. That remains a reviewer's job.
+
+**Label (wallet route):** *Wallet is a software stub, and on the phone it
+borrows one of the demonstration's citizens — key and all. In deployment the
+signing key is generated in hardware, cannot be exported, and is enrolled
+before any election.*
+
+**Label (qualified-signature route):** *Not substituted. The wallet is the
+citizen's own, the key is in a qualified device it never leaves, and the
+signature is the one a court would be shown.*
 
 ### S2 — The certificate lookup
 
@@ -81,8 +106,29 @@ The fixture returns one certificate per person; the article requires that any
 of several be accepted. That difference is recorded in the gaps list of
 `docs/wire-contract.md` and is not closed by the demo.
 
-**Label:** *Certificate lookup is a fixture. It is external infrastructure the
-design consults, not a component the design builds.*
+**On the qualified-signature route there is no lookup, and the several-
+certificates question is not narrowed but absent.** The certificate arrives
+with the signature and the office reads the subject from it, so the office
+never *chooses* a certificate: it validates whichever one the citizen signed
+with. A citizen holding two qualified certificates may use either, and the
+office cannot tell and has no reason to care. §3.2's requirement is met by
+construction rather than by effort.
+
+This is the one place where the second route is closer to the article than the
+first, and it is worth being precise about why: not because the validation is
+better, but because the lookup — the step that forced a choice — is gone. Item
+3 of *attacks worth adding* in `docs/threats.md` and the eligibility rows of
+the wire contract's requirements list both now say that the gap is the wallet
+route's alone.
+
+What the route substitutes instead is what the trust anchors are, and that is
+clause S6 rather than this one.
+
+**Label (wallet route):** *Certificate lookup is a fixture. It is external
+infrastructure the design consults, not a component the design builds.*
+
+**Label (qualified-signature route):** *No lookup at all: the certificate
+arrives with the signature, so a citizen may sign with any of theirs.*
 
 ### S3 — The electoral register
 
@@ -474,6 +520,43 @@ and neither substitution is available here.
 
 **Label:** *Do not force-quit the voter app between asking for a token and
 receiving it.*
+
+### A10 — The qualified-signature route is on iOS only
+
+Covers the second route to a token request.
+
+The browser client offers one route and the iOS client offers two. That is a
+cost decision and not a platform limitation, and the distinction matters
+because the obvious reading — that the wallet lives on a phone, so the route
+must — is wrong. DÁP has signed documents from a desktop browser since
+February 2026, the file sitting on the computer while the phone authorises the
+signature. Nothing about the route needs the voter's machine to be the one
+holding the wallet.
+
+What it needs is a *third* byte-exact implementation of `render`. The document
+is a pure function of its payload and the office decides by rebuilding it, so
+every client that writes one must produce the same bytes as the office — which
+is why there are two implementations pinned to `tests/vectors/pdf-request.json`
+and why `tests/test_native_sources.py` compares their prose. A browser
+implementation would be a third, in a language where neither of the first two
+can be reused, kept in step by the same vector and the same discipline.
+
+And clause A3 applies to it with more force than usual. Browser-delivered code
+that renders a document a citizen is about to sign under a qualified
+certificate is making a claim about what that signature will mean, on code the
+voter received from a web server a moment earlier. The iOS client makes the
+same claim from a signed binary. Neither is the deployment answer — which is
+the wallet rendering from the payload itself — but they are not equally far
+from it.
+
+So this is an omission with a known price rather than a boundary. Three
+things would close it: `render` in TypeScript against the existing vector, the
+upload page already exists and is unchanged, and a sentence in A3 saying what
+a browser rendering is worth.
+
+**Label:** *The signed-document route is in the iOS application only. The
+browser client could have it; what it would cost is a third implementation of
+the document writer, byte for byte identical to the other two.*
 
 ---
 

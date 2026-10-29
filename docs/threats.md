@@ -249,9 +249,13 @@ Ordered roughly by how much a reviewer would want to see them:
    The ballot now carries a nonce covered by the ad-hoc signature, and the box
    refuses any record already among the accepted entries (§5.7).
 3. A voter holding two qualified certificates, and whether the office should
-   accept a request signed under either (the article's §3.2 says it must; this
-   POC returns exactly one certificate per `id`, which is enough to run the
-   protocol but does not exercise the question).
+   accept a request signed under either (the article's §3.2 says it must; the
+   fixture returns exactly one certificate per `id`, which is enough to run
+   the protocol but does not exercise the question). **The wallet route only.**
+   On the qualified-signature route the office performs no lookup — the
+   certificate arrives with the signature — so it never chooses between a
+   citizen's certificates and either will do. The question is absent there
+   rather than unexercised, which is clause S2.
 4. Selection encoded outside the option list but crafted to collide with a valid
    one after serialisation — a canonicalisation attack.
 5. A certificate that is valid, unrevoked, and names a *different* subject than

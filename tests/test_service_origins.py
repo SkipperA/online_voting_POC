@@ -666,3 +666,75 @@ def test_every_origin_the_checker_fetches_will_answer_it(clients):
             assert allowed in ("*", as_the_browser_sends_it), (
                 f"the checker fetches {name}{path} and would be refused: "
                 f"allow-origin was {allowed!r}")
+
+
+def test_every_clause_reaches_a_surface_or_is_named_as_not_doing_so():
+    """A clause nobody is shown is a clause nobody applies.
+
+    `docs/Demo_Scope_Limits.md` exists so that the labels on screen and
+    the clauses spoken during a demonstration are written once. The
+    companion test checks that every aside cites a real clause; this
+    checks the other direction, which is the one that rots quietly --
+    A8 reached no surface at all until somebody noticed, and the first
+    draft of A10 would have been a clause about the browser client that
+    the browser client never mentioned.
+
+    Some clauses legitimately reach no page: they are about the suite,
+    the repository or an operator's machine rather than about anything a
+    reader is standing on. Those are listed, and the list is checked for
+    staleness so it stays a place to explain a clause rather than hide
+    one.
+    """
+    import re
+
+    root = Path(__file__).resolve().parents[1]
+    doc = (root / "docs" / "Demo_Scope_Limits.md").read_text()
+    clauses = set(re.findall(r"^### ([SAOX]\d+) — ", doc, re.M))
+
+    #: Clauses about the repository, the suite or an operator's machine,
+    #: with no surface a reader could be standing on.
+    OFF_SCREEN = {
+        "A7",   # a restart loses a poll: an operator's fact
+        "A9",   # the iOS blinding factor, stated in the app's own prose
+        "X4",   # key material committed to the repository
+        "O2",   # the voter's check runs on the device that cast
+    }
+
+    #: **Debt, not exemption.** These are about something a reader is
+    #: standing on and are shown to them nowhere. The list is here so it
+    #: can only shrink by work and grow by a visible edit; every entry is
+    #: a page that should carry a note and does not.
+    NOT_YET_SHOWN = {
+        "A1",   # one office issues every token — belongs on the office page
+        "A3",   # browser-delivered code — belongs on every browser surface
+        "A5",   # the schedule is recorded, not enforced — the setup console
+        "A6",   # the box's close is an operator's act
+        "A8",   # the handover is a file and a discipline — the voter app
+        "O3",   # one operator holds several roles
+        "S2",   # the certificate lookup is a fixture — the office page
+        "S3",   # the register is a handful of invented identifiers
+    }
+
+    shown = ""
+    for page in sorted((root / "web").rglob("*.html")):
+        shown += page.read_text(encoding="utf-8")
+    for page in sorted((root / "web").rglob("*.js")):
+        shown += page.read_text(encoding="utf-8")
+    for page in sorted((root / "web" / "voter-app" / "src").rglob("*.ts")):
+        shown += page.read_text(encoding="utf-8")
+
+    cited = {c for c in clauses if f"<code>{c}</code>" in shown or f"'{c}'" in shown}
+    missing = sorted(clauses - cited - OFF_SCREEN - NOT_YET_SHOWN)
+    assert not missing, (
+        "these clauses reach no surface: " + ", ".join(missing)
+        + " — show them where a reader would wonder, or add them to "
+        "NOT_YET_SHOWN, which is debt and is meant to shrink")
+
+    # The debt list must not outlive the debt. A clause shown on a page
+    # and still listed here reads as unfinished work that is finished.
+    paid = sorted(NOT_YET_SHOWN & cited)
+    assert not paid, (
+        "these are shown now and still listed as debt: " + ", ".join(paid))
+
+    stale = sorted((OFF_SCREEN | NOT_YET_SHOWN) - clauses)
+    assert not stale, f"these lists name clauses that do not exist: {stale}"
