@@ -176,6 +176,20 @@
   letter-spacing: .07em;
   text-transform: uppercase;
 }
+/* Which election, beside the title. A name and not a classification, so
+ * it keeps the capitals somebody wrote: an election is called
+ * Előválasztás 2027 and not ELŐVÁLASZTÁS 2027, and the uppercasing above
+ * belongs to the two words that say what this origin is. */
+.origin .origin-election {
+  font-size: var(--t-sm);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.origin .origin-election::before {
+  content: "·";
+  margin-right: .45rem;
+  opacity: .55;
+}
 .origin .origin-at {
   margin-left: auto;
   font-family: var(--font-mono);

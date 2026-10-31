@@ -19,6 +19,7 @@ produced under compulsion.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,36 @@ from service.apps import build_all
 from service.state import Deployment
 
 TEST_VOTER_IDS = ["HU-1970-0442", "Kovács Ágnes"]
+
+#: Every page this deployment serves, as (origin name, path). Over pages
+#: rather than over origins, because the office serves two: the back
+#: office, and the hand-in page of the qualified-signature route -- which
+#: is the one a citizen reaches while holding a document that names a poll.
+#:
+#: The voter application is absent because its page is a 503 until somebody
+#: runs the build, which is the same reason the band and watch tests skip
+#: it. `test_the_voter_application_names_the_election_too` is what reaches
+#: that one call site, and it stands the directory up rather than waiting
+#: for a bundle that no CI job builds.
+SERVED_PAGES = [(o.name, "/") for o in origins.ALL
+                if o is not origins.VOTER_APP] + [(origins.VRO.name, "/upload")]
+
+_BAND = re.compile(r'<header class="origin[^"]*">(.*?)</header>', re.S)
+
+
+def _band_of(page: str) -> str:
+    """The band's own contents, so an assertion is about the band.
+
+    A name that appears somewhere further down a page is not what a reader
+    looking at the top of one sees, and the requirement is about the title.
+    """
+    found = _BAND.search(page)
+    assert found is not None, "this page carries no band at all"
+    return found.group(1)
+
+
+def _clients_for(deployment) -> dict[str, TestClient]:
+    return {o.name: TestClient(app) for o, app in build_all(deployment).items()}
 
 
 @pytest.fixture(scope="module")
@@ -42,7 +73,7 @@ def deployment(tmp_path_factory) -> Deployment:
 
 @pytest.fixture(scope="module")
 def clients(deployment) -> dict[str, TestClient]:
-    return {o.name: TestClient(app) for o, app in build_all(deployment).items()}
+    return _clients_for(deployment)
 
 
 # -- the port map ----------------------------------------------------------
@@ -290,6 +321,39 @@ def test_an_unbuilt_voter_app_says_so_rather_than_rendering_blank(deployment, tm
         apps_module.VOTER_APP_STATIC = original
 
 
+def test_the_voter_application_names_the_election_too(deployment, tmp_path,
+                                                      monkeypatch):
+    """The one page every other surface test has to skip.
+
+    Its page is a 503 until `npm run build` has been run, `bundle.js` is
+    generated and not committed, and no CI job builds it -- the Node job
+    verifies the golden vectors under `interop/` and nothing else. So this
+    call site is exercised by no run anywhere, which is precisely the shape
+    `CLAUDE.md` records for the validator on the event loop: each half
+    covered, the join met first by somebody using it.
+
+    The bundle is not a dependency this suite may acquire -- the tests rest
+    on what `pyproject.toml` declares and on nothing else -- so the
+    directory is stood up here from the committed page plus a `bundle.js`
+    that exists and does nothing. What is under test is the band, not the
+    application.
+    """
+    from service import apps as apps_module
+
+    static = tmp_path / "voter-app-static"
+    static.mkdir()
+    (static / "index.html").write_text(
+        (apps_module.VOTER_APP_STATIC / "index.html").read_text(encoding="utf-8"),
+        encoding="utf-8")
+    (static / "bundle.js").write_text("", encoding="utf-8")
+    monkeypatch.setattr(apps_module, "VOTER_APP_STATIC", static)
+
+    response = TestClient(apps_module.voter_app(deployment)).get("/")
+    assert response.status_code == 200
+    assert deployment.config.election_id in _band_of(response.text), (
+        "the voting application's band names no election")
+
+
 def test_the_config_origin_serves_an_index_of_the_whole_deployment(clients):
     """One page a newcomer can open. Still inert: it describes, it holds nothing.
 
@@ -350,6 +414,74 @@ def test_every_page_carries_the_tokens_and_its_own_band(clients):
             assert f"--domain:var(--hue-{origin.name})" in page, (
                 f"{origin.name} serves a band that is not its own")
             assert origin.family in page, origin.name
+
+
+def test_every_page_names_the_election_it_is_serving(clients, deployment):
+    """Which poll, beside the title, on every surface.
+
+    The identifier is what every signed statement in this system is bound
+    to: the box signs it into each receipt and into both phase statements,
+    the office into the released head and the released count. So a reader
+    holding a receipt, or reading a ledger, is holding evidence about one
+    named poll -- and no surface said which one, while the setup console
+    could replace it under an open page at any moment.
+
+    Asserted on the band's own contents rather than on the page, because a
+    name appearing in a table further down is not what a reader looking at
+    the top of a page sees, and the requirement is about the title.
+    """
+    election = deployment.config.election_id
+    for name, path in SERVED_PAGES:
+        band = _band_of(clients[name].get(path).text)
+        assert election in band, f"{name}{path}: the band names no election"
+
+
+def test_the_band_follows_a_new_election_without_a_restart(tmp_path):
+    """Read per request, never closed over.
+
+    Minting replaces the configuration object wholesale. An application
+    that had captured the name when it was built would go on naming an
+    election that no longer exists -- on the one element a reader has been
+    taught to read first, and under a staleness bar correctly telling them
+    the page is out of date.
+    """
+    deployment = Deployment.create(
+        election_id="before", bits=2048, document_root=tmp_path / "config")
+    clients = _clients_for(deployment)
+    assert "before" in _band_of(clients["ebb"].get("/").text)
+
+    deployment.mint(election_id="after", num_choices=2, bits=2048,
+                    opens="2026-01-01T08:00:00Z", closes="2026-01-01T20:00:00Z")
+
+    band = _band_of(clients["ebb"].get("/").text)
+    assert "after" in band, "the band did not follow the mint"
+    assert "before" not in band, "the band still names the replaced election"
+
+
+def test_an_election_named_in_markup_reaches_no_page_as_markup(tmp_path):
+    """The identifier is the operator's own prose, and it is now rendered.
+
+    Not a defence against the console: whoever can reach 8009 is the
+    administering body by construction, exactly as whoever can reach 8006
+    is a supervisor. It is that an election named with a `<` in it would
+    otherwise break the markup of all eight pages at once, and an `&` is
+    ordinary in a name. A label that can destroy the page it labels is
+    worse than no label.
+
+    Both halves matter. The first assertion is that the markup did not
+    survive; the second is that the name did -- an escape that dropped the
+    identifier would pass a test written only one way round.
+    """
+    hostile = '<img src=x onerror="alert(1)"> & co'
+    deployment = Deployment.create(
+        election_id=hostile, bits=2048, document_root=tmp_path / "config")
+    clients = _clients_for(deployment)
+
+    for name, path in SERVED_PAGES:
+        page = clients[name].get(path).text
+        assert "<img src=x" not in page, f"{name}{path}: the name is markup"
+        assert "&lt;img src=x" in _band_of(page), (
+            f"{name}{path}: the band does not name the election")
 
 
 def test_every_runtime_page_watches_the_configuration_it_pinned(clients):

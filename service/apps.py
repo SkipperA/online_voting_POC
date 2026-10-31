@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+from html import escape
 from pathlib import Path
 
 from fastapi import FastAPI, Response
@@ -44,7 +45,8 @@ TOKENS = WEB / "shared" / "tokens.css"
 CONFIG_WATCH = WEB / "shared" / "config-watch.js"
 
 
-def _page(path: Path, origin: origins.Origin, **substitutions: str) -> str:
+def _page(path: Path, origin: origins.Origin, election: str,
+          **substitutions: str) -> str:
     """One page, with the shared tokens and this origin's own hue in it.
 
     The tokens are injected rather than linked. A `<link>` to a stylesheet on
@@ -59,6 +61,16 @@ def _page(path: Path, origin: origins.Origin, **substitutions: str) -> str:
 
     Read per request, like every other static artefact here, so editing the
     tokens needs no restart.
+
+    `election` is positional and required, and that is the whole of what
+    keeps it on every surface. A keyword with a default would let a page
+    added later be added without one, which is the argument the band
+    already makes for itself; a parameter that cannot be omitted makes it
+    true of this as well. Each caller reads it from the deployment at
+    request time rather than closing over it, because the setup console may
+    mint a new election while the process runs -- a name captured when the
+    application was built would go on naming an election that no longer
+    exists.
 
     `substitutions` are the literal `data-*=""` attributes the pages carry for
     their neighbours' addresses. They stay literal and stay on `<body>`: the
@@ -82,7 +94,8 @@ def _page(path: Path, origin: origins.Origin, **substitutions: str) -> str:
 
     opening = re.match(r"(?s).*?(<body[^>]*>)", html)
     assert opening is not None, f"{path.name}: no body tag to put the band in"
-    return html.replace(opening.group(1), opening.group(1) + _band(origin), 1)
+    return html.replace(
+        opening.group(1), opening.group(1) + _band(origin, election), 1)
 
 
 def _palette(origin: origins.Origin) -> str:
@@ -140,7 +153,7 @@ def _watch(origin: origins.Origin) -> str:
     )
 
 
-def _band(origin: origins.Origin) -> str:
+def _band(origin: origins.Origin, election: str) -> str:
     """The one element every surface carries in the same place.
 
     Eight pages that look alike make the separation between them a claim in
@@ -148,6 +161,30 @@ def _band(origin: origins.Origin) -> str:
     a security property. The band says which trust domain you are standing
     in, which family it belongs to, and at what address -- in that domain's
     own colour, so a glance does the work the text confirms.
+
+    It also says *which election*, beside the title, and that is a second
+    kind of identity rather than a decoration. Every signed statement in
+    this system is bound to the identifier: the box signs it into each
+    receipt and into both phase statements, the office signs it into the
+    released head and count. So a reader holding a receipt, or looking at a
+    ledger, is looking at evidence about one named poll -- and until now no
+    surface said which one, while the setup console could replace it under
+    an open page at any moment. `config-watch.js` already tells a stale page
+    to reload; this is what a reloaded page then says it is.
+
+    The election is text and takes no colour of its own. Hue carries
+    trust-domain identity and nothing else, and a second coloured thing in
+    the band would make the first one mean less.
+
+    **Escaped, because the identifier is the operator's own prose.** The
+    setup console accepts whatever `election_id` is typed into it, and this
+    is the first place in the deployment where operator-authored text is
+    interpolated into server-rendered HTML. Not a defence against the
+    console -- whoever can reach 8009 is the administering body by
+    construction, exactly as whoever can reach 8006 is a supervisor. It is
+    that an election named with a `<` in it would silently break the markup
+    of all eight pages, and an `&` is ordinary in a name. A label that can
+    destroy the page it labels is worse than no label.
 
     Served, not written into the pages, so a surface added later cannot be
     added without one.
@@ -158,6 +195,7 @@ def _band(origin: origins.Origin) -> str:
     return (
         f'<header class="origin{plain}">'
         f"<b>{origin.title}</b>"
+        f'<span class="origin-election">{escape(election)}</span>'
         f'<span class="origin-family">{where}</span>'
         f'<span class="origin-standing">{standing}</span>'
         f'<span class="origin-at">{origin.url}</span>'
@@ -241,6 +279,7 @@ def config_app(deployment: Deployment) -> FastAPI:
     async def index() -> HTMLResponse:
         return HTMLResponse(
             _page(INDEX_STATIC / "index.html", origins.CONFIG,
+                  deployment.config.election_id,
                   revision=build.REVISION).replace(
                 'data-origins=""', f"data-origins='{origin_table}'"
             )
@@ -302,7 +341,7 @@ def voter_app(deployment: Deployment) -> FastAPI:
                 status_code=503,
             )
         return HTMLResponse(_page(
-            index, origins.VOTER_APP,
+            index, origins.VOTER_APP, deployment.config.election_id,
             config_origin=origins.CONFIG.url,
             vro_origin=origins.VRO.url,
             ebb_origin=origins.EBB.url,
@@ -328,7 +367,8 @@ def wallet_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(
-            _page(index, origins.WALLET, config_origin=origins.CONFIG.url)
+            _page(index, origins.WALLET, deployment.config.election_id,
+                  config_origin=origins.CONFIG.url)
         )
 
     @app.get("/wallet.js")
@@ -349,6 +389,7 @@ def supervisor_console(deployment: Deployment) -> FastAPI:
     async def page() -> HTMLResponse:
         return HTMLResponse(
             _page(SUPERVISOR_STATIC / "index.html", origins.SUPERVISOR,
+                  deployment.config.election_id,
                   config_origin=origins.CONFIG.url)
         )
 
@@ -366,7 +407,8 @@ def setup_console(deployment: Deployment) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
-        return HTMLResponse(_page(SETUP_STATIC / "index.html", origins.SETUP))
+        return HTMLResponse(_page(SETUP_STATIC / "index.html", origins.SETUP,
+                                  deployment.config.election_id))
 
     @app.get("/setup.js")
     async def script() -> Response:
@@ -387,7 +429,8 @@ def ebb_app(deployment: Deployment) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
-        return HTMLResponse(_page(BOX_STATIC / "index.html", origins.EBB))
+        return HTMLResponse(_page(BOX_STATIC / "index.html", origins.EBB,
+                                  deployment.config.election_id))
 
     @app.get("/box.js")
     async def script() -> Response:
@@ -410,7 +453,8 @@ def vro_app(deployment: Deployment) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
-        return HTMLResponse(_page(OFFICE_STATIC / "index.html", origins.VRO))
+        return HTMLResponse(_page(OFFICE_STATIC / "index.html", origins.VRO,
+                                  deployment.config.election_id))
 
     @app.get("/office.js")
     async def script() -> Response:
@@ -427,6 +471,7 @@ def vro_app(deployment: Deployment) -> FastAPI:
     async def upload_page() -> HTMLResponse:
         return HTMLResponse(
             _page(UPLOAD_STATIC / "index.html", origins.VRO,
+                  deployment.config.election_id,
                   vro_origin=origins.VRO.url))
 
     @app.get("/upload.js")
@@ -452,6 +497,7 @@ def checker_app(deployment: Deployment) -> FastAPI:
     async def page() -> HTMLResponse:
         return HTMLResponse(
             _page(CHECKER_STATIC / "index.html", origins.CHECKER,
+                  deployment.config.election_id,
                   vro_origin=origins.VRO.url,
                   ebb_origin=origins.EBB.url,
                   config_origin=origins.CONFIG.url)

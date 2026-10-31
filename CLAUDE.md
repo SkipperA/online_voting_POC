@@ -577,10 +577,35 @@ register is `VRO.register` — a set of ids, and nothing else.
   label/value grids keep the full column.
 - **Every surface carries an origin band, served rather than written.**
   `service/apps.py:_band` puts the same element at the top of every page:
-  the trust domain's name, its family, whether it is a trust domain, and its
-  address, in that domain's own colour. It is injected, so a surface added
-  later cannot be added without one. The two origins that are not trust
-  domains get the same band with no fill. `_palette` emits every domain's hue
+  the trust domain's name, the election being served, the family, whether it
+  is a trust domain, and the address, in that domain's own colour. It is
+  injected, so a surface added later cannot be added without one. The two
+  origins that are not trust domains get the same band with no fill.
+
+  **The election is the second identity in the band, and it is not
+  decoration.** Every signed statement in this system is bound to the
+  identifier -- the box signs it into each receipt and into both phase
+  statements, the office into the released head and count -- so a reader
+  holding a receipt is holding evidence about one named poll, and no surface
+  said which one while the setup console could replace it underneath them.
+  It is text and takes no hue: a second coloured thing in the band would
+  make the first one mean less. `_page` takes it as a *required positional*
+  argument, which is the whole of what keeps it everywhere — a keyword with
+  a default would let the next page be added without one, which is the
+  argument the band already makes for itself. Each caller reads it from the
+  deployment per request rather than closing over it, for the reason
+  `api.py` resolves the office per call: a name captured at build time goes
+  on naming an election that no longer exists.
+
+  **It is escaped, and it is the first place operator prose is rendered.**
+  The console accepts whatever `election_id` is typed into it. Not a defence
+  against the console — whoever reaches 8009 is the administering body by
+  construction — but an election named with a `<` in it would break the
+  markup of all eight pages at once, and an `&` is ordinary in a name. A
+  label that can destroy the page it labels is worse than no label.
+  `test_an_election_named_in_markup_reaches_no_page_as_markup` checks both
+  halves, since an escape that dropped the name would pass a test written
+  only one way round. `_palette` emits every domain's hue
   on every page, not just the serving one, because the config origin draws
   the legend and a legend built from a second copy of the table would be a
   second copy of the table.
