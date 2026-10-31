@@ -52,7 +52,15 @@ no part in the poll itself — the service runs with it stopped.</p>
   operator cannot read a ballot before the close. This build does not do that.
 </div>
 
-<section>
+<div class="destructive" id="first-run" hidden>
+  <b>There is no election on this deployment yet</b>
+  Nothing has been authored here: no keys, no register, no configuration.
+  Every other origin refuses with 503 until this console mints the first
+  election, and the service will not invent one on its own — an election
+  that appears because a process started is not an election.
+</div>
+
+<section class="needs-election">
   <h2>Compare this by eye</h2>
   <p class="prose" style="margin:0 0 .6rem">
     The voter's application shows the same fingerprint for <code>k_p^(R)</code>.
@@ -70,7 +78,7 @@ no part in the poll itself — the service runs with it stopped.</p>
   <div class="row"><span class="label">box</span><span class="value" id="phase-now">…</span></div>
 </section>
 
-<section>
+<section class="needs-election">
   <h2>Publication cadence</h2>
   <p class="prose" style="margin:0 0 .6rem">
     How often the box publishes the figures, in seconds. The close is always
@@ -86,7 +94,7 @@ no part in the poll itself — the service runs with it stopped.</p>
   <div class="row"><span class="label">on the register</span><span class="value" id="register-size">…</span></div>
 </section>
 
-<section>
+<section class="needs-election">
   <h2>Declared schedule</h2>
   <div class="note note--absent">
     <span class="kind">Absent · <code>A4</code></span>
@@ -103,7 +111,7 @@ no part in the poll itself — the service runs with it stopped.</p>
   <button id="set-schedule">Set</button>
 </section>
 
-<section>
+<section class="needs-election">
   <h2>Electoral register</h2>
   <p class="prose" style="margin:0 0 .6rem">
     Presence in the register is the whole of the eligibility statement. The
@@ -117,8 +125,8 @@ no part in the poll itself — the service runs with it stopped.</p>
 </section>
 
 <section>
-  <h2>Mint a new election</h2>
-  <div class="destructive">
+  <h2 id="mint-heading">Mint a new election</h2>
+  <div class="destructive" id="mint-destructive">
     <b>This is not an amendment</b>
     Every key pair is replaced: the office's token key, the office's statement
     key, the box's statement key. Every token already issued stops verifying,
@@ -167,7 +175,7 @@ no part in the poll itself — the service runs with it stopped.</p>
   <div class="row"><span class="label">register</span>
     <label><input type="checkbox" id="mint-keep" checked> keep the enrolled
       voters and their personas</label></div>
-  <div class="row"><span class="label">confirm</span>
+  <div class="row" id="mint-confirm-row"><span class="label">confirm</span>
     <input type="text" id="mint-confirm" placeholder="type the election id being replaced"></div>
   <button id="mint">Mint</button>
 </section>

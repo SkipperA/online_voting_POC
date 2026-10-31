@@ -72,6 +72,22 @@ class NoElection(RuntimeError):
     """
 
 
+class NoElectionYet(NoElection):
+    """Nothing has been authored here, which is not a misconfiguration.
+
+    Separated from its parent because the two look alike on the way out and
+    are answered differently. A pointer naming a directory that holds no
+    election is an operator's mistake and has to stay loud: the service
+    refuses to start and names the directories that do hold one. An empty
+    data directory is the first start of a new deployment, and the answer to
+    that is the setup console -- which cannot be the answer if the process
+    exits before serving it.
+
+    Catching the parent where this is meant would turn a wrong pointer into
+    a silent fresh start, on top of an election still sitting on the disk.
+    """
+
+
 #: Names the folder under the parent that the service serves. A file rather
 #: than a symlink: it survives a zip, a checkout on Windows and a diff, and
 #: a reader can see which election is current by opening it.
@@ -144,11 +160,12 @@ def current(parent: Path) -> Path:
         )
     if (parent / "election.store.json").exists():
         return parent                      # the single-election layout
-    raise NoElection(
-        f"no election under {parent}. Create one with "
-        f"`python -m service --init`, or point --data at a directory that "
-        f"holds one. The runtime does not mint keys: an election that appears "
-        f"because a process started is not an election."
+    raise NoElectionYet(
+        f"no election under {parent}. The setup console mints the first one, "
+        f"and every other origin refuses until it has; `python -m service "
+        f"--init` mints one before serving instead. The runtime does not mint "
+        f"keys on its own: an election that appears because a process started "
+        f"is not an election."
     )
 
 

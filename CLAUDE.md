@@ -459,6 +459,14 @@ register is `VRO.register` — a set of ids, and nothing else.
   are outside WinAnsiEncoding. `tests/test_ballot_wording.py` asserts both
   directions -- the names are in the configuration, and they are in none of
   the four places that would make a word load-bearing.
+
+  **There is deliberately no amendment control.** The wording is fixed when
+  the election is authored, and correcting a misspelt candidate means
+  minting, which replaces all three key pairs. A `set_wording` beside
+  `set_schedule` was considered and declined: the schedule is recorded
+  rather than enforced, so correcting it voids no token and disowns no
+  receipt, whereas a name is what a cast ballot *meant* -- a vote for option
+  2 would go on counting as 2 while the name beside it changed.
 - **Protest selections stay unofficial: the system never interprets them.**
   `tally()` reports the exact distribution of out-of-range selections
   (`protest_codes`), not one scalar count — but the system never
@@ -606,6 +614,44 @@ register is `VRO.register` — a set of ids, and nothing else.
   application and two screens could not be compared by eye; 64 is also what
   base64 looks like in a PEM file. Tables, payload blocks and the
   label/value grids keep the full column.
+- **A deployment with no election is a state the service comes up in, and
+  the console is how it ends.** `Deployment.unfurnished` holds `vro`, `ebb`
+  and `config` as `None`; `mint` fills the same object in place, which is
+  the reason it mutates rather than returning a new one — every origin
+  closed over it at start-up, so the origins come alive without a restart.
+  A container has no `--init` to be passed and no way to restart itself, so
+  the alternative was the state that actually shipped: `deploy/README.md`
+  told an operator to mint the first election from the setup console, and
+  the console was one of the origins that had just failed to start on the
+  empty volume.
+
+  Nothing dereferences the `None`s. `apps.build_all` puts a middleware on
+  every origin *but* the console — by exclusion, in one place, so adding an
+  origin cannot quietly add a second that serves — and it refuses before a
+  handler runs. `/health` is exempt, because whether the process is up and
+  which code it is does not depend on there being an election, and that is
+  what an operator asks while everything else refuses. The console's own
+  acts that are about an election (the register, the cadence, the schedule)
+  answer 409; `/configuration` answers rather than refusing, because it is
+  how the page finds out which of its two states it is in.
+
+  **The two ways there is no election are two exceptions.** `NoElectionYet`
+  is an empty data directory, which is a first start; `NoElection` is a
+  `current` naming a directory that holds none, which is an operator's
+  mistake and stays fatal with the directories that do hold one named in
+  the message. Catching the parent where the child is meant would serve an
+  empty deployment on top of an election still sitting on the disk, and the
+  only sign would be a console offering to mint.
+
+  `confirm` is not required on a first mint. It exists so a destructive act
+  takes two hands, and this one destroys nothing: no tokens to void, no
+  receipts to disown, no fingerprint anybody pinned. `open_enrolment` moved
+  onto `Deployment` beside `trust_anchors` for the same reason the anchors
+  are there — it was read off the office, and a deployment with no election
+  has no office, so the first mint has to carry the value the process
+  started with rather than re-read an environment that may have moved. That
+  is the `election-data/trust-anchors` fault for the third time, by a third
+  door, and the field is what closes it.
 - **Every surface carries an origin band, served rather than written.**
   `service/apps.py:_band` puts the same element at the top of every page:
   the trust domain's name, the election being served, the family, whether it

@@ -1370,14 +1370,32 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
     """
     app = base(origins.SETUP)
 
+    def _authored() -> None:
+        """Refuse the acts that are about an election while there is none.
+
+        This origin is the one that keeps serving when nothing has been
+        authored, because it is where an operator leaves that state. Its
+        other endpoints are all about an election that exists -- a register
+        belongs to one, a cadence is a promise about one -- so they say so
+        rather than dereferencing an office that is not there.
+        """
+        if not deployment.served:
+            raise HTTPException(
+                409,
+                "there is no election on this deployment yet. Mint one "
+                "first: everything else on this console is about an "
+                "election that already exists.")
+
     @app.post("/voters")
     async def enrol(body: EnrolBody) -> dict:
+        _authored()
         public_key = deployment.enrol(body.voter_id)
         return {"enrolled": True, "wallet_public_key": b64(public_key)}
 
     @app.get("/voters")
     async def voters() -> dict:
         """The register, which is a set of identifiers and nothing else."""
+        _authored()
         return {"voters": sorted(deployment.vro.register)}
 
     @app.post("/tally-interval")
@@ -1391,6 +1409,7 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         voters stand behind each published number, not of clock
         convenience.
         """
+        _authored()
         try:
             deployment.set_tally_interval(body.seconds)
         except RuntimeError as exc:
@@ -1408,6 +1427,7 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         times are recorded rather than enforced, so correcting them voids
         no token and disowns no receipt. Only the digest moves.
         """
+        _authored()
         opens, closes = body.opens.strip(), body.closes.strip()
         if not opens or not closes:
             raise HTTPException(422, "both times are required")
@@ -1427,7 +1447,11 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         every other origin in this single process while it ran. Starlette
         gives a synchronous endpoint a thread.
         """
-        if body.confirm != deployment.config.election_id:
+        # Nothing to confirm when nothing is being replaced. `confirm` makes
+        # a destructive act take two hands, and the first mint on an empty
+        # deployment destroys nothing: there are no tokens to void and no
+        # receipts to disown.
+        if deployment.served and body.confirm != deployment.config.election_id:
             raise HTTPException(
                 409,
                 f"to replace an election, name it: confirm must be "
@@ -1466,7 +1490,14 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
 
     @app.get("/configuration")
     async def configuration() -> dict:
+        # Answered rather than refused, because this is what the console
+        # reads to find out which of its two states it is in. A 409 here
+        # would make the page that must work with no election the one page
+        # that cannot find out there is none.
+        if not deployment.served:
+            return {"served": False, "election_id": None}
         return {
+            "served": True,
             "election_id": deployment.config.election_id,
             "digest": deployment.config.digest_hex(),
             "token_key_fingerprint": deployment.config.token_key_fingerprint,

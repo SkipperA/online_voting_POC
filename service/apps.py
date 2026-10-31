@@ -279,7 +279,7 @@ def config_app(deployment: Deployment) -> FastAPI:
     async def index() -> HTMLResponse:
         return HTMLResponse(
             _page(INDEX_STATIC / "index.html", origins.CONFIG,
-                  deployment.config.election_id,
+                  deployment.election_name,
                   revision=build.REVISION).replace(
                 'data-origins=""', f"data-origins='{origin_table}'"
             )
@@ -341,7 +341,7 @@ def voter_app(deployment: Deployment) -> FastAPI:
                 status_code=503,
             )
         return HTMLResponse(_page(
-            index, origins.VOTER_APP, deployment.config.election_id,
+            index, origins.VOTER_APP, deployment.election_name,
             config_origin=origins.CONFIG.url,
             vro_origin=origins.VRO.url,
             ebb_origin=origins.EBB.url,
@@ -367,7 +367,7 @@ def wallet_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(
-            _page(index, origins.WALLET, deployment.config.election_id,
+            _page(index, origins.WALLET, deployment.election_name,
                   config_origin=origins.CONFIG.url)
         )
 
@@ -389,7 +389,7 @@ def supervisor_console(deployment: Deployment) -> FastAPI:
     async def page() -> HTMLResponse:
         return HTMLResponse(
             _page(SUPERVISOR_STATIC / "index.html", origins.SUPERVISOR,
-                  deployment.config.election_id,
+                  deployment.election_name,
                   config_origin=origins.CONFIG.url)
         )
 
@@ -408,7 +408,7 @@ def setup_console(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(_page(SETUP_STATIC / "index.html", origins.SETUP,
-                                  deployment.config.election_id))
+                                  deployment.election_name))
 
     @app.get("/setup.js")
     async def script() -> Response:
@@ -430,7 +430,7 @@ def ebb_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(_page(BOX_STATIC / "index.html", origins.EBB,
-                                  deployment.config.election_id,
+                                  deployment.election_name,
                                   config_origin=origins.CONFIG.url))
 
     @app.get("/box.js")
@@ -455,7 +455,7 @@ def vro_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(_page(OFFICE_STATIC / "index.html", origins.VRO,
-                                  deployment.config.election_id))
+                                  deployment.election_name))
 
     @app.get("/office.js")
     async def script() -> Response:
@@ -472,7 +472,7 @@ def vro_app(deployment: Deployment) -> FastAPI:
     async def upload_page() -> HTMLResponse:
         return HTMLResponse(
             _page(UPLOAD_STATIC / "index.html", origins.VRO,
-                  deployment.config.election_id,
+                  deployment.election_name,
                   vro_origin=origins.VRO.url))
 
     @app.get("/upload.js")
@@ -498,7 +498,7 @@ def checker_app(deployment: Deployment) -> FastAPI:
     async def page() -> HTMLResponse:
         return HTMLResponse(
             _page(CHECKER_STATIC / "index.html", origins.CHECKER,
-                  deployment.config.election_id,
+                  deployment.election_name,
                   vro_origin=origins.VRO.url,
                   ebb_origin=origins.EBB.url,
                   config_origin=origins.CONFIG.url)
@@ -534,6 +534,45 @@ def stub_app(origin: origins.Origin) -> FastAPI:
     return app
 
 
+def _refuse_until_an_election_exists(app: FastAPI, deployment: Deployment) -> None:
+    """Shut every origin but the console while nothing has been authored.
+
+    A deployment with no election holds no keys, no register and no
+    configuration, and the surfaces that would read them must not try. This
+    is middleware rather than a check inside each handler for the reason the
+    band is injected rather than written into the pages: a surface added
+    later cannot be added without it, and a handler that forgot would
+    dereference a `None` in front of whoever asked.
+
+    `/health` still answers. The question it answers -- is this process up,
+    and which code is it -- is exactly the question an operator asks while
+    looking at a deployment that is refusing everything else, and the answer
+    does not depend on there being an election.
+
+    The body depends on who asked. A browser gets a sentence, because an
+    operator opening an origin on a fresh server should read what is wrong
+    rather than a JSON object; anything else gets JSON, which is what the
+    pages' own `fetch` calls are written against.
+    """
+    reason = (
+        "no election has been authored on this deployment yet. The setup "
+        f"console at {origins.SETUP.url} mints the first one, and every "
+        "other origin refuses until it has."
+    )
+
+    @app.middleware("http")
+    async def closed_until_authored(request, call_next):
+        if deployment.served or request.url.path == "/health":
+            return await call_next(request)
+        if "text/html" in request.headers.get("accept", ""):
+            return HTMLResponse(
+                f"<!doctype html><meta charset=utf-8>"
+                f"<title>No election yet</title>"
+                f"<h1>No election yet</h1><p>{reason}</p>",
+                status_code=503)
+        return JSONResponse({"served": False, "why": reason}, status_code=503)
+
+
 def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
     apps = {
         origins.CONFIG: config_app(deployment),
@@ -548,4 +587,11 @@ def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
     for origin in origins.ALL:
         if origin not in apps:
             apps[origin] = stub_app(origin)
+    # Here rather than in `_base`, which is handed to `api.py` as a callable
+    # and has no deployment to ask. One place, applied by exclusion, so the
+    # console is the only origin that can serve with nothing authored and
+    # adding an origin cannot quietly add a second.
+    for origin, app in apps.items():
+        if origin is not origins.SETUP:
+            _refuse_until_an_election_exists(app, deployment)
     return apps

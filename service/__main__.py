@@ -36,11 +36,19 @@ async def serve(names: set[str], deployment: Deployment) -> None:
         for origin, app in apps.items()
         if origin.name in names
     ]
-    print(f"election  {deployment.config.election_id}")
-    print(f"k_p^(R)   {deployment.config.token_key_fingerprint}")
-    print(f"config    sha256 {deployment.config.digest_hex()}")
-    if deployment.data_folder is not None:
-        print(f"data      {deployment.data_folder}")
+    if deployment.served:
+        print(f"election  {deployment.config.election_id}")
+        print(f"k_p^(R)   {deployment.config.token_key_fingerprint}")
+        print(f"config    sha256 {deployment.config.digest_hex()}")
+        if deployment.data_folder is not None:
+            print(f"data      {deployment.data_folder}")
+    else:
+        # The banner is where an operator looks first, so it says the state
+        # rather than printing an empty identifier and letting them find out
+        # from a 503 on some other origin.
+        print(f"election  none yet -- mint the first at {origins.SETUP.url}")
+        print(f"data      {deployment.data_dir}")
+        print("          every other origin refuses until one exists")
     for origin in origins.ALL:
         if origin.name in names:
             print(f"  {origin.url}  {origin.name:<10} {origin.serves}")
@@ -79,7 +87,7 @@ def main() -> int:
 
     from . import store
     from .state import DATA_DIR
-    from .store import NoElection
+    from .store import NoElection, NoElectionYet
 
     data = Path(args.data) if args.data else DATA_DIR
     kwargs = {"bits": args.bits, "tally_interval_seconds": args.tally_interval}
@@ -114,7 +122,20 @@ def main() -> int:
     else:
         try:
             deployment = Deployment.load(data)
+        except NoElectionYet:
+            # An empty data directory is a first start, not a failure. The
+            # service comes up with the setup console serving and every
+            # other origin refusing, which is the only arrangement in which
+            # `deploy/README.md`'s "mint the first from the setup console"
+            # is a thing an operator can actually do: there is no `--init`
+            # to pass to a container, and the console was one of the origins
+            # that used to fail to start.
+            deployment = Deployment.unfurnished(data_dir=data)
         except NoElection as exc:
+            # A pointer naming a directory that holds no election is an
+            # operator's mistake, and stays fatal. Treating it as a first
+            # start would serve an empty deployment on top of an election
+            # still sitting on the disk.
             parser.error(str(exc))
     try:
         asyncio.run(serve(names, deployment))

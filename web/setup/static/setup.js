@@ -1,8 +1,35 @@
 /** The setup console. Phase A, and nothing else. */
 const $ = (id) => document.getElementById(id);
 
+/**
+ * The console has two states, and this is the whole of the difference.
+ *
+ * With nothing authored there is no fingerprint to compare, no register to
+ * enrol into and no cadence to promise, so those sections are not shown
+ * empty -- they are not shown. What is left is the one act that leaves the
+ * state. `confirm` goes with them: it makes a destructive act take two
+ * hands, and a first mint destroys nothing.
+ */
+function showFirstRun(first) {
+  for (const section of document.querySelectorAll('.needs-election')) {
+    section.hidden = first;
+  }
+  $('first-run').hidden = !first;
+  $('mint-confirm-row').hidden = first;
+  $('mint-destructive').hidden = first;
+  $('mint-heading').textContent = first
+    ? 'Create the first election' : 'Mint a new election';
+  $('mint').textContent = first ? 'Create' : 'Mint';
+}
+
 async function refresh() {
   const c = await (await fetch('/configuration')).json();
+  showFirstRun(!c.served);
+  if (!c.served) {
+    $('status').textContent = 'No election yet. Every other origin refuses '
+      + 'until this console mints one.';
+    return;
+  }
   $('fingerprint').textContent = c.token_key_fingerprint;
   $('election').textContent = c.election_id;
   $('digest').textContent = c.digest;

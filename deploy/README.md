@@ -107,6 +107,28 @@ The elections live in `deploy/election-data/`, mounted into the container,
 so rebuilding the image does not discard one. Mint the first from the setup
 console once the certificates are up.
 
+**On a volume with nothing in it the service comes up anyway**, with the
+setup console serving and every other origin answering 503 — in a browser,
+a sentence saying where to go; to a script, `{"served": false}`. `/health`
+still answers everywhere, so the container looks up because it is. The
+banner says the same thing:
+
+    election  none yet -- mint the first at https://setup.diw.hu
+    data      /data
+              every other origin refuses until one exists
+
+Nothing is minted until you mint it. That is the point of the arrangement
+rather than a limitation of it: an election that appears because a process
+started is not an election, and before this the rule was enforced by the
+service refusing to start — which also kept you from the one page that
+could have fixed it.
+
+A pointer naming a directory that holds no election is a different thing
+and still stops the service, with a message naming the directories that do.
+An empty volume is a first start; a wrong `current` is a mistake, and
+answering the second like the first would serve an empty deployment on top
+of an election still on the disk.
+
 ## Serving a past election
 
 Minting writes a **new** directory and moves the pointer; nothing is

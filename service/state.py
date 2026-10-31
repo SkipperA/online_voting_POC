@@ -117,11 +117,29 @@ def _signature_validation(anchors: Path | None):
         anchors, trusted_list=pinned_list)
 
 
+#: What the band says where an election identifier would be. A deployment
+#: with nothing authored is a real state -- the first start of an empty
+#: volume -- and the one page that works in it is a page carrying a band.
+NO_ELECTION = "no election yet"
+
+
 @dataclass
 class Deployment:
-    vro: VRO
-    ebb: BallotBox
-    config: ElectionConfig
+    #: `None` until an election is authored. A process that starts against
+    #: an empty volume has no keys, no register and no configuration, and
+    #: must not invent them: an election that appears because a process
+    #: started is not an election. The setup console is how an operator
+    #: leaves that state, and `mint` fills this object in place -- which is
+    #: the same reason `mint` mutates rather than returning a new one, since
+    #: every origin's application closed over it at start-up.
+    #:
+    #: Nothing dereferences these while they are `None`. Every origin but
+    #: the console refuses with 503 before a handler runs
+    #: (`apps.build_all`), and the console's own endpoints that need an
+    #: election say so.
+    vro: VRO | None
+    ebb: BallotBox | None
+    config: ElectionConfig | None
     population: PopulationRegister
     document_root: Path = field(default=DOCUMENT_ROOT)
     #: The parent holding one directory per election, if the election is
@@ -137,6 +155,14 @@ class Deployment:
     #: "looked in the wrong place" are the same page to an operator and
     #: entirely different problems.
     trust_anchors: Path | None = None
+    #: Clause S7, held beside the anchors and for the same reason: who this
+    #: office is willing to enrol is a property of the deployment, not of a
+    #: poll. It lived only on the office, which was fine while there was
+    #: always an office to read it from -- a deployment with no election yet
+    #: has none, and the first mint still has to carry the value the process
+    #: started with rather than re-reading an environment that may have
+    #: moved since.
+    open_enrolment: bool = False
 
     # Staged signing. Off by default, so every existing caller -- the demos,
     # the scripted runs, the tests -- sees `issue_token` behave as one act.
@@ -159,6 +185,51 @@ class Deployment:
     # generated and which is unguessable, so no other credential is needed
     # and none is invented. Action table gap 5.
     token_replies: dict[bytes, bytes] = field(default_factory=dict)
+
+    @property
+    def served(self) -> bool:
+        """Whether there is an election here at all."""
+        return self.config is not None
+
+    @property
+    def election_name(self) -> str:
+        """What the band prints. Never raises, because the band never may."""
+        return NO_ELECTION if self.config is None else self.config.election_id
+
+    @classmethod
+    def unfurnished(
+        cls,
+        document_root: Path = DOCUMENT_ROOT,
+        data_dir: Path | None = None,
+        trust_anchors: Path | None = DATA_DIR / TRUST_ANCHORS,
+        open_enrolment: bool | None = None,
+    ) -> "Deployment":
+        """A deployment with no election in it.
+
+        The honest answer to an empty data directory. The alternative this
+        replaces was to refuse to start, which was correct about the
+        election and wrong about the service: `deploy/README.md` said to
+        mint the first election from the setup console, and the setup
+        console was one of the origins that had just failed to start. On a
+        hosted deployment there is no `--init` to pass, so an empty volume
+        could not be brought up at all.
+
+        It mints nothing. What it holds is the deployment's own half --
+        where the elections live, which anchors this office was told to
+        trust, and whether it enrols on a qualified signature -- all read
+        once, here, at start-up, which is the one moment reading the
+        environment is the right thing to do.
+        """
+        return cls(
+            vro=None,
+            ebb=None,
+            config=None,
+            population=PopulationRegister(),
+            document_root=document_root,
+            data_dir=data_dir,
+            trust_anchors=trust_anchors,
+            open_enrolment=_open_enrolment(open_enrolment),
+        )
 
     def enrol(self, voter_id: str) -> bytes:
         """Build-time only: create a persona and put it on both registers.
@@ -234,6 +305,10 @@ class Deployment:
             population=population,
             document_root=document_root,
             trust_anchors=trust_anchors,
+            # The office's copy and the deployment's are one value computed
+            # once, just above. Two readings of the environment would be two
+            # answers, which is the fault this field exists to prevent.
+            open_enrolment=vro.enrol_on_qualified_signature,
         )
 
     def set_tally_interval(self, seconds: int | None) -> None:
@@ -278,7 +353,13 @@ class Deployment:
         tally_interval_seconds: int | None = None,
         keep_register: bool = True,
     ) -> None:
-        """A4-A7 again: author a new election over this one.
+        """A4-A7 again: author a new election over this one, or the first.
+
+        Also the act that furnishes a deployment that had no election at
+        all. Nothing in what follows distinguishes the two cases except
+        that there is nothing to carry over -- which is why the first mint
+        is this method and not a second one beside it.
+
 
         Every key pair is new -- the office's token key, the office's
         statement key, the box's statement key -- so every token already
@@ -305,8 +386,12 @@ class Deployment:
         origin's application closed over it when the process started. A
         new `Deployment` would be served by nobody.
         """
-        personas = dict(self.wallets) if keep_register else {}
-        register = sorted(self.vro.register) if keep_register else []
+        # Nothing to carry on a first mint. `keep_register` is about the
+        # previous election's register, and a deployment with no election
+        # has no office to take one from.
+        carry = keep_register and self.vro is not None
+        personas = dict(self.wallets) if carry else {}
+        register = sorted(self.vro.register) if carry else []
 
         fresh = Deployment.create(
             election_id=election_id,
@@ -331,7 +416,9 @@ class Deployment:
             # office is willing to enrol is a property of the deployment,
             # and minting an election must not change it -- least of all
             # by picking up an environment that has moved since start-up.
-            open_enrolment=self.vro.enrol_on_qualified_signature,
+            # From the deployment rather than from the office, because on a
+            # first mint there is no office to ask.
+            open_enrolment=self.open_enrolment,
         )
         for voter_id, wallet in personas.items():
             fresh.wallets[voter_id] = wallet
@@ -492,4 +579,5 @@ class Deployment:
             document_root=document_root,
             wallets=wallets,
             trust_anchors=path / TRUST_ANCHORS,
+            open_enrolment=vro.enrol_on_qualified_signature,
         )
