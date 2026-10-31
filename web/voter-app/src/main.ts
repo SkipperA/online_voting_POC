@@ -270,6 +270,11 @@ async function main() {
   payload('config', 'recomputed here, then compared with the published value', {
     election_id: CONFIG.election_id,
     choices: `1..${CONFIG.num_choices}`,
+    // Shown here because the wording is inside the digest beside the keys:
+    // what the ballot asks is pinned exactly as firmly as whose signature
+    // the token must verify under.
+    question: CONFIG.question ?? '— none asked',
+    options: CONFIG.options ?? '— the ballot is numbered',
     config_digest: DIGEST,
     'k_p^(R) fingerprint': fingerprint,
     'agrees_with_published_by_VRO': fingerprint === CONFIG.vro_token_key_fingerprint,
@@ -492,12 +497,50 @@ async function showUnblind() {
          'accepted ballot supersedes the earlier one.',
   });
   const list = document.createElement('div');
-  for (let i = 1; i <= CONFIG.num_choices; i++) {
-    list.innerHTML += `<label><input type="radio" name="choice" value="${i}"> option ${i}</label>`;
+  // Elements rather than appends to `innerHTML`. The question and the option
+  // names come from the published configuration and are the only values on
+  // this page that an operator wrote in free text; `textContent` is the
+  // escape that cannot be forgotten, and a name may contain an ampersand.
+  if (CONFIG.question) {
+    const asked = document.createElement('p');
+    asked.style.margin = '0 0 .6rem';
+    asked.style.fontWeight = '650';
+    asked.textContent = CONFIG.question;
+    list.append(asked);
   }
-  list.innerHTML += '<label style="margin-top:.4rem"><input type="radio" name="choice" ' +
-    'value="protest"> something else — <input type="number" id="protest" ' +
-    'style="width:7rem" value="-1" disabled></label>';
+  const radio = (value: string): HTMLInputElement => {
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = 'choice';
+    input.value = value;
+    return input;
+  };
+  for (let i = 1; i <= CONFIG.num_choices; i++) {
+    const label = document.createElement('label');
+    // The number stays beside the name. It is what the ballot actually
+    // carries, what the receipt will show and what any recount counts, so a
+    // voter who looks at their own record afterwards sees the value they
+    // chose rather than having to map a name back onto it.
+    const name = CONFIG.options ? CONFIG.options[i - 1] : null;
+    label.append(radio(String(i)),
+                 document.createTextNode(name ? ` ${i} · ${name}` : ` option ${i}`));
+    list.append(label);
+  }
+  const protest = document.createElement('label');
+  protest.style.marginTop = '.4rem';
+  const protestValue = document.createElement('input');
+  protestValue.type = 'number';
+  protestValue.id = 'protest';
+  protestValue.style.width = '7rem';
+  protestValue.value = '-1';
+  protestValue.disabled = true;
+  // Never named, and no entry for it in the list above. A selection outside
+  // the range is a protest ballot; the system records the value and does not
+  // interpret it, and an "other" among the options would be this system
+  // registering an official meaning for what somebody meant by a number.
+  protest.append(radio('protest'),
+                 document.createTextNode(' something else — '), protestValue);
+  list.append(protest);
   body('mark').append(list);
   const sign = document.createElement('button');
   sign.textContent = 'Sign the ballot';

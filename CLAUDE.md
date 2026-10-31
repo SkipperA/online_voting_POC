@@ -428,6 +428,37 @@ register is `VRO.register` — a set of ids, and nothing else.
   in this POC.
 - **`close()` is reversible here.** A real deployment needs it one-way. That is
   an operational property, not a protocol one, and the docstring says so.
+- **The ballot's wording lives in the configuration, and nowhere else may
+  read it.** `question` and `options` are two fields of `election.json`,
+  both optional -- absent is a numbered ballot, which is what every election
+  here was until they existed. One shape serves both kinds: a referendum is
+  a question with its answers as the options, an election is *who should the
+  representative be* with the candidates as the options, so no surface
+  branches on a `kind` and nothing discriminates. They are in the
+  configuration because that is the only place a name can sit and be the
+  same name for every reader -- inside the digest every client pins and
+  `config-watch.js` watches -- and the cost is the honest one: changing a
+  name after voters have pinned the configuration is the same event as
+  changing anything else in it.
+
+  `num_choices` stays beside the list rather than being derived from it. It
+  is what `ballotbox.py` range-checks and what `tools/verify_election.py`
+  reads, and neither has any business knowing a word: acceptance must not
+  depend on a name, and here it structurally cannot, because the box is
+  never told one. The console refuses a list of the wrong length so the two
+  cannot drift. Names render on the surfaces and numbers travel in the
+  files -- the ledger, the release register, the receipt and the
+  token-request document carry the integer alone, so a stranger with the
+  three files recounts the election without needing this origin to tell them
+  what the ballot said. The checker takes its names from the *uploaded*
+  configuration and not from the pinned one, or a recount of a past election
+  would be labelled with the current election's candidates.
+
+  Not in the token-request document, and that is `pdfrequest`'s rule rather
+  than a preference: ASCII, standard-14, no embedded font, and `ő` and `ű`
+  are outside WinAnsiEncoding. `tests/test_ballot_wording.py` asserts both
+  directions -- the names are in the configuration, and they are in none of
+  the four places that would make a word load-bearing.
 - **Protest selections stay unofficial: the system never interprets them.**
   `tally()` reports the exact distribution of out-of-range selections
   (`protest_codes`), not one scalar count — but the system never

@@ -8,7 +8,11 @@
  .spark{display:flex;height:.6rem;min-width:7rem;background:var(--rule);
    border-radius:2px;overflow:hidden}
  .spark i{display:block;height:100%}
- .tally-row{display:grid;grid-template-columns:7rem 1fr 3.5rem;
+ /* The first column was 7rem when every label was "option 3". A candidate's
+    name is longer and of unpredictable length, so it is given room to grow
+    and a ceiling, rather than being truncated into ambiguity between two
+    people whose names begin alike. */
+ .tally-row{display:grid;grid-template-columns:minmax(7rem,16rem) 1fr 3.5rem;
    align-items:center;gap:.6rem;margin:.3rem 0}
  .tally-bar{height:1.1rem;background:var(--rule);border-radius:2px;
    overflow:hidden}
@@ -17,7 +21,7 @@
  .figures{display:flex;flex-wrap:wrap;gap:0 2rem;margin:.9rem 0 0;
    font-size:var(--t-sm)}
 </style></head>
-<body>
+<body data-config-origin="">
 <h1>Electronic Ballot Box — operator</h1>
 <p class="sub">The registry as the box holds it, and the one act that closes
 the poll.</p>

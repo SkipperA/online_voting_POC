@@ -6,9 +6,45 @@ const $ = (id) => document.getElementById(id);
  * page that calls it without defining its own gets %20 where it wanted a
  * space. Shadowing a global to mean something else is the trap; a name of
  * our own is the way out of it.
+ *
+ * The quotes are escaped too, and that is not symmetry for its own sake:
+ * one of the values below goes into a `title=` attribute, and until the
+ * ballot could carry names every label on this page was either `option 3`
+ * or `outside the list` -- neither of which can contain a quote. The first
+ * value an operator writes is the first that can.
  */
-const esc = (s) => String(s).replace(/[&<>]/g,
-  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const esc = (s) => String(s).replace(/[&<>"']/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;',
+            '"': '&quot;', "'": '&#39;' }[c]));
+
+const CONFIG_ORIGIN = document.body.dataset.configOrigin;
+
+/**
+ * What the ballot asked, as the published configuration says it.
+ *
+ * Read from the config origin rather than from this one, because the names
+ * belong to the configuration every surface pins and not to the box: the
+ * box range-checks a selection against `num_choices` and has never been
+ * told a name. Nothing here is allowed to be load-bearing, so a config
+ * origin that cannot be reached leaves the labels numbered and the console
+ * working. An operator must still be able to close a poll when the page
+ * that describes it is down.
+ */
+let BALLOT = { question: null, options: null };
+
+async function readBallot() {
+  try {
+    const published = await (await fetch(`${CONFIG_ORIGIN}/election.json`)).json();
+    BALLOT = { question: published.question || null,
+               options: published.options || null };
+  } catch {
+    BALLOT = { question: null, options: null };
+  }
+}
+
+/** Option `i` as a reader knows it: its name if it has one, its number if not. */
+const optionLabel = (i) => (BALLOT.options && BALLOT.options[i - 1])
+  ? `${i} · ${BALLOT.options[i - 1]}` : `option ${i}`;
 
 // Both figures come from the box, but while the poll is open they do not come
 // from the same moment: the submissions are counted live from the published
@@ -32,7 +68,7 @@ function bands(figures) {
   const counts = figures.counts || {};
   const out = Object.keys(counts)
     .map(Number).sort((a, b) => a - b)
-    .map((option) => ({ label: `option ${option}`, colour: SERIES(option),
+    .map((option) => ({ label: optionLabel(option), colour: SERIES(option),
                         value: counts[option] }));
   const protest = Object.values(figures.protest_codes || {})
     .reduce((a, b) => a + b, 0);
@@ -76,7 +112,12 @@ function showTally(t) {
     ? `<p class="sub" style="margin:.7rem 0 0">Outside the list, by value: `
       + codes.map(([v, n]) => `<code>${esc(v)}</code> × ${n}`).join(', ') + '</p>'
     : '';
-  $('tally').innerHTML = rows + `<p class="figures">
+  // What was asked, above what was answered. From the pinned configuration
+  // and never from the tally: the figures the box publishes carry numbers,
+  // and a name has no business travelling in a file a verifier recomputes.
+  const asked = BALLOT.question
+    ? `<p class="sub" style="margin:0 0 .7rem">${esc(BALLOT.question)}</p>` : '';
+  $('tally').innerHTML = asked + rows + `<p class="figures">
       <span><span class="muted">ballots counted</span> ${t.voters}</span>
       <span><span class="muted">valid</span> ${t.valid}</span>
       <span><span class="muted">invalid</span> ${t.invalid}</span>
@@ -105,6 +146,7 @@ function showReports(reports) {
 }
 
 async function refresh() {
+  await readBallot();
   const view = await (await fetch('/published')).json();
   const open = !('records' in view);
   const accepted = open ? view.commitments.accepted : view.records.accepted;

@@ -11,8 +11,42 @@ const show = (id, text, cls) => { const e = $(id); e.textContent = text; e.class
  * space. Shadowing a global to mean something else is the trap; a name of
  * our own is the way out of it.
  */
-const esc = (s) => String(s).replace(/[&<>]/g,
-  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+// The quotes are escaped as well as the brackets. Every value this page
+// rendered until now was a digest, a verdict or a sentence of its own, and
+// the option names are the first that an operator wrote -- so this is the
+// first value that could carry a quote into an attribute if one of these
+// templates ever grew one. The box's console escapes the same five.
+const esc = (s) => String(s).replace(/[&<>"']/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;',
+            '"': '&quot;', "'": '&#39;' }[c]));
+
+/**
+ * Option `i` as a reader knows it, for the figures this origin is watching
+ * live: its name if the pinned configuration gave one, its number if not.
+ *
+ * Only for the live figures. A recount is about the three files in hand and
+ * takes its wording from those -- see `ballotOf`.
+ */
+const optionLabel = (i) => (PINNED && PINNED.options && PINNED.options[i - 1])
+  ? `${i} · ${PINNED.options[i - 1]}` : `option ${i}`;
+
+/**
+ * The wording of the election *these files* describe.
+ *
+ * Not the pinned one. A recount is about the artefacts somebody handed in,
+ * and this page exists to check a past election as readily as the current
+ * one: taking the names from the configuration this origin happens to be
+ * serving would label somebody else's ledger with this election's
+ * candidates, confidently and wrongly, in exactly the case the page is for.
+ * A file that cannot be parsed yields no names rather than an error -- the
+ * server has already said what is wrong with it.
+ */
+function ballotOf(electionText) {
+  try {
+    const parsed = JSON.parse(electionText);
+    return { question: parsed.question || null, options: parsed.options || null };
+  } catch { return { question: null, options: null }; }
+}
 
 const stamp = () => new Date().toLocaleTimeString();
 
@@ -53,7 +87,7 @@ function seriesOf(snapshots, numChoices) {
   const out = [];
   for (let i = 1; i <= numChoices; i += 1) {
     out.push({
-      label: `option ${i}`,
+      label: optionLabel(i),
       colour: SERIES(i - 1),
       points: snapshots.map((s) => (s.counts || {})[i] || 0),
     });
@@ -384,7 +418,7 @@ loadFile('f-election', 'election');
 loadFile('f-ledger', 'ledger');
 loadFile('f-releases', 'releases');
 
-function render(report) {
+function render(report, ballot = { question: null, options: null }) {
   let group = null;
   const rows = report.checks.map((c) => {
     const heading = c.section !== group
@@ -399,14 +433,26 @@ function render(report) {
   $('checks').innerHTML = rows.join('');
 
   const t = report.tally;
+  // The verifier counts by number and knows no names -- which is the point,
+  // and is why it keeps working for anyone who downloads it. The names are
+  // put back here, over its figures, from the configuration file that was
+  // checked alongside them.
+  const named = (k) => (ballot.options && ballot.options[Number(k) - 1])
+    ? `${k} · ${ballot.options[Number(k) - 1]}` : `option ${k}`;
+  const asked = ballot.question
+    ? `<div class="row"><span class="label">question</span><span class="value">${esc(ballot.question)}</span></div>`
+    : '';
   const options = Object.entries(t.options)
-    .map(([k, n]) => `<div class="row"><span class="label">option ${esc(k)}</span><span class="value">${n}</span></div>`);
+    .map(([k, n]) => `<div class="row"><span class="label">${esc(named(k))}</span><span class="value">${n}</span></div>`);
+  // Never named. An out-of-range selection is a protest ballot, the system
+  // does not interpret one, and a list of names that acquired an entry for
+  // it would be the system registering what somebody meant by it.
   const protest = Object.entries(t.outside_the_list)
     .map(([k, n]) => `<div class="row"><span class="label">outside the list: ${esc(k)}</span><span class="value">${n}</span></div>`);
   $('recount').innerHTML = `
     <div class="row"><span class="label">election</span><span class="value">${esc(t.election_id)}</span></div>
     <div class="row"><span class="label">configuration</span><span class="value">${esc(t.configuration_digest)}</span></div>
-    ${options.join('')}${protest.join('')}
+    ${asked}${options.join('')}${protest.join('')}
     <div class="row"><span class="label">ballots accepted</span><span class="value">${t.ballots} from ${t.voters} voters</span></div>
     <div class="row"><span class="label">rejected, published</span><span class="value">${t.rejected}</span></div>`;
 
@@ -427,7 +473,7 @@ async function check(three) {
     show('verdict', (await response.json()).detail, 'warn');
     return;
   }
-  render(await response.json());
+  render(await response.json(), ballotOf(three.election));
   $('check-asof').textContent = `checked at ${stamp()}`;
 }
 

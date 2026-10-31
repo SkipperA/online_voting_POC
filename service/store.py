@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from collections.abc import Sequence
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
@@ -41,18 +42,20 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 from ovpoc import keys, rsabssa
 from ovpoc.messages import b64, unb64
 
-STORE_VERSION = 3
+STORE_VERSION = 4
 
 # Earlier versions are still readable, and deliberately so. Each difference
 # is a field whose absence means exactly what the older behaviour was:
 # `tally_interval_seconds` (version 2) absent means no publication interval,
 # so the close is the only publication point; `opens` and `closes` (version
 # 3) absent means the pair the service used to hold as literals, which is
-# what every store written before them was serving. Refusing an election
-# because its file predates a field that defaults to the old behaviour would
-# lose the token key, the register and every persona for nothing. The next
-# save writes the current version.
-READABLE_STORE_VERSIONS = {1, 2, 3}
+# what every store written before them was serving; `question` and `options`
+# (version 4) absent means a ballot that names nothing and is numbered, which
+# is what every election before them was. Refusing an election because its
+# file predates a field that defaults to the old behaviour would lose the
+# token key, the register and every persona for nothing. The next save writes
+# the current version.
+READABLE_STORE_VERSIONS = {1, 2, 3, 4}
 
 # What a store written before the schedule was authored was serving. Not a
 # sensible default for a new election -- the console asks for one -- but the
@@ -171,7 +174,9 @@ def pair_from(seed: bytes) -> keys.SigningKeyPair:
 def write(path: Path, *, token_private, statement_key, box_statement_key,
           register, personas,
           election_id: str, num_choices: int, opens: str, closes: str,
-          tally_interval_seconds: int | None = None) -> None:
+          tally_interval_seconds: int | None = None,
+          question: str | None = None,
+          options: Sequence[str] | None = None) -> None:
     """Write the durable half. Called by the setup console, never at runtime."""
     path.mkdir(parents=True, exist_ok=True)
     (path / "README.md").write_text(
@@ -212,6 +217,13 @@ def write(path: Path, *, token_private, statement_key, box_statement_key,
                 ),
                 "election_id": election_id,
                 "num_choices": num_choices,
+                # Written whole rather than derived back from the published
+                # configuration at load: this file is what an election *is*
+                # between restarts, and a store that could not reproduce the
+                # ballot would reproduce a different election under the same
+                # keys.
+                "question": question,
+                "options": None if options is None else list(options),
                 "tally_interval_seconds": tally_interval_seconds,
                 "opens": opens,
                 "closes": closes,
@@ -252,6 +264,8 @@ def read(path: Path) -> dict:
     return {
         "election_id": body["election_id"],
         "num_choices": body["num_choices"],
+        "question": body.get("question"),
+        "options": body.get("options"),
         "tally_interval_seconds": body.get("tally_interval_seconds"),
         "opens": body.get("opens", LEGACY_OPENS),
         "closes": body.get("closes", LEGACY_CLOSES),

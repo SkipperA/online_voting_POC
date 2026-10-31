@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,7 +31,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from ovpoc import ledger, rsabssa
 from ovpoc.messages import b64
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _swap(path: Path, payload: bytes) -> None:
@@ -51,6 +52,25 @@ class ElectionConfig:
     tally_interval_seconds: int | None
     opens: str
     closes: str
+    #: What the ballot asks, and what it offers by name. Both optional: an
+    #: election minted before these existed, or one whose operator did not
+    #: name anything, has a numbered ballot and is complete without them.
+    #:
+    #: They belong *here*, and therefore inside the digest every client
+    #: pins and every surface watches, because that is the only place a
+    #: name can sit and be the same name for every reader. The cost is the
+    #: honest one and is not avoidable by putting them elsewhere: changing
+    #: a name after voters have pinned the configuration is the same event
+    #: as changing anything else in it.
+    #:
+    #: `num_choices` stays beside them rather than being derived from the
+    #: list. It is what the box range-checks and what the independent
+    #: verifier reads, and neither has any business knowing a name --
+    #: acceptance must not depend on one. The console refuses a list whose
+    #: length disagrees, so the two cannot drift; what it must not do is
+    #: make the box consult the names to find out how many there are.
+    question: str | None = None
+    options: tuple[str, ...] | None = None
 
     @classmethod
     def build(
@@ -63,6 +83,8 @@ class ElectionConfig:
         opens: str,
         closes: str,
         tally_interval_seconds: int | None = None,
+        question: str | None = None,
+        options: Sequence[str] | None = None,
     ) -> "ElectionConfig":
         return cls(
             election_id=election_id,
@@ -77,6 +99,11 @@ class ElectionConfig:
             tally_interval_seconds=tally_interval_seconds,
             opens=opens,
             closes=closes,
+            question=question,
+            # A tuple, because the dataclass is frozen and a list in it
+            # would be a mutable thing inside an object whose whole point
+            # is that its bytes do not move.
+            options=None if options is None else tuple(options),
         )
 
     def token_key(self) -> rsa.RSAPublicKey:
@@ -101,6 +128,12 @@ class ElectionConfig:
             "vro_statement_key": b64(self.vro_statement_key),
             "ebb_statement_key": b64(self.ebb_statement_key),
             "num_choices": self.num_choices,
+            # Null rather than absent when there are none. A reader of this
+            # file should be able to see that the question was asked and
+            # left unanswered, which is a different statement from a file
+            # written before anybody could ask it.
+            "question": self.question,
+            "options": None if self.options is None else list(self.options),
             "genesis_hash": self.genesis_hash.hex(),
             "tally_interval_seconds": self.tally_interval_seconds,
             "opens": self.opens,

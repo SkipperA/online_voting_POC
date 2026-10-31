@@ -1051,11 +1051,74 @@ class MintBody(BaseModel):
     confirm: str
     election_id: str
     num_choices: int = state.DEFAULT_CHOICES
+    #: What the ballot asks, and what it offers by name. Both optional, and
+    #: a ballot with neither is numbered, which is what every election
+    #: before this was. One shape serves both kinds: a referendum is a
+    #: question with its answers as the options, and an election is "who
+    #: should the representative be" with the candidates as the options --
+    #: so there is nothing for a surface to discriminate on and no `kind`
+    #: field to branch eight pages over.
+    question: str | None = None
+    options: list[str] | None = None
     bits: int = state.DEFAULT_BITS
     opens: str = state.DEFAULT_OPENS
     closes: str = state.DEFAULT_CLOSES
     tally_interval_seconds: int | None = None
     keep_register: bool = True
+
+
+#: A name is one line on a ballot and a question is one sentence, and
+#: `election.json` is fetched and pinned by every page on every load. No cap
+#: at all is an invitation rather than an omission -- the same argument the
+#: upload endpoint makes for its own limit -- and these are loose enough that
+#: a real referendum question fits well inside them.
+LONGEST_QUESTION = 500
+LONGEST_OPTION = 160
+
+
+def _ballot_wording(body: MintBody) -> tuple[str | None, list[str] | None]:
+    """What the ballot asks and offers, or `None` for a numbered one.
+
+    Shape, and nothing else. No protocol decision is taken here: the box
+    range-checks a selection against `num_choices` and has never heard of a
+    name, which is exactly what keeps acceptance independent of the wording.
+    What this function is for is that the console must not be able to author
+    a list that disagrees with the number the box will use -- the two sit
+    beside each other in the configuration rather than one being derived
+    from the other, and this is what stops them drifting.
+
+    **Duplicates are permitted.** Two candidates may genuinely share a name;
+    the ballot carries an integer, so nothing in the system is ever in doubt
+    about which was chosen; and an office refusing the second of two people
+    called Nagy István would be deciding something it has no standing to
+    decide. The ambiguity is the voter's to resolve from whatever the ballot
+    paper carries beside the name, exactly as on paper.
+    """
+    question = (body.question or "").strip() or None
+    if question is not None and len(question) > LONGEST_QUESTION:
+        raise HTTPException(
+            422, f"the question is longer than {LONGEST_QUESTION} characters")
+    if body.options is None:
+        return question, None
+
+    options = [option.strip() for option in body.options]
+    if any(not option for option in options):
+        raise HTTPException(
+            422,
+            "an option with no name is not a name. Leave the list out "
+            "altogether to number the ballot instead.")
+    if any(len(option) > LONGEST_OPTION for option in options):
+        raise HTTPException(
+            422, f"an option name is longer than {LONGEST_OPTION} characters")
+    if len(options) != body.num_choices:
+        raise HTTPException(
+            422,
+            f"{len(options)} names for {body.num_choices} options. The ballot "
+            f"carries an integer and the box range-checks it against "
+            f"num_choices, so a list of a different length would either name "
+            f"something nobody can vote for, or leave something unnamed that "
+            f"they can.")
+    return question, options
 
 
 def supervisor_app(deployment: Deployment, base) -> FastAPI:
@@ -1375,6 +1438,7 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
             raise HTTPException(422, "an election needs an identifier")
         if body.num_choices < 1:
             raise HTTPException(422, "a ballot needs at least one option")
+        question, options = _ballot_wording(body)
         if body.bits < 2048:
             raise HTTPException(
                 422,
@@ -1386,6 +1450,8 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         deployment.mint(
             election_id=election_id,
             num_choices=body.num_choices,
+            question=question,
+            options=options,
             bits=body.bits,
             opens=body.opens.strip(),
             closes=body.closes.strip(),
@@ -1406,6 +1472,9 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
             "token_key_fingerprint": deployment.config.token_key_fingerprint,
             "tally_interval_seconds": deployment.config.tally_interval_seconds,
             "num_choices": deployment.config.num_choices,
+            "question": deployment.config.question,
+            "options": (None if deployment.config.options is None
+                        else list(deployment.config.options)),
             "opens": deployment.config.opens,
             "closes": deployment.config.closes,
             "token_key_bits": deployment.vro.public_key.key_size,

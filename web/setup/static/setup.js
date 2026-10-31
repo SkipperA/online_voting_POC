@@ -11,6 +11,12 @@ async function refresh() {
     : `${c.tally_interval_seconds} s`;
   $('register-size').textContent = `${c.register_size} voters`;
   $('choices-now').textContent = `${c.num_choices} options`;
+  // `textContent`, not a template into `innerHTML`: these are the only
+  // values on this page that an operator wrote in free text, and a name is
+  // allowed to contain an ampersand or an angle bracket.
+  $('question-now').textContent = c.question || '— none asked';
+  $('options-now').textContent = c.options
+    ? c.options.join(' · ') : '— the ballot is numbered';
   $('bits-now').textContent = `${c.token_key_bits} bits`;
   $('released-now').textContent = `${c.tokens_released} tokens released`;
   // The cadence is Phase A. Once the box is open the endpoint refuses it,
@@ -72,12 +78,29 @@ $('set-schedule').onclick = async () => {
   $('status').textContent = 'Schedule set. The configuration digest has changed.';
 };
 
+/** The names, one per line, blanks dropped. A name may contain a comma. */
+const optionLines = () => $('mint-options').value
+  .split('\n').map((s) => s.trim()).filter((s) => s !== '');
+
+// The list is the authority whenever there is one: an operator types names
+// and the count follows them, rather than typing a number and being told by
+// a 422 that it disagrees with what they typed above it. The server checks
+// anyway -- a console that cannot produce a mismatch is a different thing
+// from a server that would accept one.
+$('mint-options').oninput = () => {
+  const names = optionLines();
+  if (names.length) $('mint-choices').value = String(names.length);
+};
+
 $('mint').onclick = async () => {
   const raw = $('mint-interval').value.trim();
+  const names = optionLines();
   const body = {
     confirm: $('mint-confirm').value.trim(),
     election_id: $('mint-id').value.trim(),
-    num_choices: Number($('mint-choices').value || 4),
+    question: $('mint-question').value.trim() || null,
+    options: names.length ? names : null,
+    num_choices: names.length || Number($('mint-choices').value || 4),
     bits: Number($('mint-bits').value),
     opens: $('mint-opens').value.trim() || $('opens').value,
     closes: $('mint-closes').value.trim() || $('closes').value,
@@ -94,6 +117,7 @@ $('mint').onclick = async () => {
   if (!response.ok) { $('status').textContent = (await response.json()).detail; return; }
   const minted = await response.json();
   $('mint-confirm').value = '';
+  $('mint-question').value = ''; $('mint-options').value = '';
   $('opens').value = ''; $('closes').value = '';
   await refresh();
   $('status').textContent = `Minted ${minted.election_id}. Every page open `

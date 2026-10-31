@@ -297,7 +297,7 @@ verify is pinned to the object these produce.
 | `POST /voters` | `voter_id` | A2, A3. Enrol into the electoral register |
 | `POST /schedule` | `opens`, `closes` | A5. Recorded, not enforced |
 | `POST /tally-interval` | `seconds` (or `null` for close-only) | A5. Refused once the box is open |
-| `POST /election` | `confirm`, `election_id`, `num_choices`, `bits`, `opens`, `closes`, `tally_interval_seconds`, `keep_register` | A4, A4b, A5, A7. Mints a new election: three new key pairs, a new registry. `confirm` must repeat the identifier being replaced |
+| `POST /election` | `confirm`, `election_id`, `num_choices`, `question`, `options`, `bits`, `opens`, `closes`, `tally_interval_seconds`, `keep_register` | A4, A4b, A5, A7. Mints a new election: three new key pairs, a new registry. `confirm` must repeat the identifier being replaced. `question` and `options` are the ballot's wording and may both be absent, which is a numbered ballot; a list whose length disagrees with `num_choices` is refused, because the two sit beside each other rather than one being derived from the other |
 
 No signature on any of them, and no authorisation beyond reaching the origin —
 the same control the supervision register rests on, and the same clause (S4).
@@ -363,6 +363,7 @@ legislator reads.
 | `protest_codes` — the distribution rather than a count | §6 | Requirement 7 says invalid ballots must be public and countable; it does not say the distribution of out-of-range selections must be reported. The ledger exposed it all along and the summary used to discard it |
 | `supervisor_downloads` | Supervision register, `/releases` | Nothing in the article asks the office to publish how often its own register was read. It is here so the office cannot hand it out quietly, which is a §3.7 concern the §3.7 text does not reach |
 | `config_digest` | §2a, configuration | The article has the voter pin the office's key fingerprint (§5.2) and says nothing about the rest of the configuration moving underneath them |
+| `question`, `options` | Configuration | Table 1 gives the ballot a range and the article never names what is in it: §5.6 carries the selection as $`i`$ and every argument about acceptance, supersession and the count is about that integer. The wording is therefore the one thing in `election.json` that no clause rests on and every reader needs — which is also why it is inside the digest rather than beside it, and why nothing downstream may read it. The protest codes are deliberately *not* named: a list with an entry for *something else* would be the system registering an official meaning for a value Requirement 7 forbids it to judge |
 
 ## Requirements with no field
 

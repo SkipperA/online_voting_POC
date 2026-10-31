@@ -349,7 +349,7 @@ button {
 button:hover:not(:disabled) { border-color: var(--ink-faint); }
 button:disabled { opacity: .5; cursor: not-allowed; }
 
-input[type=text], input[type=number], input[type=file], select {
+input[type=text], input[type=number], input[type=file], select, textarea {
   font: inherit;
   font-size: var(--t-sm);
   padding: .4rem .5rem;
@@ -358,7 +358,10 @@ input[type=text], input[type=number], input[type=file], select {
   background: var(--canvas);
   color: var(--ink);
 }
-input[type=text], input[type=number] { width: 20rem; max-width: 100%; }
+input[type=text], input[type=number], textarea { width: 20rem; max-width: 100%; }
+/* One option name per line, so the list is read as a list rather than as a
+ * string with separators in it -- and a name may contain a comma. */
+textarea { resize: vertical; line-height: 1.45; }
 
 /* Label/value pairs. `--label-col` is per page: the identifiers in the
  * left column are of very different lengths from one surface to another. */

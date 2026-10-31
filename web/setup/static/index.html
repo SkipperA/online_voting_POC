@@ -64,6 +64,8 @@ no part in the poll itself — the service runs with it stopped.</p>
   <div class="row"><span class="label">config digest</span><span class="value" id="digest">…</span></div>
   <div class="row"><span class="label">token key</span><span class="value" id="bits-now">…</span></div>
   <div class="row"><span class="label">ballot</span><span class="value" id="choices-now">…</span></div>
+  <div class="row"><span class="label">question</span><span class="value" id="question-now">…</span></div>
+  <div class="row"><span class="label">options</span><span class="value" id="options-now">…</span></div>
   <div class="row"><span class="label">office</span><span class="value" id="released-now">…</span></div>
   <div class="row"><span class="label">box</span><span class="value" id="phase-now">…</span></div>
 </section>
@@ -126,9 +128,29 @@ no part in the poll itself — the service runs with it stopped.</p>
     different election is — which is why this origin is one the poll runs
     without.
   </div>
+  <p class="prose" style="margin:0 0 .6rem">
+    One shape for both kinds. A referendum is a question with its answers as
+    the options; an election is <i>who should the representative be</i> with
+    the candidates as the options. Leave both empty and the ballot is
+    numbered, as every election here was until now.
+  </p>
+  <p class="prose" style="margin:0 0 .9rem">
+    The wording goes into <code>election.json</code>, so it is covered by the
+    digest every client pins and every surface watches. That is the reason to
+    put it there rather than anywhere else, and it is also the cost: changing
+    a name after voters have pinned the configuration is the same event as
+    changing anything else in it. The ballot still carries an integer, and
+    nothing the box accepts or counts depends on a name.
+  </p>
   <div class="row"><span class="label">election id</span>
     <input type="text" id="mint-id" placeholder="demo-2026"></div>
+  <div class="row"><span class="label">question</span>
+    <input type="text" id="mint-question"
+      placeholder="Who should the representative be?"></div>
   <div class="row"><span class="label">options</span>
+    <textarea id="mint-options" rows="4"
+      placeholder="one name per line&#10;leave empty to number the ballot"></textarea></div>
+  <div class="row"><span class="label">how many</span>
     <input type="number" id="mint-choices" min="1" placeholder="4"></div>
   <div class="row"><span class="label">k_p^(R) bits</span>
     <select id="mint-bits">

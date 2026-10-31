@@ -12,6 +12,7 @@ service layer is allowed to do.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -182,6 +183,11 @@ class Deployment:
         cls,
         election_id: str = DEFAULT_ELECTION_ID,
         num_choices: int = DEFAULT_CHOICES,
+        # What the ballot asks and what it offers by name. Optional, and
+        # the office and the box are never told either: the names reach
+        # the published configuration and stop there.
+        question: str | None = None,
+        options: Sequence[str] | None = None,
         bits: int = DEFAULT_BITS,
         tally_interval_seconds: int | None = None,
         opens: str = DEFAULT_OPENS,
@@ -217,6 +223,8 @@ class Deployment:
             tally_interval_seconds=tally_interval_seconds,
             opens=opens,
             closes=closes,
+            question=question,
+            options=options,
         )
         config.write(document_root)
         return cls(
@@ -262,6 +270,8 @@ class Deployment:
         *,
         election_id: str,
         num_choices: int,
+        question: str | None = None,
+        options: Sequence[str] | None = None,
         bits: int,
         opens: str,
         closes: str,
@@ -285,6 +295,12 @@ class Deployment:
         demo's convenience and discards nothing the new keys would have
         protected.
 
+        The question and the option names are not carried, and there is no
+        `keep_` for them. They are what this ballot asks, so a new election
+        with no names asked for is a numbered ballot and not the previous
+        election's candidates under new keys -- which is the reading that
+        would be available if they persisted by default.
+
         The object is mutated in place rather than replaced because each
         origin's application closed over it when the process started. A
         new `Deployment` would be served by nobody.
@@ -295,6 +311,8 @@ class Deployment:
         fresh = Deployment.create(
             election_id=election_id,
             num_choices=num_choices,
+            question=question,
+            options=options,
             bits=bits,
             tally_interval_seconds=tally_interval_seconds,
             opens=opens,
@@ -361,6 +379,13 @@ class Deployment:
             tally_interval_seconds=self.ebb.tally_interval_seconds,
             opens=self.config.opens,
             closes=self.config.closes,
+            # From the configuration and not from the box, because the box
+            # does not have them and must not: `num_choices` above comes
+            # from the box precisely because that is the figure acceptance
+            # turns on, and the names are the half that acceptance never
+            # sees.
+            question=self.config.question,
+            options=self.config.options,
         )
         store.point_at(path, folder)
         self.data_folder = folder
@@ -418,6 +443,8 @@ class Deployment:
             tally_interval_seconds=body["tally_interval_seconds"],
             opens=body["opens"],
             closes=body["closes"],
+            question=body["question"],
+            options=body["options"],
         )
         config.write(document_root)
         if poll.exists():

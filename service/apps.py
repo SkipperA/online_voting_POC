@@ -430,7 +430,8 @@ def ebb_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(_page(BOX_STATIC / "index.html", origins.EBB,
-                                  deployment.config.election_id))
+                                  deployment.config.election_id,
+                                  config_origin=origins.CONFIG.url))
 
     @app.get("/box.js")
     async def script() -> Response:
