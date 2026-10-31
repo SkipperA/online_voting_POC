@@ -297,6 +297,8 @@ verify is pinned to the object these produce.
 | `POST /voters` | `voter_id` | A2, A3. Enrol into the electoral register |
 | `POST /schedule` | `opens`, `closes` | A5. Recorded, not enforced |
 | `POST /tally-interval` | `seconds` (or `null` for close-only) | A5. Refused once the box is open |
+| `GET /elections` | — | A3. Every election on disk: identifier, directory, when minted, whether its poll left a record, how many tokens it released, which is served. Read only, and nothing is loaded — JSON and the presence of files, so listing nine elections is not nine key loads. `tokens_released` is `null` for a poll that was never closed, which is *unknown* rather than nought |
+| `POST /elections/serve` | `directory` | A3. Serve an election already on disk, filling the running deployment in place and moving the pointer. A directory name, never a path: this chooses among what minting has put there and is not an upload surface. Refused unless the served election's poll has left a record — the same rule that governs `POST /election`, because from the running poll's side the two are one act |
 | `POST /election` | `confirm`, `election_id`, `num_choices`, `question`, `options`, `bits`, `opens`, `closes`, `tally_interval_seconds`, `keep_register` | A4, A4b, A5, A7. Mints a new election: three new key pairs, a new registry. `confirm` must repeat the identifier being replaced. `question` and `options` are the ballot's wording and may both be absent, which is a numbered ballot; a list whose length disagrees with `num_choices` is refused, because the two sit beside each other rather than one being derived from the other |
 
 No signature on any of them, and no authorisation beyond reaching the origin —

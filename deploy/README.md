@@ -138,6 +138,26 @@ interrupted — its record. That is what lets a ledger somebody downloaded
 months ago still be checked against the configuration it was published
 under, which is most of what "verifiable" is worth after the fact.
 
+**The setup console does this now.** *Which election is served* lists what is
+on the disk — identifier, directory, when it was minted, whether its poll
+left a record, how many tokens it released — and serves another with one
+button. The pointer moves with it, so a later restart serves the same
+election, and nothing needs restarting at the time: the running deployment
+is filled in place, which is the same reason minting needs no restart.
+
+Two refusals, and they are one rule. The served election may be put aside
+only once its poll has left a record, so the console refuses while the
+ballot box is open — a poll that is open has never been written anywhere —
+and refuses while it has not been opened at all, which is the case worth
+forcing. An election that was served and then replaced with nothing written
+down is indistinguishable afterwards from one that was quietly rerun.
+Opening and closing it leaves an empty `closed/` record whose phase
+statements are signed and dated, which is evidence of the gap rather than a
+cover for it. Minting is refused by the same rule, for the same reason.
+
+The shell version below still works and is what to reach for when the
+console is unreachable.
+
     ls deploy/election-data/
     cat deploy/election-data/current
 

@@ -239,6 +239,20 @@ def setup_console(deployment):
     return TestClient(apps[origins.SETUP])
 
 
+@pytest.fixture
+def mintable(deployment):
+    """An election the console will let go of.
+
+    Minting is refused while the current election has left no record, so
+    the box is opened and closed here rather than reaching past the rule.
+    `tests/test_election_selector.py` is where that rule is under test; here
+    it is a precondition like any other.
+    """
+    deployment.ebb.open()
+    deployment.ebb.close()
+    return deployment
+
+
 def mint(console, **changes) -> "TestClient":
     body = {
         "confirm": "wording-2026", "election_id": "minted-2026",
@@ -249,7 +263,7 @@ def mint(console, **changes) -> "TestClient":
     return console.post("/election", json=body)
 
 
-def test_the_console_mints_a_named_ballot(setup_console, deployment):
+def test_the_console_mints_a_named_ballot(setup_console, mintable, deployment):
     response = mint(setup_console, question="Igen vagy nem?",
                     options=["Igen", "Nem"])
     assert response.status_code == 200, response.text
@@ -257,7 +271,7 @@ def test_the_console_mints_a_named_ballot(setup_console, deployment):
     assert deployment.config.options == ("Igen", "Nem")
 
 
-def test_the_console_refuses_a_list_of_the_wrong_length(setup_console):
+def test_the_console_refuses_a_list_of_the_wrong_length(setup_console, mintable):
     """The two sit beside each other, so something has to stop them drifting.
 
     A shorter list leaves an option unnamed that a voter can still choose; a
@@ -269,13 +283,13 @@ def test_the_console_refuses_a_list_of_the_wrong_length(setup_console):
     assert "2 names for 3 options" in response.json()["detail"]
 
 
-def test_the_console_refuses_an_option_with_no_name(setup_console):
+def test_the_console_refuses_an_option_with_no_name(setup_console, mintable):
     response = mint(setup_console, options=["Igen", "   "])
     assert response.status_code == 422
     assert "not a name" in response.json()["detail"]
 
 
-def test_an_unnamed_ballot_is_still_mintable(setup_console, deployment):
+def test_an_unnamed_ballot_is_still_mintable(setup_console, mintable, deployment):
     """Numbered ballots are not a legacy state. An operator may want one."""
     assert mint(setup_console).status_code == 200
     assert deployment.config.question is None
@@ -283,7 +297,7 @@ def test_an_unnamed_ballot_is_still_mintable(setup_console, deployment):
 
 
 def test_minting_does_not_carry_the_previous_election_s_wording(
-        setup_console, deployment):
+        setup_console, mintable, deployment):
     """There is no `keep_` for the wording, unlike the register.
 
     The register names citizens and is Phase A material the office

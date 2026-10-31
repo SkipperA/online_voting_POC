@@ -124,6 +124,49 @@ no part in the poll itself — the service runs with it stopped.</p>
   <ul id="register"></ul>
 </section>
 
+<section class="needs-election" id="selector" hidden>
+  <h2>Which election is served</h2>
+  <p class="prose" style="margin:0 0 .6rem">
+    Every election this deployment has minted is still on disk with its keys,
+    its register and — if its poll was closed rather than interrupted — its
+    record. That is what lets a ledger somebody downloaded months ago still be
+    checked against the configuration it was published under. Serving one
+    again is read-only: the box comes back shut, nothing resumes and no chain
+    continues.
+  </p>
+  <p class="prose" style="margin:0 0 .6rem">
+    This chooses among what is already there. It is not a way to put an
+    election on the disk — minting is, and it is the section below.
+  </p>
+  <p class="prose" style="margin:0 0 .6rem">
+    <b>Switching voids every page anybody has open.</b> A different election
+    means different keys, a different <code>election.json</code> and a
+    different digest, so every surface watching the configuration will say it
+    is stale and ask to be reloaded. It is right to: what those pages pinned
+    no longer describes what the origins serve. The pointer moves with it, so
+    a later restart serves the same election.
+  </p>
+  <div class="note note--absent">
+    <span class="kind">Absent · <code>A7</code></span>
+    <b>A poll that was interrupted does not come back</b>
+    The election survives a restart and its keys and register survive; the
+    ballot box, the hash chain and the released-token register do not. An
+    election below whose poll shows no record was interrupted rather than
+    closed, and no amount of serving it again recovers what it held. Its
+    released-token count is unknown rather than nought, and the table says
+    so.
+  </div>
+  <table>
+    <thead><tr>
+      <th>election</th><th>directory</th><th>minted</th><th>poll</th>
+      <th>tokens released</th><th></th>
+    </tr></thead>
+    <tbody id="elections-rows"></tbody>
+  </table>
+</section>
+
+<p id="replace-why" class="sub" style="margin:0 0 1rem" hidden></p>
+
 <section>
   <h2 id="mint-heading">Mint a new election</h2>
   <div class="destructive" id="mint-destructive">

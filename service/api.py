@@ -28,7 +28,7 @@ from ovpoc.ballotbox import BoxStillOpen, verify_phase
 from ovpoc.messages import AuthRequest, Ballot, b64, canonical_bytes, unb64
 from ovpoc.vro import Outcome, release_query_payload
 
-from . import origins, state
+from . import origins, state, store
 from .state import Deployment
 
 
@@ -1038,6 +1038,17 @@ class ScheduleBody(BaseModel):
     closes: str
 
 
+class ServeBody(BaseModel):
+    """Which election on disk to serve. A directory name, never a path.
+
+    The selector lists what is already there and is not an upload surface:
+    an election arrives by being minted, and a page that could also put one
+    on the disk would be a page that could put anything there.
+    """
+
+    directory: str
+
+
 class MintBody(BaseModel):
     """A new election, authored over the one now being served.
 
@@ -1370,6 +1381,46 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
     """
     app = base(origins.SETUP)
 
+    def _why_not_replace() -> str | None:
+        """Why the served election may not be put aside right now.
+
+        One rule for both acts that replace it -- minting a new one, and
+        serving an older one -- because from the running poll's point of
+        view they are the same act: it stops being served.
+
+        A poll that is **open** has never been written anywhere.
+        `poll.state.json` is written at the close and nowhere else, so
+        replacing an open election discards it leaving no record that it
+        ran at all.
+
+        A poll that was **never opened** is the case worth forcing rather
+        than permitting, and the reason is not tidiness. An election that
+        was served and then set aside without a record is indistinguishable
+        afterwards from one that was quietly rerun, and nobody should
+        accept an election whose service stopped for a while and then
+        resumed as though nothing had happened. Opening and closing costs
+        two acts and leaves a `closed/` record whose phase statements are
+        signed and dated -- an empty ledger under today's date, which reads
+        as a fresh empty poll rather than as a recovered one, and which is
+        therefore evidence of the gap rather than a cover for it.
+        """
+        if not deployment.served or deployment.ebb.closed:
+            return None
+        if deployment.ebb.opened:
+            return (
+                "the ballot box is open. Close it first: a poll that is open "
+                "has never been written to disk, so replacing the election "
+                "now would discard it with no record that it ever ran.")
+        return (
+            "the ballot box of the current election has not been opened. Open "
+            "it and close it first, so that this election leaves a record "
+            "rather than being set aside as though it had never been served.")
+
+    def _may_replace() -> None:
+        why = _why_not_replace()
+        if why is not None:
+            raise HTTPException(409, why)
+
     def _authored() -> None:
         """Refuse the acts that are about an election while there is none.
 
@@ -1457,6 +1508,7 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
                 f"to replace an election, name it: confirm must be "
                 f"{deployment.config.election_id!r}",
             )
+        _may_replace()
         election_id = body.election_id.strip()
         if not election_id:
             raise HTTPException(422, "an election needs an identifier")
@@ -1486,6 +1538,72 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
             "election_id": deployment.config.election_id,
             "token_key_fingerprint": deployment.config.token_key_fingerprint,
             "digest": deployment.config.digest_hex(),
+        }
+
+    @app.get("/elections")
+    async def elections() -> dict:
+        """What is on the disk, and whether it may be changed right now.
+
+        Reading only, and nothing is loaded: `store.describe` parses JSON
+        and asks whether files exist, so listing nine elections does not
+        mean parsing nine private keys. An election that has never been
+        closed reports `tokens_released: null` rather than nought -- the
+        figure is in the office's own dump under `closed/`, and for a poll
+        that was interrupted it is not nought but unknown, which is a
+        different thing and the page says so.
+        """
+        why = _why_not_replace()
+        durable = deployment.data_dir is not None
+        return {
+            # Whether there is a disk to choose from at all. An ephemeral
+            # run has one election and no others to go back to, which is a
+            # different thing from being forbidden to change it -- so the
+            # list is empty and `may_replace` still answers for minting.
+            "durable": durable,
+            "data_dir": str(deployment.data_dir) if durable else None,
+            "elections": store.listing(deployment.data_dir) if durable else [],
+            "may_replace": why is None,
+            "why_not": why,
+        }
+
+    @app.post("/elections/serve")
+    async def serve_election(body: ServeBody) -> dict:
+        """A3 again, by selection rather than by authorship.
+
+        The act an operator used to perform by editing the pointer file in
+        the data volume and restarting the container. It is the same act:
+        the pointer moves, so a later restart serves the same election.
+
+        Not an upload surface. It chooses among what minting has already
+        put there, and a directory that holds no election is a 404 rather
+        than something this endpoint offers to create.
+        """
+        if deployment.data_dir is None:
+            raise HTTPException(
+                409, "this deployment writes nothing to disk, so there is "
+                     "nothing to choose between.")
+        _may_replace()
+
+        name = body.directory.strip()
+        if not name or name in (".", "..") or "/" in name or "\\" in name:
+            raise HTTPException(
+                422, "a directory name beside the others, not a path")
+        folder = deployment.data_dir / name
+        if store.describe(folder) is None:
+            raise HTTPException(404, f"{name} holds no election")
+        if folder == deployment.data_folder:
+            raise HTTPException(
+                409,
+                f"{name} is already the election being served. Serving it "
+                f"again would give it a fresh empty ballot box over the same "
+                f"keys and void every open page for nothing.")
+
+        deployment.switch_to(folder)
+        return {
+            "directory": name,
+            "election_id": deployment.config.election_id,
+            "digest": deployment.config.digest_hex(),
+            "token_key_fingerprint": deployment.config.token_key_fingerprint,
         }
 
     @app.get("/configuration")

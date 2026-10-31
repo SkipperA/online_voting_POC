@@ -614,6 +614,48 @@ register is `VRO.register` — a set of ids, and nothing else.
   application and two screens could not be compared by eye; 64 is also what
   base64 looks like in a PEM file. Tables, payload blocks and the
   label/value grids keep the full column.
+- **Which election is served is chosen on the console, and the rule is
+  about evidence.** `Deployment.switch_to` fills the running object in
+  place, exactly as `mint` does and for the same reason -- every origin's
+  application closed over it at start-up, so nothing needs a restart, which
+  a container could not give itself anyway. `_from_folder` is what `load`
+  and `switch_to` share; the split is the point, because what this office
+  trusts and whom it enrols are the deployment's and must no more be
+  re-derived by a switch than by a mint. `data_folder` is the one field
+  that differs between the two: `mint` clears it so the next save allocates
+  a new directory, a switch sets it to the directory it just read, and
+  clearing it there would write the election's register into a fresh folder
+  beside the one it came from.
+  `test_replacing_the_election_accounts_for_every_field` reads both methods
+  with `ast` and is what keeps the next field from being forgotten in one
+  of them -- its exemption list is checked in both directions, so it stays
+  a place to explain a field rather than a place to hide one.
+
+  **One rule governs both acts that replace the served election**, because
+  from the running poll's side minting and switching are the same act: it
+  stops being served. A poll that is *open* has never been written anywhere
+  -- `poll.state.json` is written at the close and nowhere else -- so
+  replacing it discards it with no record that it ran. A poll that was
+  *never opened* is refused too, and that is the part worth not softening:
+  an election that was served and then set aside without a record is
+  indistinguishable afterwards from one that was quietly rerun, and nobody
+  should accept an election whose service stopped for a while and resumed
+  as though nothing had happened. Opening and closing leaves an empty
+  `closed/` record whose phase statements are signed and dated, which reads
+  as a fresh empty poll rather than a recovered one -- evidence of the gap
+  rather than a cover for it. The rule lives on the console and not in
+  `Deployment`, because it is an operational policy and not a protocol
+  decision; `mint` and `switch_to` remain callable by anything that means
+  to.
+
+  `minted_at` is store-only, never `election.json`: a time in the pinned
+  configuration would move the digest for a fact about the deployment
+  rather than about the ballot, which is `build.py`'s argument for the
+  revision. The selector prints a dash for an election stored before it
+  existed, and never the file's modification time -- that moves on every
+  enrolment, so it would be a plausible wrong answer. For the same reason
+  a poll that was never closed reports `tokens_released: null` and not
+  nought: the figure is unknown, not zero, and the two must not look alike.
 - **A deployment with no election is a state the service comes up in, and
   the console is how it ends.** `Deployment.unfurnished` holds `vro`, `ebb`
   and `config` as `None`; `mint` fills the same object in place, which is

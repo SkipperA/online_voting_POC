@@ -22,6 +22,70 @@ function showFirstRun(first) {
   $('mint').textContent = first ? 'Create' : 'Mint';
 }
 
+/**
+ * One row per election on disk.
+ *
+ * Built as elements. The identifier is whatever an operator typed when the
+ * election was minted, and `textContent` is the escape that cannot be
+ * forgotten -- the same reason the ballot's option names are built this way.
+ */
+function electionRow(e, mayReplace) {
+  const tr = document.createElement('tr');
+  for (const text of [
+    e.election_id || '—',
+    e.directory,
+    e.minted_at || '—',
+    // Not "0 tokens". A poll that was never closed left no record, so the
+    // figure is unknown rather than nought, and the two must not look alike.
+    e.closed ? 'closed, with a record' : 'no record — interrupted',
+    e.tokens_released === null ? '—' : String(e.tokens_released),
+  ]) {
+    const td = document.createElement('td');
+    td.textContent = text;
+    tr.append(td);
+  }
+  const action = document.createElement('td');
+  if (e.served) {
+    const now = document.createElement('b');
+    now.textContent = 'served now';
+    action.append(now);
+  } else {
+    const button = document.createElement('button');
+    button.textContent = 'Serve';
+    button.disabled = !mayReplace;
+    button.onclick = () => serveElection(e.directory);
+    action.append(button);
+  }
+  tr.append(action);
+  return tr;
+}
+
+async function serveElection(directory) {
+  const response = await fetch('/elections/serve', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ directory }),
+  });
+  if (!response.ok) { $('status').textContent = (await response.json()).detail; return; }
+  const served = await response.json();
+  await refresh();
+  $('status').textContent = `Now serving ${served.election_id}. Every page `
+    + 'open against the previous election must be reloaded — different keys, '
+    + 'a different configuration, a different digest.';
+}
+
+/** What is on the disk, and whether the served election may be put aside. */
+async function refreshElections() {
+  const body = await (await fetch('/elections')).json();
+  $('selector').hidden = !body.durable;
+  $('replace-why').hidden = body.may_replace;
+  $('replace-why').textContent = body.why_not || '';
+  // The same rule governs both acts that replace the served election, so
+  // the same answer disables both controls.
+  $('mint').disabled = !body.may_replace;
+  $('elections-rows').replaceChildren(
+    ...body.elections.map((e) => electionRow(e, body.may_replace)));
+}
+
 async function refresh() {
   const c = await (await fetch('/configuration')).json();
   showFirstRun(!c.served);
@@ -60,10 +124,25 @@ async function refresh() {
   if (!$('mint-confirm').placeholder.includes(c.election_id)) {
     $('mint-confirm').placeholder = `type ${c.election_id} to confirm`;
   }
+  await refreshElections();
+
   const voters = (await (await fetch('/voters')).json()).voters;
-  $('register').innerHTML = voters.length
-    ? voters.map((v) => `<li>${v}</li>`).join('')
-    : '<li class="muted">nobody yet — the wallet will offer no personas</li>';
+  // Elements, not a template. An identifier is whatever an operator typed
+  // -- `Kovács Ágnes` is the fixture, and `Nagy & Társa` is as legitimate
+  // -- so it goes in as text. This was a template until the ballot's
+  // option names made the same mistake visible one file away.
+  if (voters.length) {
+    $('register').replaceChildren(...voters.map((v) => {
+      const li = document.createElement('li');
+      li.textContent = v;
+      return li;
+    }));
+  } else {
+    const li = document.createElement('li');
+    li.className = 'muted';
+    li.textContent = 'nobody yet — the wallet will offer no personas';
+    $('register').replaceChildren(li);
+  }
   $('status').textContent = `${voters.length} on the register.`;
 }
 

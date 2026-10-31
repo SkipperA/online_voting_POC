@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 from ovpoc import keys, rsabssa
 from ovpoc.messages import b64, unb64
 
-STORE_VERSION = 4
+STORE_VERSION = 5
 
 # Earlier versions are still readable, and deliberately so. Each difference
 # is a field whose absence means exactly what the older behaviour was:
@@ -51,11 +51,15 @@ STORE_VERSION = 4
 # 3) absent means the pair the service used to hold as literals, which is
 # what every store written before them was serving; `question` and `options`
 # (version 4) absent means a ballot that names nothing and is numbered, which
-# is what every election before them was. Refusing an election because its
-# file predates a field that defaults to the old behaviour would lose the
-# token key, the register and every persona for nothing. The next save writes
-# the current version.
-READABLE_STORE_VERSIONS = {1, 2, 3, 4}
+# is what every election before them was; `minted_at` (version 5) absent
+# means an election authored before anything recorded when, which no amount
+# of reading the file can recover -- the selector prints a dash rather than
+# the modification time, which moves on every enrolment and would be a
+# plausible wrong answer. Refusing an election because its file predates a
+# field that defaults to the old behaviour would lose the token key, the
+# register and every persona for nothing. The next save writes the current
+# version.
+READABLE_STORE_VERSIONS = {1, 2, 3, 4, 5}
 
 # What a store written before the schedule was authored was serving. Not a
 # sensible default for a new election -- the console asks for one -- but the
@@ -193,7 +197,8 @@ def write(path: Path, *, token_private, statement_key, box_statement_key,
           election_id: str, num_choices: int, opens: str, closes: str,
           tally_interval_seconds: int | None = None,
           question: str | None = None,
-          options: Sequence[str] | None = None) -> None:
+          options: Sequence[str] | None = None,
+          minted_at: str | None = None) -> None:
     """Write the durable half. Called by the setup console, never at runtime."""
     path.mkdir(parents=True, exist_ok=True)
     (path / "README.md").write_text(
@@ -233,6 +238,14 @@ def write(path: Path, *, token_private, statement_key, box_statement_key,
                     "nowhere a file can reach."
                 ),
                 "election_id": election_id,
+                # When this election was authored, carried by the deployment
+                # and written unchanged on every later save. Not the file's
+                # own modification time, which moves whenever somebody is
+                # enrolled, and not in `election.json`: a time in the pinned
+                # configuration would move the digest for a fact about the
+                # deployment rather than about the ballot, which is the
+                # argument `service/build.py` makes for the revision.
+                "minted_at": minted_at,
                 "num_choices": num_choices,
                 # Written whole rather than derived back from the published
                 # configuration at load: this file is what an election *is*
@@ -280,6 +293,7 @@ def read(path: Path) -> dict:
     private = serialization.load_pem_private_key(pem.read_bytes(), password=None)
     return {
         "election_id": body["election_id"],
+        "minted_at": body.get("minted_at"),
         "num_choices": body["num_choices"],
         "question": body.get("question"),
         "options": body.get("options"),
@@ -296,3 +310,82 @@ def read(path: Path) -> dict:
             v: pair_from(unb64(s)) for v, s in body["wallet_seeds"].items()
         },
     }
+
+
+def describe(folder: Path) -> dict | None:
+    """One election as a row on a page, without loading it.
+
+    Deliberately not `read`. That parses a PKCS#8 private key, which is the
+    expensive half of reading an election, and a console listing nine of
+    them has no business doing nine key loads to print nine names. Nothing
+    here constructs anything: it is JSON, and whether a file exists.
+
+    `None` for a directory that is not an election, so the anchors, a
+    half-made folder and whatever else an operator leaves beside the
+    elections are skipped rather than listed as broken ones.
+    """
+    if not (folder / "election.store.json").exists():
+        return None
+    if not (folder / "vro_token_key.pem").exists():
+        return None
+    try:
+        body = json.loads((folder / "election.store.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+    # The published record of a finished poll, written once at the close.
+    # Its presence is what distinguishes an election that ran from one that
+    # was minted and abandoned -- and the count is read from the office's
+    # own dump rather than recomputed, because that file is what a verifier
+    # was handed.
+    closed = folder / "closed"
+    released: int | None = None
+    try:
+        released = json.loads(
+            (closed / "releases.json").read_text(encoding="utf-8"))["count"]
+    except (OSError, ValueError, KeyError, TypeError):
+        released = None
+
+    return {
+        "directory": folder.name,
+        "election_id": body.get("election_id"),
+        # Absent in a store written before anything recorded it. A dash on
+        # the page, never the file's modification time: that moves whenever
+        # somebody is enrolled, so it would be a plausible wrong answer,
+        # which is worse than no answer.
+        "minted_at": body.get("minted_at"),
+        "num_choices": body.get("num_choices"),
+        "question": body.get("question"),
+        "closed": closed.is_dir(),
+        "tokens_released": released,
+    }
+
+
+def listing(parent: Path) -> list[dict]:
+    """Every election on disk, in directory order, saying which is served.
+
+    Reading only. This is not an upload surface and does not create,
+    migrate or repair anything: a directory that is not an election is left
+    exactly where it is and left out of the list.
+    """
+    if not parent.is_dir():
+        return []
+    try:
+        served: Path | None = current(parent)
+    except NoElection:
+        served = None                      # nothing pointed at, or nothing there
+
+    folders = sorted((d for d in parent.iterdir() if d.is_dir()),
+                     key=lambda d: d.name)
+    if (parent / "election.store.json").exists():
+        folders = [parent, *folders]       # the single-election layout
+    out = []
+    for folder in folders:
+        described = describe(folder)
+        if described is None:
+            continue
+        if folder == parent:
+            described["directory"] = "."   # it points at itself
+        described["served"] = served is not None and folder == served
+        out.append(described)
+    return out

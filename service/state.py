@@ -86,6 +86,18 @@ def _open_enrolment(explicit: bool | None = None) -> bool:
         "1", "true", "yes", "on"}
 
 
+def _now() -> str:
+    """The moment an election was authored, to the second, in UTC.
+
+    Deployment bookkeeping and nothing more: no protocol object carries a
+    timestamp, and this one never reaches `election.json`.
+    """
+    from datetime import datetime, timezone
+
+    return (datetime.now(timezone.utc)
+            .isoformat(timespec="seconds").replace("+00:00", "Z"))
+
+
 def _signature_validation(anchors: Path | None):
     """The validator, if this deployment has been told what to trust.
 
@@ -149,6 +161,15 @@ class Deployment:
     #: and never reused: minting clears it so that a new election lands
     #: beside the old one rather than on top of it.
     data_folder: Path | None = None
+    #: When this election was authored, ISO 8601 in UTC. It goes to the
+    #: store and never to `election.json`: a time in the pinned
+    #: configuration would move the digest for a fact about the deployment
+    #: rather than about the ballot, which is the argument `build.py` makes
+    #: for keeping the revision out of it. `None` for an election stored
+    #: before anything recorded it, and the selector prints a dash rather
+    #: than the file's modification time -- that moves on every enrolment,
+    #: so it would be a plausible wrong answer.
+    minted_at: str | None = None
     #: Where this office looked for its anchors, kept whether or not it
     #: found any. An office that offers no qualified-signature route must
     #: be able to say which directory it read, because "not offered" and
@@ -309,6 +330,7 @@ class Deployment:
             # once, just above. Two readings of the environment would be two
             # answers, which is the fault this field exists to prevent.
             open_enrolment=vro.enrol_on_qualified_signature,
+            minted_at=_now(),
         )
 
     def set_tally_interval(self, seconds: int | None) -> None:
@@ -431,6 +453,7 @@ class Deployment:
         self.config = fresh.config
         self.population = fresh.population
         self.wallets = fresh.wallets
+        self.minted_at = fresh.minted_at
         # Nothing the old poll was in the middle of survives into the new
         # one: a held request and an uncollected reply both name a key that
         # no longer certifies anything.
@@ -473,6 +496,10 @@ class Deployment:
             # sees.
             question=self.config.question,
             options=self.config.options,
+            # Carried rather than stamped here. `save` runs on every
+            # enrolment, so a time taken at save time would be the time of
+            # the last change and never the time of authorship.
+            minted_at=self.minted_at,
         )
         store.point_at(path, folder)
         self.data_folder = folder
@@ -483,7 +510,32 @@ class Deployment:
         cls, path: Path = DATA_DIR, document_root: Path = DOCUMENT_ROOT,
         open_enrolment: bool | None = None,
     ) -> "Deployment":
-        """Restore an election. Raises rather than inventing one.
+        """Serve the election the pointer names, at start-up.
+
+        The one place the policy is decided rather than carried: this is
+        start-up, which is what reading the environment is for. Everything
+        afterwards -- a mint, a switch -- carries what was decided here.
+        Raises rather than inventing an election.
+        """
+        return cls._from_folder(
+            store.current(path),
+            data_dir=path,
+            document_root=document_root,
+            trust_anchors=path / TRUST_ANCHORS,
+            open_enrolment=_open_enrolment(open_enrolment),
+        )
+
+    @classmethod
+    def _from_folder(
+        cls, folder: Path, *, data_dir: Path | None, document_root: Path,
+        trust_anchors: Path | None, open_enrolment: bool,
+    ) -> "Deployment":
+        """One election's directory, as objects. Reads; decides nothing.
+
+        Shared by `load` and by `switch_to`, and the split is the whole
+        point of it: what this office trusts and whom it enrols belong to
+        the deployment, so a switch must no more re-derive them than a mint
+        does. Both arrive as parameters and neither is read here.
 
         A *finished* poll comes back with it, if this election has one:
         the box shut, the records and chain replayed and re-derived, the
@@ -491,7 +543,6 @@ class Deployment:
         served again, not a durable ballot box -- a poll interrupted while
         open was never written and is still lost (clause A7).
         """
-        folder = store.current(path)
         body = store.read(folder)
         poll = folder / "poll.state.json"
         population = PopulationRegister()
@@ -502,8 +553,8 @@ class Deployment:
             office_key=body["statement_key"],
             election_id=body["election_id"],
             register=set(body["electoral_register"]),
-            signature_validation=_signature_validation(path / TRUST_ANCHORS),
-            enrol_on_qualified_signature=_open_enrolment(open_enrolment),
+            signature_validation=_signature_validation(trust_anchors),
+            enrol_on_qualified_signature=open_enrolment,
         )
         wallets = body["wallet_personas"]
         for voter_id, pair in wallets.items():
@@ -570,7 +621,7 @@ class Deployment:
             )
 
         return cls(
-            data_dir=path,
+            data_dir=data_dir,
             data_folder=folder,
             vro=vro,
             ebb=ebb,
@@ -578,6 +629,56 @@ class Deployment:
             population=population,
             document_root=document_root,
             wallets=wallets,
-            trust_anchors=path / TRUST_ANCHORS,
-            open_enrolment=vro.enrol_on_qualified_signature,
+            trust_anchors=trust_anchors,
+            open_enrolment=open_enrolment,
+            minted_at=body["minted_at"],
         )
+
+    def switch_to(self, folder: Path) -> None:
+        """Serve a different election that is already on disk.
+
+        The same problem as `mint` and therefore the same answer: this
+        object is what every origin's application closed over at start-up,
+        so it is filled in place rather than replaced. A new `Deployment`
+        would be served by nobody, and a restart is not available to a
+        container that cannot restart itself.
+
+        **Every field moves or is deliberately left.** The ones `mint`
+        clears are cleared here for the same reasons -- a held request and
+        an uncollected reply both name a key this election never certified
+        -- and the ones `mint` carries are carried, because the anchors and
+        the enrolment policy belong to the deployment and not to a poll.
+        `data_folder` is the one that differs: `mint` clears it so the next
+        save allocates a new directory, and a switch sets it to the
+        directory it just read, or the first enrolment afterwards would
+        write this election's register into a freshly allocated folder.
+        `test_switching_and_minting_account_for_every_field` reads both
+        methods and is what keeps the next field from being forgotten.
+
+        The pointer moves too, so a restart serves the same election --
+        which is what `--election` already does before it starts.
+
+        This voids every page anybody has open: different keys, a different
+        `election.json`, a different digest. `config-watch.js` tells every
+        reader to reload and is right to. Nothing here is a protocol
+        decision, and the rule about *when* an operator may do it lives on
+        the console, where an operator can read it.
+        """
+        fresh = Deployment._from_folder(
+            folder,
+            data_dir=self.data_dir,
+            document_root=self.document_root,
+            trust_anchors=self.trust_anchors,
+            open_enrolment=self.open_enrolment,
+        )
+        self.vro = fresh.vro
+        self.ebb = fresh.ebb
+        self.config = fresh.config
+        self.population = fresh.population
+        self.wallets = fresh.wallets
+        self.minted_at = fresh.minted_at
+        self.held_requests = {}
+        self.token_replies = {}
+        self.data_folder = folder
+        if self.data_dir is not None:
+            store.point_at(self.data_dir, folder)
