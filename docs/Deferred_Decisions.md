@@ -188,6 +188,45 @@ Corrected in `web/checker/static/checker.js`, which now reports the figures
 without a verdict while the poll is open, and checks distinct keys against
 tokens at the close. The article has not been amended.
 
+### 1.8 Ledger position is a correlation channel — §3.5, §3.8
+
+Two ordered registers are published: the office's release register, whose
+order is load-bearing because the office's signature covers the chain, and
+the ballot box's accepted ledger. Lining up index *i* of one against index
+*i* of the other correlates a token release with a ballot submission.
+
+**To an outsider it is worth nothing**, and the article should say why
+rather than leave a reader to work it out. The release register publishes
+commitments and names nobody, so a positional correlation relates an opaque
+commitment to a ballot and says nothing about *who*. The channel bites for
+the party that already knows which commitment is whose — the office, a
+supervisor reading the register, or one operator holding both roles, which
+here is clause O1.
+
+Three remedies, none implemented, and the first is not a mechanism:
+
+- **Voters choose the timing themselves.** A citizen decides when to request
+  a token and when to cast, and the qualified-signature route separates the
+  two further: the signed request can be handed in from a different network
+  and a different device from the one that later casts. In a small
+  constituency a voter can simply postpone casting.
+- **A random delay before submission**, drawn per voter, so arrival order is
+  not request order.
+- **A queue at the ballot box**, holding submissions briefly and committing
+  them in an order of its own.
+
+The article currently leaves the reader to assume the two registers
+decorrelate on their own. The remedies are cheap and belong to the
+deployment rather than to the protocol, which is the shape §3.8 already uses
+for the anonymising channel.
+
+It also sets the standard a generated election has to meet, which is why it
+is written down now: `service/generate.py` issues every token before casting
+any ballot and draws the two orders separately, because a published dataset
+carrying a positional channel no real poll has would be a challenge testing
+the generator rather than the blinding. `docs/threats.md` carries the entry;
+the article does not.
+
 ---
 
 ## 2. Scope limits (`docs/Demo_Scope_Limits.md`)

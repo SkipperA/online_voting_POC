@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from ovpoc import ledger, rsabssa
 from ovpoc.messages import b64
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _swap(path: Path, payload: bytes) -> None:
@@ -71,6 +71,14 @@ class ElectionConfig:
     #: make the box consult the names to find out how many there are.
     question: str | None = None
     options: tuple[str, ...] | None = None
+    #: Clause S8. True for an election the server filled itself: every
+    #: signature in it is genuine, and the electorate and their preferences
+    #: are not. It lives here because here is inside the digest every client
+    #: pins and every surface watches, so no page can display the poll
+    #: without being able to say what it is -- and `apps._page` injects the
+    #: aside rather than letting a page carry it, for the reason the band is
+    #: injected: a surface added later cannot be added without one.
+    generated: bool = False
 
     @classmethod
     def build(
@@ -85,6 +93,7 @@ class ElectionConfig:
         tally_interval_seconds: int | None = None,
         question: str | None = None,
         options: Sequence[str] | None = None,
+        generated: bool = False,
     ) -> "ElectionConfig":
         return cls(
             election_id=election_id,
@@ -104,6 +113,7 @@ class ElectionConfig:
             # would be a mutable thing inside an object whose whole point
             # is that its bytes do not move.
             options=None if options is None else tuple(options),
+            generated=generated,
         )
 
     def token_key(self) -> rsa.RSAPublicKey:
@@ -134,6 +144,7 @@ class ElectionConfig:
             # written before anybody could ask it.
             "question": self.question,
             "options": None if self.options is None else list(self.options),
+            "generated": self.generated,
             "genesis_hash": self.genesis_hash.hex(),
             "tally_interval_seconds": self.tally_interval_seconds,
             "opens": self.opens,

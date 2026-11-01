@@ -155,6 +155,35 @@ fact if it is ever contradicted, which is accountability rather than prevention.
 Threshold issuance across mutually distrusting bodies is therefore not an
 optional hardening step. It is the only real answer, and it is not implemented.
 
+**Ledger position correlates issuance with casting, for whoever already holds
+the identities.** Two ordered registers are published: the office's release
+register, whose order is load-bearing because the office's signature covers
+the chain, and the box's accepted ledger. Index *i* of one against index *i*
+of the other relates a release to a submission.
+
+To an outsider this is worth nothing, and the distinction is the whole of the
+entry: the release register publishes commitments and names nobody, so the
+correlation relates an opaque value to a ballot. It bites for the party that
+already knows whose commitment is whose — the office, a supervisor reading
+the register, or a single operator holding both roles, which in this build is
+clause O1.
+
+Three remedies, none implemented. Voters choose the timing themselves, which
+is not a mechanism but is the reason the two orders decorrelate in a real
+poll — a citizen decides when to ask and when to cast, and the
+qualified-signature route lets the asking happen from a different network and
+a different device. A random delay before submission, drawn per voter. A
+queue at the box, committing submissions in an order of its own. The first
+costs nothing and the other two are deployment work rather than protocol
+work.
+
+It is recorded here because a *generated* election has to reproduce the
+decorrelation deliberately: `service/generate.py` issues every token before
+casting any ballot and draws the two orders separately, since a published
+dataset carrying a positional channel no real poll has would be testing the
+generator rather than the blinding. `docs/Deferred_Decisions.md` §1.8 carries
+the amendment the article needs.
+
 **Traffic analysis.** Signing protects integrity, not anonymity. The network
 layer sees which wallet contacts the VRO and which address submits which ballot,
 and timing correlation can re-link a voter to their ballot. An anonymising

@@ -614,6 +614,44 @@ register is `VRO.register` — a set of ids, and nothing else.
   application and two screens could not be compared by eye; 64 is also what
   base64 looks like in a PEM file. Tables, payload blocks and the
   label/value grids keep the full column.
+- **A generated election is real cryptography and a synthetic electorate,
+  and the label is the hard part.** `service/generate.py` drives the actual
+  protocol objects for every citizen: an ad-hoc key pair, a blinding, a
+  request the stand-in wallet signs, the office's blind signature through
+  the same `_claim` and `release` as anybody else, an unblinding, a ballot
+  signed under the ad-hoc key and submitted to the box. Nothing is
+  synthesised and nothing is written into the ledger by hand, which is the
+  only reason a published result from one is worth showing -- and precisely
+  why nothing downstream can tell it from a real poll. Clause S8 carries the
+  disclosure; the flag lives in `election.json`, inside the digest, and the
+  aside is injected by `apps._page` so a surface added later cannot be added
+  without it. The band carries it too, because what a label has to survive
+  is a photograph of a screen.
+
+  **Two independent orders, and that is the integrity of the dataset rather
+  than a nicety.** Every token is issued before any ballot is cast and the
+  casting order is drawn separately. Run voter by voter and index *i* of the
+  release register is index *i* of the ledger, so anyone holding both reads
+  the answer off two columns with no cryptography involved. In a real poll
+  they decorrelate because *voters* choose when to ask and when to cast --
+  the qualified-signature route lets the asking happen from another network
+  and another device -- and `docs/threats.md` now carries the channel, which
+  bites only for a party that already knows whose commitment is whose. The
+  shuffles come from `secrets.SystemRandom`: in a published challenge the
+  shuffle *is* the answer, and a Mersenne Twister is recoverable from its
+  own output.
+
+  The answer key -- citizen to ad-hoc key -- is written to `answer-keys/`
+  beside the elections and never inside one, so publishing an election
+  cannot publish its answer; `store.describe` skips it and no origin serves
+  it. `keep_register=False` always, because a synthetic identifier must
+  never reach a real election's roll (clause X4's reasoning, one door
+  along). And the run holds the deployment: `populating` is set *before* the
+  election is authored, so there is no moment at which a generated election
+  is reachable unlabelled or half filled, and `mint` clears that field only
+  when the run has finished -- a live one spans the mint it started with,
+  and clearing it there would take the refusal off every origin halfway
+  through.
 - **Which election is served is chosen on the console, and the rule is
   about evidence.** `Deployment.switch_to` fills the running object in
   place, exactly as `mint` does and for the same reason -- every origin's

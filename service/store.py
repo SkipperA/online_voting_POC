@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 from ovpoc import keys, rsabssa
 from ovpoc.messages import b64, unb64
 
-STORE_VERSION = 5
+STORE_VERSION = 6
 
 # Earlier versions are still readable, and deliberately so. Each difference
 # is a field whose absence means exactly what the older behaviour was:
@@ -59,7 +59,7 @@ STORE_VERSION = 5
 # field that defaults to the old behaviour would lose the token key, the
 # register and every persona for nothing. The next save writes the current
 # version.
-READABLE_STORE_VERSIONS = {1, 2, 3, 4, 5}
+READABLE_STORE_VERSIONS = {1, 2, 3, 4, 5, 6}
 
 # What a store written before the schedule was authored was serving. Not a
 # sensible default for a new election -- the console asks for one -- but the
@@ -198,7 +198,8 @@ def write(path: Path, *, token_private, statement_key, box_statement_key,
           tally_interval_seconds: int | None = None,
           question: str | None = None,
           options: Sequence[str] | None = None,
-          minted_at: str | None = None) -> None:
+          minted_at: str | None = None,
+          generated: bool = False) -> None:
     """Write the durable half. Called by the setup console, never at runtime."""
     path.mkdir(parents=True, exist_ok=True)
     (path / "README.md").write_text(
@@ -246,6 +247,11 @@ def write(path: Path, *, token_private, statement_key, box_statement_key,
                 # deployment rather than about the ballot, which is the
                 # argument `service/build.py` makes for the revision.
                 "minted_at": minted_at,
+                # Clause S8, carried so that a reloaded election cannot come
+                # back without it. An election whose label depended on being
+                # remembered would lose it at the first restart, which is
+                # the one moment nobody is watching.
+                "generated": generated,
                 "num_choices": num_choices,
                 # Written whole rather than derived back from the published
                 # configuration at load: this file is what an election *is*
@@ -294,6 +300,7 @@ def read(path: Path) -> dict:
     return {
         "election_id": body["election_id"],
         "minted_at": body.get("minted_at"),
+        "generated": bool(body.get("generated", False)),
         "num_choices": body["num_choices"],
         "question": body.get("question"),
         "options": body.get("options"),
@@ -354,6 +361,7 @@ def describe(folder: Path) -> dict | None:
         # somebody is enrolled, so it would be a plausible wrong answer,
         # which is worse than no answer.
         "minted_at": body.get("minted_at"),
+        "generated": bool(body.get("generated", False)),
         "num_choices": body.get("num_choices"),
         "question": body.get("question"),
         "closed": closed.is_dir(),

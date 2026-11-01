@@ -307,6 +307,63 @@ to vote, and adds citizens to its own register when they ask. A real election
 cannot: the certificate attests who you are and nothing about your age,
 citizenship or address.*
 
+### S8 — The electorate and their preferences
+
+Covers a generated election: one the server filled itself, on demand from
+the console, so that a published result with a real ledger and a real hash
+chain can be shown during a talk.
+
+Every signature in it is genuine. The blind signatures, the tokens, the
+ballot signatures and the hash chain were produced by the protocol exactly
+as they are in any other poll here — each citizen got an ad-hoc key pair,
+blinded it, had the stand-in wallet sign the request, received the office's
+blind signature through the same `_claim` and `release`, unblinded it and
+signed a ballot. That is the whole reason for generating one rather than
+writing numbers into a file.
+
+**And it is why this clause is the most important label on the page, not
+the least.** Because the cryptography is real, nothing downstream can tell:
+the checker verifies every ballot, the chain reaches the published head, the
+supervision register balances and the count audit holds. These ballots are
+indistinguishable from real ones *by construction*, which is exactly why the
+label cannot be left to the data to imply.
+
+What is substituted is the **electorate** and their **preferences**. The
+citizens were invented by the generator and no human chose any of these
+selections. A generated election is not a fabricated result and this clause
+must not be read as saying so — nothing here is forged, and every signature
+would survive any check anybody cares to run. What is absent is anybody's
+intent behind the numbers, and that fact exists nowhere in the record.
+
+Three consequences worth stating rather than leaving to be discovered.
+
+The register was populated by the system itself, where S3 says enrolment
+happens outside it. Here there is no outside: the office authored its own
+roll, which is the one thing a real office may never do.
+
+Every token request was made by the stand-in wallet, so S1's substitution
+applies to every ballot in the election. The qualified-signature route needs
+a real certificate and a real signature made in a real wallet, and nobody
+can generate a thousand of those — so a generated election demonstrates the
+protocol at scale and the second route not at all.
+
+The office's supervision register may be published for a generated election,
+and for no other. It names who asked for a ballot, and the absence of an
+entry is conclusive proof of non-participation — the lever §3.7 spends a
+page keeping out of circulation. It can be published here because the
+citizens are fictional, and that is the only reason.
+
+**The label is injected rather than written into any page**
+(`service/apps.py:_page`), and the flag it reads lives in `election.json`,
+inside the digest every client pins. So a surface added later cannot be
+added without it, and an election cannot be served unlabelled by anybody
+forgetting. The band carries it too, because what a label has to survive is
+a photograph of a screen: a picture of an unlabelled published result
+outlives the room it was taken in and cannot be corrected afterwards.
+
+**Label:** *Generated election. Every signature is real; the voters and
+their choices are not — no human chose any of this.*
+
 ---
 
 ## Absent

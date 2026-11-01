@@ -176,6 +176,18 @@
   letter-spacing: .07em;
   text-transform: uppercase;
 }
+/* Clause S8, in the band. Not a hue -- hue carries trust-domain identity
+ * and nothing else -- and not the danger colour, which belongs to a secret
+ * shown on purpose. A stamp instead, the band's own ink and canvas swapped,
+ * because what this label has to survive is a photograph of a screen. */
+.origin .origin-generated {
+  background: var(--domain-ink, var(--ink));
+  color: var(--domain, var(--canvas));
+  padding: .1rem .45rem;
+  border-radius: 3px;
+  font-weight: 650;
+}
+
 /* Which election, beside the title. A name and not a classification, so
  * it keeps the capitals somebody wrote: an election is called
  * Előválasztás 2027 and not ELŐVÁLASZTÁS 2027, and the uppercasing above

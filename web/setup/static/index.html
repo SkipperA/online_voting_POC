@@ -223,6 +223,58 @@ no part in the poll itself — the service runs with it stopped.</p>
   <button id="mint">Mint</button>
 </section>
 
+<section id="generate-section">
+  <h2>Generate an election</h2>
+  <div class="note note--substituted">
+    <span class="kind">Substituted · <code>S8</code></span>
+    <b>Nobody will have chosen these votes</b>
+    The server fills the election itself, and every signature in it is
+    genuine: each citizen gets an ad-hoc key pair, blinds it, has the
+    stand-in wallet sign the request, receives the office's blind signature
+    through the same checks as anybody else, unblinds it and signs a ballot.
+    Nothing downstream can tell, which is the whole reason for generating one
+    — and exactly why the label cannot be left to the data to imply. What is
+    substituted is the electorate and their preferences. Every surface will
+    say so, and there is no way to turn that off.
+  </div>
+  <div class="destructive">
+    <b>One act, and the poll is closed at the end of it</b>
+    The election is minted, filled and closed together. A generated election
+    that could still be voted in would be an election nobody could describe
+    afterwards, so nothing can be added to it once this finishes. While it
+    runs, every origin but this console refuses: a half-filled poll is a poll
+    nobody should see, least of all a voter who could add a ballot to it.
+    Reckon on about a minute per thousand ballots at 3072 bits.
+  </div>
+  <div class="row"><span class="label">election id</span>
+    <input type="text" id="gen-id" placeholder="conference-2026"></div>
+  <div class="row"><span class="label">question</span>
+    <input type="text" id="gen-question"
+      placeholder="Who should the representative be?"></div>
+  <div class="row"><span class="label">options</span>
+    <textarea id="gen-options" rows="3"
+      placeholder="one name per line&#10;leave empty to number the ballot"></textarea></div>
+  <div class="row"><span class="label">final count</span>
+    <textarea id="gen-counts" rows="3"
+      placeholder="one number per line, in the same order"></textarea></div>
+  <div class="row"><span class="label">protest</span>
+    <input type="text" id="gen-protest" placeholder="-1:12, 99:3 — recorded, never interpreted"></div>
+  <div class="row"><span class="label">abstentions</span>
+    <input type="number" id="gen-abstentions" min="0" placeholder="0 — took a token, cast nothing"></div>
+  <div class="row"><span class="label">re-voters</span>
+    <input type="number" id="gen-revotes" min="0" placeholder="0 — cast twice; the later ballot counts"></div>
+  <div class="row"><span class="label">k_p^(R) bits</span>
+    <select id="gen-bits">
+      <option value="2048">2048 — demo only, below the article's minimum</option>
+      <option value="3072" selected>3072 — the article's minimum</option>
+      <option value="4096">4096</option>
+    </select></div>
+  <div class="row" id="gen-confirm-row"><span class="label">confirm</span>
+    <input type="text" id="gen-confirm" placeholder="type the election id being replaced"></div>
+  <button id="generate">Generate</button>
+  <p id="generate-progress" class="sub" style="margin:.7rem 0 0"></p>
+</section>
+
 <p id="status">Loading…</p>
 <script src="setup.js" defer></script>
 </body></html>

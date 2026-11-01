@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import threading
 import unicodedata
 from pathlib import Path
 from urllib.parse import quote
@@ -28,7 +29,7 @@ from ovpoc.ballotbox import BoxStillOpen, verify_phase
 from ovpoc.messages import AuthRequest, Ballot, b64, canonical_bytes, unb64
 from ovpoc.vro import Outcome, release_query_payload
 
-from . import origins, state, store
+from . import generate, origins, state, store
 from .state import Deployment
 
 
@@ -1038,6 +1039,45 @@ class ScheduleBody(BaseModel):
     closes: str
 
 
+class GenerateBody(BaseModel):
+    """A generated election: the election to author, and the poll to fill.
+
+    One request, because minting, filling and closing are one act. An
+    election that existed in between is one a voter could have added a
+    ballot to, and one somebody could have photographed before the label
+    was on it. Clause S8.
+
+    `confirm` behaves as it does for a mint: required when an election is
+    being replaced, and not when there is none to replace.
+    """
+
+    confirm: str = ""
+    election_id: str
+    num_choices: int = state.DEFAULT_CHOICES
+    question: str | None = None
+    options: list[str] | None = None
+    bits: int = state.DEFAULT_BITS
+    opens: str = state.DEFAULT_OPENS
+    closes: str = state.DEFAULT_CLOSES
+    tally_interval_seconds: int | None = None
+
+    #: One count per option, in order: `[120, 80]` is a hundred and twenty
+    #: for option 1. These describe the *final* accepted ballot of each
+    #: citizen, which is what a tally counts.
+    per_option: list[int]
+    #: Out-of-range selection -> how many citizens end there. Recorded and
+    #: never interpreted: a generator that assigned meanings to codes would
+    #: be the system registering what somebody meant by one.
+    protest: dict[str, int] = {}
+    #: Citizens who take a token and cast nothing, so the two registers are
+    #: not even the same length.
+    abstentions: int = 0
+    #: How many of the casting citizens cast twice. Supersession is the
+    #: design's answer to coercion, and a ledger whose submissions
+    #: outnumber its accepted ballots demonstrates it.
+    revotes: int = 0
+
+
 class ServeBody(BaseModel):
     """Which election on disk to serve. A directory name, never a path.
 
@@ -1087,7 +1127,7 @@ LONGEST_QUESTION = 500
 LONGEST_OPTION = 160
 
 
-def _ballot_wording(body: MintBody) -> tuple[str | None, list[str] | None]:
+def _ballot_wording(body: "MintBody | GenerateBody") -> tuple[str | None, list[str] | None]:
     """What the ballot asks and offers, or `None` for a numbered one.
 
     Shape, and nothing else. No protocol decision is taken here: the box
@@ -1381,6 +1421,22 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
     """
     app = base(origins.SETUP)
 
+    def _not_populating() -> None:
+        """Nothing else is authored while a generated election is filling.
+
+        The run holds the office and the box for minutes at a time, and
+        every other origin is refusing throughout. An operator who could
+        mint over it halfway would be left with an election whose record
+        describes a poll that was never finished.
+        """
+        running = deployment.populating
+        if running is not None and not running.finished:
+            raise HTTPException(
+                409,
+                f"a generated election is being filled: {running.phase}, "
+                f"{running.done} of {running.total}. Nothing else may be "
+                f"authored until it is done.")
+
     def _why_not_replace() -> str | None:
         """Why the served election may not be put aside right now.
 
@@ -1440,6 +1496,7 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
     @app.post("/voters")
     async def enrol(body: EnrolBody) -> dict:
         _authored()
+        _not_populating()
         public_key = deployment.enrol(body.voter_id)
         return {"enrolled": True, "wallet_public_key": b64(public_key)}
 
@@ -1447,6 +1504,10 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
     async def voters() -> dict:
         """The register, which is a set of identifiers and nothing else."""
         _authored()
+        # Guarded as well as the writes: the generator is adding to this
+        # set from another thread, and sorting a set while it grows raises
+        # in the middle of a reply rather than returning a stale answer.
+        _not_populating()
         return {"voters": sorted(deployment.vro.register)}
 
     @app.post("/tally-interval")
@@ -1461,6 +1522,7 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         convenience.
         """
         _authored()
+        _not_populating()
         try:
             deployment.set_tally_interval(body.seconds)
         except RuntimeError as exc:
@@ -1479,6 +1541,7 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         no token and disowns no receipt. Only the digest moves.
         """
         _authored()
+        _not_populating()
         opens, closes = body.opens.strip(), body.closes.strip()
         if not opens or not closes:
             raise HTTPException(422, "both times are required")
@@ -1508,6 +1571,7 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
                 f"to replace an election, name it: confirm must be "
                 f"{deployment.config.election_id!r}",
             )
+        _not_populating()
         _may_replace()
         election_id = body.election_id.strip()
         if not election_id:
@@ -1566,6 +1630,116 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
             "why_not": why,
         }
 
+    @app.post("/elections/generate")
+    def generate_election(body: GenerateBody) -> dict:
+        """Mint a generated election, fill it, and close it. Clause S8.
+
+        Declared `def` for the reason the mint endpoint is: authoring an
+        election generates an RSA modulus, and on the event loop that would
+        stall every origin in this one process while it ran. The filling
+        gets a thread of its own and this returns as soon as it has
+        started, because a few thousand ballots is minutes of blind
+        signing and a request that blocks for minutes behind a proxy is
+        the kind of thing that survives testing and fails on the day.
+
+        **Nothing is served while it runs.** `deployment.populating` is set
+        before the election exists, so there is no moment at which a
+        generated election is reachable unlabelled or half filled, and
+        every origin but this one refuses until the record is written.
+        """
+        _not_populating()
+        _may_replace()
+        if deployment.served and body.confirm != deployment.config.election_id:
+            raise HTTPException(
+                409,
+                f"to replace an election, name it: confirm must be "
+                f"{deployment.config.election_id!r}")
+
+        election_id = body.election_id.strip()
+        if not election_id:
+            raise HTTPException(422, "an election needs an identifier")
+        if body.num_choices < 1:
+            raise HTTPException(422, "a ballot needs at least one option")
+        if body.bits < 2048:
+            raise HTTPException(
+                422,
+                "2048 bits is the floor this demo will generate; the "
+                "article's minimum for a deployment is 3072")
+        question, options = _ballot_wording(body)
+        if len(body.per_option) != body.num_choices:
+            raise HTTPException(
+                422,
+                f"{len(body.per_option)} counts for {body.num_choices} "
+                f"options. The distribution describes the ballot, so it has "
+                f"to be the same shape as the ballot.")
+        try:
+            protest = {int(code): count for code, count in body.protest.items()}
+        except ValueError:
+            raise HTTPException(422, "a protest selection is an integer")
+
+        distribution = generate.Distribution(
+            per_option={i: count for i, count in enumerate(body.per_option, 1)},
+            protest=protest,
+            abstentions=body.abstentions,
+            revotes=body.revotes,
+        )
+        try:
+            distribution.check(body.num_choices)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+
+        progress = generate.Progress(
+            election_id=election_id, total=distribution.submissions)
+        # Set before the election is authored rather than after. An
+        # election that briefly existed with no refusal in front of it is
+        # an election somebody could have reached, and one that briefly
+        # existed before its label is one somebody could have photographed.
+        deployment.populating = progress
+        try:
+            deployment.mint(
+                election_id=election_id,
+                num_choices=body.num_choices,
+                question=question,
+                options=options,
+                generated=True,
+                bits=body.bits,
+                opens=body.opens.strip(),
+                closes=body.closes.strip(),
+                tally_interval_seconds=body.tally_interval_seconds,
+                # A generated electorate is this election's own and has no
+                # business outliving it, least of all by joining a real
+                # one. Clause S8, and clause X4's reasoning: a synthetic
+                # identifier must never be mistaken for anybody.
+                keep_register=False,
+            )
+        except Exception:
+            deployment.populating = None
+            raise
+
+        def run() -> None:
+            try:
+                generate.populate(deployment, distribution, progress)
+                archive_at_close(deployment)
+            except Exception as exc:               # pragma: no cover
+                progress.error = f"{type(exc).__name__}: {exc}"
+                progress.phase = "failed"
+            finally:
+                # Only now. The record of the closed poll is written above,
+                # and an origin that started serving mid-write would serve a
+                # poll whose evidence was half there.
+                progress.finished = True
+
+        threading.Thread(target=run, name="ovpoc-populate", daemon=True).start()
+        return {"started": True, **progress.as_dict()}
+
+    @app.get("/elections/populate")
+    async def populate_progress() -> dict:
+        """How the filling is going, for the one page that can still ask."""
+        running = deployment.populating
+        if running is None:
+            return {"populating": False}
+        return {"populating": True, **running.as_dict()}
+
     @app.post("/elections/serve")
     async def serve_election(body: ServeBody) -> dict:
         """A3 again, by selection rather than by authorship.
@@ -1582,6 +1756,7 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
             raise HTTPException(
                 409, "this deployment writes nothing to disk, so there is "
                      "nothing to choose between.")
+        _not_populating()
         _may_replace()
 
         name = body.directory.strip()

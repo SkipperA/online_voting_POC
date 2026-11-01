@@ -738,9 +738,15 @@ def test_every_scope_note_names_a_kind_and_a_real_clause():
             kind_of_clause[clause.group(1)] = section
     assert len(kind_of_clause) > 10, "the clause list did not parse"
 
-    for page in sorted((root / "web").glob("*/static/index.html")):
-        name = page.parent.parent.name
-        html = page.read_text()
+    pages = sorted((root / "web").glob("*/static/index.html"))
+    # Asides are served as well as written now. Clause S8's is injected into
+    # every page of a generated election and lives in the web tree beside
+    # the tokens and the watch, for the reason those do: a surface added
+    # later cannot be added without it.
+    pages += sorted((root / "web" / "shared").glob("*.html"))
+    for page in pages:
+        name = str(page.relative_to(root))
+        html = page.read_text(encoding="utf-8")
         for note in re.finditer(r'class="note note--(\w+)"(.*?)(?:</div>|</p>)', html, re.S):
             kind, body = note.group(1), note.group(2)
             assert kind in section_of.values(), f"{name}: unknown kind {kind!r}"

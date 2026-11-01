@@ -82,6 +82,16 @@ async function refreshElections() {
   // The same rule governs both acts that replace the served election, so
   // the same answer disables both controls.
   $('mint').disabled = !body.may_replace;
+  $('generate').disabled = !body.may_replace;
+
+  // A run in progress survives the page being reloaded, so the page has to
+  // find out about one it did not start.
+  const run = await (await fetch('/elections/populate')).json();
+  if (run.populating && !run.finished) {
+    $('generate').disabled = true;
+    $('mint').disabled = true;
+    watchPopulate();
+  }
   $('elections-rows').replaceChildren(
     ...body.elections.map((e) => electionRow(e, body.may_replace)));
 }
@@ -184,9 +194,83 @@ $('set-schedule').onclick = async () => {
   $('status').textContent = 'Schedule set. The configuration digest has changed.';
 };
 
-/** The names, one per line, blanks dropped. A name may contain a comma. */
-const optionLines = () => $('mint-options').value
+/** Lines of a textarea, blanks dropped. A name may contain a comma. */
+const linesOf = (id) => $(id).value
   .split('\n').map((s) => s.trim()).filter((s) => s !== '');
+
+const optionLines = () => linesOf('mint-options');
+
+/**
+ * `-1:12, 99:3` as an object. Protest selections are recorded and never
+ * interpreted, so this parses pairs and attaches no meaning to either half.
+ */
+function parsePairs(text) {
+  const out = {};
+  for (const part of text.split(',').map((s) => s.trim()).filter(Boolean)) {
+    const [code, count] = part.split(':').map((s) => s.trim());
+    if (code === undefined || count === undefined) continue;
+    out[code] = Number(count);
+  }
+  return out;
+}
+
+let watching = false;
+
+/** Poll the run until it stops, then let the page catch up with it. */
+async function watchPopulate() {
+  if (watching) return;
+  watching = true;
+  try {
+    for (;;) {
+      const body = await (await fetch('/elections/populate')).json();
+      if (!body.populating) return;
+      if (body.finished) {
+        $('generate-progress').textContent = body.error
+          ? `Failed: ${body.error}`
+          : `Done. The answer key is at ${body.answer_key} — it is served by `
+            + 'nothing, and publishing its SHA-256 is what makes the challenge '
+            + 'settleable.';
+        await refresh();
+        return;
+      }
+      $('generate-progress').textContent =
+        `${body.phase} — ${body.done} of ${body.total}. Every other origin is `
+        + 'refusing until this finishes.';
+      await new Promise((resume) => { setTimeout(resume, 1000); });
+    }
+  } finally {
+    watching = false;
+  }
+}
+
+$('generate').onclick = async () => {
+  const names = linesOf('gen-options');
+  const counts = linesOf('gen-counts').map(Number);
+  const body = {
+    confirm: $('gen-confirm').value.trim(),
+    election_id: $('gen-id').value.trim(),
+    question: $('gen-question').value.trim() || null,
+    options: names.length ? names : null,
+    num_choices: names.length || counts.length,
+    bits: Number($('gen-bits').value),
+    per_option: counts,
+    protest: parsePairs($('gen-protest').value),
+    abstentions: Number($('gen-abstentions').value || 0),
+    revotes: Number($('gen-revotes').value || 0),
+  };
+  $('generate').disabled = true;
+  $('generate-progress').textContent = `Generating a ${body.bits}-bit modulus…`;
+  const response = await fetch('/elections/generate', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    $('generate').disabled = false;
+    $('generate-progress').textContent = (await response.json()).detail;
+    return;
+  }
+  await watchPopulate();
+};
 
 // The list is the authority whenever there is one: an operator types names
 // and the count follows them, rather than typing a number and being told by

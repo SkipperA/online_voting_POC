@@ -135,6 +135,22 @@ def _signature_validation(anchors: Path | None):
 NO_ELECTION = "no election yet"
 
 
+@dataclass(frozen=True)
+class Banner:
+    """What every page says about the election it is serving.
+
+    One object rather than a widening list of positional arguments. The
+    band takes the election positionally because a keyword with a default
+    would let the next page be added without one, and `generated` would
+    have made that argument list three long -- after which the fourth
+    property is the one somebody forgets.
+    """
+
+    name: str
+    #: Clause S8. The band says so, and `apps._page` injects the aside.
+    generated: bool = False
+
+
 @dataclass
 class Deployment:
     #: `None` until an election is authored. A process that starts against
@@ -194,6 +210,16 @@ class Deployment:
     manual_release: bool = False
     held_requests: dict[str, object] = field(default_factory=dict)
 
+    #: Set while the server is filling a generated election, and left in
+    #: place afterwards so the console can report how it went. Every origin
+    #: but the console refuses throughout: a half-populated poll is a poll
+    #: nobody should see, least of all a voter who could add a ballot to it.
+    #: A *finished* report is cleared by either act that replaces the
+    #: election, since it would otherwise describe a poll no longer served.
+    #: A run still going is not: it spans the mint that started it, because
+    #: generating an election is one act that authors it and then fills it.
+    populating: object | None = None
+
     # Wallet personas. A real wallet holds one citizen's key in hardware it
     # never leaves; this holds several in memory so one machine can play a
     # whole electorate. Clause S1 in `docs/Demo_Scope_Limits.md` -- the
@@ -216,6 +242,14 @@ class Deployment:
     def election_name(self) -> str:
         """What the band prints. Never raises, because the band never may."""
         return NO_ELECTION if self.config is None else self.config.election_id
+
+    @property
+    def banner(self) -> Banner:
+        """Everything a page says about the election, in one object."""
+        return Banner(
+            name=self.election_name,
+            generated=self.config is not None and self.config.generated,
+        )
 
     @classmethod
     def unfurnished(
@@ -280,6 +314,10 @@ class Deployment:
         # the published configuration and stop there.
         question: str | None = None,
         options: Sequence[str] | None = None,
+        # Clause S8, and a parameter rather than something the generator
+        # sets afterwards: an election that was briefly unlabelled is an
+        # election somebody could have photographed unlabelled.
+        generated: bool = False,
         bits: int = DEFAULT_BITS,
         tally_interval_seconds: int | None = None,
         opens: str = DEFAULT_OPENS,
@@ -317,6 +355,7 @@ class Deployment:
             closes=closes,
             question=question,
             options=options,
+            generated=generated,
         )
         config.write(document_root)
         return cls(
@@ -369,6 +408,7 @@ class Deployment:
         num_choices: int,
         question: str | None = None,
         options: Sequence[str] | None = None,
+        generated: bool = False,
         bits: int,
         opens: str,
         closes: str,
@@ -420,6 +460,7 @@ class Deployment:
             num_choices=num_choices,
             question=question,
             options=options,
+            generated=generated,
             bits=bits,
             tally_interval_seconds=tally_interval_seconds,
             opens=opens,
@@ -454,6 +495,14 @@ class Deployment:
         self.population = fresh.population
         self.wallets = fresh.wallets
         self.minted_at = fresh.minted_at
+        # Cleared only when it is over. A finished report describes a poll
+        # that is no longer served and would be a plain lie over this one.
+        # A run still in progress *spans* this mint, because generating an
+        # election is one act that authors it and then fills it -- and
+        # clearing a live run here would take the refusal off every other
+        # origin halfway through, which is the one thing it is for.
+        if getattr(self.populating, "finished", True):
+            self.populating = None
         # Nothing the old poll was in the middle of survives into the new
         # one: a held request and an uncollected reply both name a key that
         # no longer certifies anything.
@@ -496,6 +545,7 @@ class Deployment:
             # sees.
             question=self.config.question,
             options=self.config.options,
+            generated=self.config.generated,
             # Carried rather than stamped here. `save` runs on every
             # enrolment, so a time taken at save time would be the time of
             # the last change and never the time of authorship.
@@ -583,6 +633,7 @@ class Deployment:
             closes=body["closes"],
             question=body["question"],
             options=body["options"],
+            generated=body["generated"],
         )
         config.write(document_root)
         if poll.exists():
@@ -677,6 +728,7 @@ class Deployment:
         self.population = fresh.population
         self.wallets = fresh.wallets
         self.minted_at = fresh.minted_at
+        self.populating = None
         self.held_requests = {}
         self.token_replies = {}
         self.data_folder = folder

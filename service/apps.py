@@ -29,7 +29,7 @@ from .api import setup_app as setup_api
 from .api import supervisor_app as supervisor_api
 from .api import verification_endpoints
 from .api import wallet_app as wallet_api
-from .state import Deployment
+from .state import Banner, Deployment
 
 WEB = Path(__file__).resolve().parents[1] / "web"
 VOTER_APP_STATIC = WEB / "voter-app" / "static"
@@ -43,9 +43,15 @@ UPLOAD_STATIC = WEB / "upload" / "static"
 BOX_STATIC = WEB / "box" / "static"
 TOKENS = WEB / "shared" / "tokens.css"
 CONFIG_WATCH = WEB / "shared" / "config-watch.js"
+#: Clause S8, as an aside rather than as a sentence in the band.
+#: In the web tree like the tokens and the watch, because it is
+#: one of the things a page is made of -- and because the two
+#: tests that keep the screen and `Demo_Scope_Limits.md` from
+#: drifting read the web tree.
+GENERATED_NOTE = WEB / "shared" / "generated.html"
 
 
-def _page(path: Path, origin: origins.Origin, election: str,
+def _page(path: Path, origin: origins.Origin, banner: Banner,
           **substitutions: str) -> str:
     """One page, with the shared tokens and this origin's own hue in it.
 
@@ -62,7 +68,7 @@ def _page(path: Path, origin: origins.Origin, election: str,
     Read per request, like every other static artefact here, so editing the
     tokens needs no restart.
 
-    `election` is positional and required, and that is the whole of what
+    `banner` is positional and required, and that is the whole of what
     keeps it on every surface. A keyword with a default would let a page
     added later be added without one, which is the argument the band
     already makes for itself; a parameter that cannot be omitted makes it
@@ -71,6 +77,12 @@ def _page(path: Path, origin: origins.Origin, election: str,
     mint a new election while the process runs -- a name captured when the
     application was built would go on naming an election that no longer
     exists.
+
+    A generated election also carries clause S8's aside, injected here and
+    not written into any page. That is what makes it impossible to serve
+    one unlabelled: a surface added later cannot be added without it, the
+    same property the band and the staleness watch have, and the label
+    follows the configuration rather than anybody's memory.
 
     `substitutions` are the literal `data-*=""` attributes the pages carry for
     their neighbours' addresses. They stay literal and stay on `<body>`: the
@@ -94,8 +106,11 @@ def _page(path: Path, origin: origins.Origin, election: str,
 
     opening = re.match(r"(?s).*?(<body[^>]*>)", html)
     assert opening is not None, f"{path.name}: no body tag to put the band in"
+    head_of_body = _band(origin, banner)
+    if banner.generated:
+        head_of_body += GENERATED_NOTE.read_text(encoding="utf-8")
     return html.replace(
-        opening.group(1), opening.group(1) + _band(origin, election), 1)
+        opening.group(1), opening.group(1) + head_of_body, 1)
 
 
 def _palette(origin: origins.Origin) -> str:
@@ -153,7 +168,7 @@ def _watch(origin: origins.Origin) -> str:
     )
 
 
-def _band(origin: origins.Origin, election: str) -> str:
+def _band(origin: origins.Origin, banner: Banner) -> str:
     """The one element every surface carries in the same place.
 
     Eight pages that look alike make the separation between them a claim in
@@ -192,10 +207,18 @@ def _band(origin: origins.Origin, election: str) -> str:
     standing = "trust domain" if origin.trust_domain else "not a trust domain"
     where = origin.family or "infrastructure"
     plain = "" if origin.hue is not None else " origin--plain"
+    # Clause S8 in the band as well as in the aside below it, and in the
+    # band because that is what a photograph of a screen carries. A room
+    # outlives itself in somebody's camera roll, and an unlabelled picture
+    # of a published result is the one artefact that cannot be corrected
+    # afterwards.
+    mark = ('<span class="origin-generated">generated — no human chose '
+            'these votes</span>') if banner.generated else ""
     return (
         f'<header class="origin{plain}">'
         f"<b>{origin.title}</b>"
-        f'<span class="origin-election">{escape(election)}</span>'
+        f'<span class="origin-election">{escape(banner.name)}</span>'
+        f"{mark}"
         f'<span class="origin-family">{where}</span>'
         f'<span class="origin-standing">{standing}</span>'
         f'<span class="origin-at">{origin.url}</span>'
@@ -279,7 +302,7 @@ def config_app(deployment: Deployment) -> FastAPI:
     async def index() -> HTMLResponse:
         return HTMLResponse(
             _page(INDEX_STATIC / "index.html", origins.CONFIG,
-                  deployment.election_name,
+                  deployment.banner,
                   revision=build.REVISION).replace(
                 'data-origins=""', f"data-origins='{origin_table}'"
             )
@@ -341,7 +364,7 @@ def voter_app(deployment: Deployment) -> FastAPI:
                 status_code=503,
             )
         return HTMLResponse(_page(
-            index, origins.VOTER_APP, deployment.election_name,
+            index, origins.VOTER_APP, deployment.banner,
             config_origin=origins.CONFIG.url,
             vro_origin=origins.VRO.url,
             ebb_origin=origins.EBB.url,
@@ -367,7 +390,7 @@ def wallet_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(
-            _page(index, origins.WALLET, deployment.election_name,
+            _page(index, origins.WALLET, deployment.banner,
                   config_origin=origins.CONFIG.url)
         )
 
@@ -389,7 +412,7 @@ def supervisor_console(deployment: Deployment) -> FastAPI:
     async def page() -> HTMLResponse:
         return HTMLResponse(
             _page(SUPERVISOR_STATIC / "index.html", origins.SUPERVISOR,
-                  deployment.election_name,
+                  deployment.banner,
                   config_origin=origins.CONFIG.url)
         )
 
@@ -408,7 +431,7 @@ def setup_console(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(_page(SETUP_STATIC / "index.html", origins.SETUP,
-                                  deployment.election_name))
+                                  deployment.banner))
 
     @app.get("/setup.js")
     async def script() -> Response:
@@ -430,7 +453,7 @@ def ebb_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(_page(BOX_STATIC / "index.html", origins.EBB,
-                                  deployment.election_name,
+                                  deployment.banner,
                                   config_origin=origins.CONFIG.url))
 
     @app.get("/box.js")
@@ -455,7 +478,7 @@ def vro_app(deployment: Deployment) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     async def page() -> HTMLResponse:
         return HTMLResponse(_page(OFFICE_STATIC / "index.html", origins.VRO,
-                                  deployment.election_name))
+                                  deployment.banner))
 
     @app.get("/office.js")
     async def script() -> Response:
@@ -472,7 +495,7 @@ def vro_app(deployment: Deployment) -> FastAPI:
     async def upload_page() -> HTMLResponse:
         return HTMLResponse(
             _page(UPLOAD_STATIC / "index.html", origins.VRO,
-                  deployment.election_name,
+                  deployment.banner,
                   vro_origin=origins.VRO.url))
 
     @app.get("/upload.js")
@@ -498,7 +521,7 @@ def checker_app(deployment: Deployment) -> FastAPI:
     async def page() -> HTMLResponse:
         return HTMLResponse(
             _page(CHECKER_STATIC / "index.html", origins.CHECKER,
-                  deployment.election_name,
+                  deployment.banner,
                   vro_origin=origins.VRO.url,
                   ebb_origin=origins.EBB.url,
                   config_origin=origins.CONFIG.url)
@@ -534,8 +557,18 @@ def stub_app(origin: origins.Origin) -> FastAPI:
     return app
 
 
-def _refuse_until_an_election_exists(app: FastAPI, deployment: Deployment) -> None:
-    """Shut every origin but the console while nothing has been authored.
+def _refuse_while_there_is_nothing_to_serve(app: FastAPI,
+                                            deployment: Deployment) -> None:
+    """Shut every origin but the console while there is nothing to serve.
+
+    Two states, one answer. A deployment with **no election** holds no
+    keys, no register and no configuration. A deployment **filling a
+    generated election** holds a poll that is half a poll: the office is
+    issuing tokens and the box is taking ballots, in a thread, and the one
+    thing nobody may do meanwhile is look at it or add to it. A voter who
+    reached the box mid-run would put a human ballot into an election whose
+    label says no human chose any of it, which is the one way clause S8
+    could be made false by the system itself.
 
     A deployment with no election holds no keys, no register and no
     configuration, and the surfaces that would read them must not try. This
@@ -554,21 +587,37 @@ def _refuse_until_an_election_exists(app: FastAPI, deployment: Deployment) -> No
     rather than a JSON object; anything else gets JSON, which is what the
     pages' own `fetch` calls are written against.
     """
-    reason = (
+    NOTHING_AUTHORED = (
         "no election has been authored on this deployment yet. The setup "
         f"console at {origins.SETUP.url} mints the first one, and every "
         "other origin refuses until it has."
     )
 
+    def _why_closed() -> tuple[str, str] | None:
+        """A title and a sentence, or `None` when this origin may serve."""
+        running = deployment.populating
+        if running is not None and not getattr(running, "finished", False):
+            return ("Being populated", (
+                f"a generated election is being filled on this deployment: "
+                f"{running.phase}, {running.done} of {running.total}. Every "
+                f"origin but the setup console refuses until the record is "
+                f"written, so that nothing partial is ever served and no "
+                f"ballot anybody cast by hand can reach it."))
+        if not deployment.served:
+            return ("No election yet", NOTHING_AUTHORED)
+        return None
+
     @app.middleware("http")
-    async def closed_until_authored(request, call_next):
-        if deployment.served or request.url.path == "/health":
+    async def closed_until_there_is_something(request, call_next):
+        closed = None if request.url.path == "/health" else _why_closed()
+        if closed is None:
             return await call_next(request)
+        title, reason = closed
         if "text/html" in request.headers.get("accept", ""):
             return HTMLResponse(
                 f"<!doctype html><meta charset=utf-8>"
-                f"<title>No election yet</title>"
-                f"<h1>No election yet</h1><p>{reason}</p>",
+                f"<title>{title}</title>"
+                f"<h1>{title}</h1><p>{reason}</p>",
                 status_code=503)
         return JSONResponse({"served": False, "why": reason}, status_code=503)
 
@@ -593,5 +642,5 @@ def build_all(deployment: Deployment) -> dict[origins.Origin, FastAPI]:
     # adding an origin cannot quietly add a second.
     for origin, app in apps.items():
         if origin is not origins.SETUP:
-            _refuse_until_an_election_exists(app, deployment)
+            _refuse_while_there_is_nothing_to_serve(app, deployment)
     return apps
