@@ -65,7 +65,7 @@ async function serveElection(directory) {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ directory }),
   });
-  if (!response.ok) { $('status').textContent = (await response.json()).detail; return; }
+  if (!response.ok) { $('status').textContent = await problem(response); return; }
   const served = await response.json();
   await refresh();
   $('status').textContent = `Now serving ${served.election_id}. Every page `
@@ -166,7 +166,7 @@ $('enrol').onclick = async () => {
   });
   $('voter').value = '';
   $('enrol').disabled = false;
-  if (!response.ok) { $('status').textContent = 'Enrolment failed.'; return; }
+  if (!response.ok) { $('status').textContent = await problem(response); return; }
   await refresh();
 };
 
@@ -177,7 +177,7 @@ $('set-interval').onclick = async () => {
     body: JSON.stringify({ seconds: raw === '' ? null : Number(raw) }),
   });
   if (!response.ok) {
-    $('status').textContent = (await response.json()).detail;
+    $('status').textContent = await problem(response);
     return;
   }
   await refresh();
@@ -189,10 +189,39 @@ $('set-schedule').onclick = async () => {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ opens: $('opens').value, closes: $('closes').value }),
   });
-  if (!response.ok) { $('status').textContent = (await response.json()).detail; return; }
+  if (!response.ok) { $('status').textContent = await problem(response); return; }
   await refresh();
   $('status').textContent = 'Schedule set. The configuration digest has changed.';
 };
+
+/**
+ * What went wrong, as a sentence.
+ *
+ * An endpoint of ours answers `detail` with a sentence in it. FastAPI's own
+ * validation layer answers `detail` with a *list* of objects, one per field
+ * it could not read -- and a page that assumed the first shape printed
+ * `[object Object]`, which is worse than no message at all: it says
+ * something failed and nothing whatever about what. Both shapes are read
+ * here, and anything else is shown raw rather than swallowed.
+ */
+async function problem(response) {
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    return `${response.status} ${response.statusText}`;
+  }
+  const detail = body && body.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((item) => {
+      const field = Array.isArray(item.loc)
+        ? item.loc.filter((part) => part !== 'body').join('.') : '';
+      return field ? `${field}: ${item.msg}` : String(item.msg);
+    }).join('; ');
+  }
+  return JSON.stringify(body);
+}
 
 /** Lines of a textarea, blanks dropped. A name may contain a comma. */
 const linesOf = (id) => $(id).value
@@ -201,15 +230,41 @@ const linesOf = (id) => $(id).value
 const optionLines = () => linesOf('mint-options');
 
 /**
+ * Counts, however they were typed: one per line, or commas, or spaces.
+ *
+ * Forgiving about the separator and strict about the value. A count that
+ * is not a whole number used to reach the server as `null`, where it was
+ * refused by a validation layer whose answer this page could not read --
+ * so the one thing that would have said what was wrong was the thing that
+ * broke. It is refused here instead, naming what it could not read.
+ */
+function countsOf(id) {
+  const tokens = $(id).value.split(/[\s,]+/).filter(Boolean);
+  const unreadable = tokens.filter((token) => !/^\d+$/.test(token));
+  if (unreadable.length) {
+    throw new Error(
+      `not a count: ${unreadable.join(', ')} — one whole number per option, `
+      + 'separated by commas, spaces or line breaks');
+  }
+  return tokens.map(Number);
+}
+
+/**
  * `-1:12, 99:3` as an object. Protest selections are recorded and never
- * interpreted, so this parses pairs and attaches no meaning to either half.
+ * interpreted, so this parses pairs and attaches no meaning to either half
+ * -- but it does insist they are pairs, rather than quietly sending `NaN`
+ * for anything it could not read.
  */
 function parsePairs(text) {
   const out = {};
   for (const part of text.split(',').map((s) => s.trim()).filter(Boolean)) {
-    const [code, count] = part.split(':').map((s) => s.trim());
-    if (code === undefined || count === undefined) continue;
-    out[code] = Number(count);
+    const pair = /^(-?\d+)\s*:\s*(\d+)$/.exec(part);
+    if (!pair) {
+      throw new Error(
+        `"${part}" is not a protest selection — write them as code:count, `
+        + 'for example -1:12, 99:3');
+    }
+    out[pair[1]] = Number(pair[2]);
   }
   return out;
 }
@@ -244,20 +299,31 @@ async function watchPopulate() {
 }
 
 $('generate').onclick = async () => {
-  const names = linesOf('gen-options');
-  const counts = linesOf('gen-counts').map(Number);
-  const body = {
-    confirm: $('gen-confirm').value.trim(),
-    election_id: $('gen-id').value.trim(),
-    question: $('gen-question').value.trim() || null,
-    options: names.length ? names : null,
-    num_choices: names.length || counts.length,
-    bits: Number($('gen-bits').value),
-    per_option: counts,
-    protest: parsePairs($('gen-protest').value),
-    abstentions: Number($('gen-abstentions').value || 0),
-    revotes: Number($('gen-revotes').value || 0),
-  };
+  let body;
+  try {
+    const names = linesOf('gen-options');
+    const counts = countsOf('gen-counts');
+    if (names.length && counts.length !== names.length) {
+      throw new Error(
+        `${counts.length} counts for ${names.length} options — the `
+        + 'distribution has to be the same shape as the ballot');
+    }
+    body = {
+      confirm: $('gen-confirm').value.trim(),
+      election_id: $('gen-id').value.trim(),
+      question: $('gen-question').value.trim() || null,
+      options: names.length ? names : null,
+      num_choices: names.length || counts.length,
+      bits: Number($('gen-bits').value),
+      per_option: counts,
+      protest: parsePairs($('gen-protest').value),
+      abstentions: Number($('gen-abstentions').value || 0),
+      revotes: Number($('gen-revotes').value || 0),
+    };
+  } catch (badInput) {
+    $('generate-progress').textContent = badInput.message;
+    return;
+  }
   $('generate').disabled = true;
   $('generate-progress').textContent = `Generating a ${body.bits}-bit modulus…`;
   const response = await fetch('/elections/generate', {
@@ -266,7 +332,7 @@ $('generate').onclick = async () => {
   });
   if (!response.ok) {
     $('generate').disabled = false;
-    $('generate-progress').textContent = (await response.json()).detail;
+    $('generate-progress').textContent = await problem(response);
     return;
   }
   await watchPopulate();
@@ -304,7 +370,7 @@ $('mint').onclick = async () => {
     body: JSON.stringify(body),
   });
   $('mint').disabled = false;
-  if (!response.ok) { $('status').textContent = (await response.json()).detail; return; }
+  if (!response.ok) { $('status').textContent = await problem(response); return; }
   const minted = await response.json();
   $('mint-confirm').value = '';
   $('mint-question').value = ''; $('mint-options').value = '';

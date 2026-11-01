@@ -365,3 +365,76 @@ def test_generating_is_refused_while_the_current_poll_has_no_record(deployment):
     response = console.post("/elections/generate", json=request_body())
     assert response.status_code == 409
     assert "has not been opened" in response.json()["detail"]
+
+
+# -- what a refusal looks like to the page --------------------------------
+
+@pytest.fixture
+def ready(deployment):
+    """A console whose current election has left a record, so it may act."""
+    deployment.ebb.open()
+    deployment.ebb.close()
+    return TestClient(build_all(deployment)[origins.SETUP])
+
+
+@pytest.mark.parametrize("change, fragment", [
+    ({"confirm": "wrong"}, "confirm must be"),
+    ({"election_id": "  "}, "needs an identifier"),
+    ({"bits": 1024}, "2048 bits is the floor"),
+    ({"per_option": [6, 4, 2]}, "3 counts for 2 options"),
+    ({"protest": {"nought": 1}}, "is an integer"),
+    ({"protest": {"1": 3}}, "not a protest selection"),
+    ({"per_option": [0, 0], "protest": {}}, "demonstrates nothing"),
+    ({"revotes": 99}, "among 11 who cast"),
+])
+def test_every_refusal_this_endpoint_writes_is_a_sentence(ready, change, fragment):
+    """Because a page can print a sentence and nothing else.
+
+    The console shows whatever came back under the button that was
+    pressed. Our own refusals are written to be read there, so each one is
+    a string with the reason in it -- and the test is the pair of the one
+    below, which pins the *other* shape a rejection can take.
+    """
+    response = ready.post("/elections/generate", json=request_body(**change))
+    assert response.status_code in (409, 422), response.text
+    detail = response.json()["detail"]
+    assert isinstance(detail, str), f"a page would print this as [object Object]: {detail}"
+    assert fragment in detail
+
+
+def test_a_field_the_server_cannot_read_is_refused_as_a_list(ready):
+    """The shape that broke the console, pinned so it stays known.
+
+    A count that is not a whole number reaches the server as `null`, and
+    FastAPI's validation layer answers `detail` with a *list* of objects --
+    one per field it could not read. The console assumed a sentence and
+    printed `[object Object]`, which says something failed and nothing
+    about what. `setup.js:problem` reads both shapes now, and this is why
+    it has to.
+    """
+    response = ready.post(
+        "/elections/generate", json=request_body(per_option=[None, 4]))
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert isinstance(detail, list) and detail
+    assert "per_option" in detail[0]["loc"]
+
+
+def test_the_console_never_prints_a_rejection_it_has_not_read():
+    """A grep, and a narrow one: the exact line that caused it.
+
+    `(await response.json()).detail` assigned straight to `textContent` is
+    what put `[object Object]` on the page. There is no test runner for the
+    browser code, so this is the tripwire available -- in the same spirit
+    as `tests/test_native_sources.py`, which greps Swift for an API that
+    must not appear.
+    """
+    from pathlib import Path
+
+    console = (Path(__file__).resolve().parents[1]
+               / "web" / "setup" / "static" / "setup.js").read_text(encoding="utf-8")
+    assert ").detail" not in console, (
+        "a rejection is being printed without being read: FastAPI answers "
+        "`detail` with a list of objects when it cannot read a field, and "
+        "that renders as [object Object]. Route it through `problem`.")
+    assert "async function problem(response)" in console
