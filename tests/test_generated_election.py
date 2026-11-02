@@ -183,6 +183,47 @@ def test_the_generated_electorate_does_not_outlive_its_election(deployment):
     assert deployment.vro.register == set()
 
 
+def test_each_phase_counts_against_its_own_total(deployment):
+    """The figure an operator watches for the length of the run.
+
+    Enrolling and issuing count citizens; casting counts submissions. The
+    two differ by the abstentions and the re-votes, so a single total
+    across the run is wrong for at least one phase — and it was wrong for
+    the long one. Issuing reported progress towards the number of
+    *submissions* and never ticked at all, so a nine-minute run showed
+    `0 of 10004` throughout and then raced to the end, which an operator
+    reads as the thing having stalled.
+    """
+    assert PLAN.citizens != PLAN.submissions, (
+        "this test cannot tell the two totals apart unless they differ")
+
+    progress = Progress(election_id="counting-2026")
+    seen: list[list] = []
+    started = progress.begin
+
+    def record(phase, total=0):
+        if seen:
+            seen[-1][2] = progress.done      # what the phase just ended on
+        seen.append([phase, total, 0])
+        started(phase, total)
+
+    progress.begin = record                  # shadows the method on this one
+    generate.populate(deployment, PLAN, progress)
+    seen[-1][2] = progress.done
+
+    asked = {phase: total for phase, total, _ in seen}
+    reached = {phase: done for phase, _, done in seen}
+
+    assert asked["enrolling"] == PLAN.citizens
+    assert asked["issuing tokens"] == PLAN.citizens
+    assert asked["casting ballots"] == PLAN.submissions
+    # And each one got there, which is the half that was missing: a total
+    # nothing counts towards is a progress figure that never moves.
+    assert reached["enrolling"] == PLAN.citizens
+    assert reached["issuing tokens"] == PLAN.citizens
+    assert reached["casting ballots"] == PLAN.submissions
+
+
 # -- the answer key --------------------------------------------------------
 
 def test_the_answer_key_is_outside_every_election_directory(filled):

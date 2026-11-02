@@ -163,12 +163,32 @@ class Progress:
     """
 
     election_id: str
-    total: int
-    done: int = 0
     phase: str = "starting"
+    done: int = 0
+    #: What this *phase* is counting, which is not one figure for the run.
+    #: Enrolling and issuing count citizens; casting counts submissions,
+    #: and the two differ by the abstentions and the re-votes. Reporting
+    #: one total throughout was wrong for at least one phase and was: the
+    #: issuing phase counted towards the number of submissions, which is
+    #: somebody else's figure, and reached it never.
+    total: int = 0
     finished: bool = False
     error: str | None = None
     answer_key: str | None = None
+
+    def begin(self, phase: str, total: int = 0) -> None:
+        """Start a phase, with its own count from nought.
+
+        Worth a method rather than two assignments at each site, because
+        the fault this replaces was a count that did not start again: the
+        run reported `0 of 10004` for the nine tenths of itself that the
+        blind signatures take, and then raced to the end. A progress
+        figure that is wrong for most of the run is worse than none, since
+        an operator reads it as the thing having stalled.
+        """
+        self.phase = phase
+        self.done = 0
+        self.total = total
 
     def as_dict(self) -> dict:
         return {
@@ -184,7 +204,8 @@ class Progress:
         }
 
 
-def _enrol_quietly(deployment, voter_ids: list[str]) -> None:
+def _enrol_quietly(deployment, voter_ids: list[str],
+                   progress: "Progress") -> None:
     """The whole electorate, then one save.
 
     Not `Deployment.enrol`, which writes the store on every citizen: that
@@ -193,6 +214,7 @@ def _enrol_quietly(deployment, voter_ids: list[str]) -> None:
     already there.
     """
     for voter_id in voter_ids:
+        progress.done += 1
         wallet = keys.SigningKeyPair.generate()
         deployment.wallets[voter_id] = wallet
         deployment.population.enrol(voter_id, wallet.public_bytes)
@@ -249,19 +271,18 @@ def populate(deployment, distribution: Distribution,
     """
     distribution.check(deployment.ebb.num_choices)
     draw = secrets.SystemRandom()
-    progress = progress or Progress(deployment.config.election_id,
-                                    total=distribution.submissions)
+    progress = progress or Progress(deployment.config.election_id)
 
     citizens = identifiers(distribution.citizens)
-    progress.phase = "enrolling"
-    _enrol_quietly(deployment, citizens)
+    progress.begin("enrolling", distribution.citizens)
+    _enrol_quietly(deployment, citizens, progress)
 
     deployment.ebb.open()
 
     # Phase one: every token, in an order of its own. The office learns
     # who asked and when relative to the others, and that order is what
     # the release register publishes.
-    progress.phase = "issuing tokens"
+    progress.begin("issuing tokens", distribution.citizens)
     fingerprint = rsabssa.public_key_fingerprint(deployment.vro.public_key)
     issuance = list(citizens)
     draw.shuffle(issuance)
@@ -275,6 +296,7 @@ def populate(deployment, distribution: Distribution,
                 f"the office refused a generated request: {response.outcome.name}")
         voter.accept_token(response.blind_signature)
         voters[voter_id] = voter
+        progress.done += 1
 
     # Who abstains, and what everybody else ends up choosing -- drawn
     # independently of where anyone sat in the order above. A target
@@ -292,7 +314,7 @@ def populate(deployment, distribution: Distribution,
     # the first. A re-voter appears twice; whichever of their entries falls
     # later carries the selection that counts, so supersession is produced
     # by the order rather than imposed on it.
-    progress.phase = "casting ballots"
+    progress.begin("casting ballots", distribution.submissions)
     events = list(casting)
     events.extend(draw.sample(casting, distribution.revotes))
     draw.shuffle(events)
@@ -307,7 +329,7 @@ def populate(deployment, distribution: Distribution,
                 f"the box refused a generated ballot: {result.reason}")
         progress.done += 1
 
-    progress.phase = "closing"
+    progress.begin("closing")
     deployment.ebb.close()
 
     answer = _write_answer_key(deployment, {
@@ -319,5 +341,5 @@ def populate(deployment, distribution: Distribution,
     # record of the closed poll is written after this returns, and an origin
     # that started serving while those files were still being written would
     # be serving a poll whose evidence was half there.
-    progress.phase = "writing the record"
+    progress.begin("writing the record")
     return answer

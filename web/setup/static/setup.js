@@ -288,9 +288,15 @@ async function watchPopulate() {
         await refresh();
         return;
       }
+      // A phase with nothing to count says only what it is doing. Closing
+      // and writing the record are two such, and `0 of 0` would read as a
+      // run that had stalled.
+      const counted = body.total
+        ? ` — ${body.done.toLocaleString()} of ${body.total.toLocaleString()}`
+        : '';
       $('generate-progress').textContent =
-        `${body.phase} — ${body.done} of ${body.total}. Every other origin is `
-        + 'refusing until this finishes.';
+        `${body.phase}${counted}. Every other origin is refusing until this `
+        + 'finishes.';
       await new Promise((resume) => { setTimeout(resume, 1000); });
     }
   } finally {

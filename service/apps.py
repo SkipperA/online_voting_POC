@@ -597,12 +597,14 @@ def _refuse_while_there_is_nothing_to_serve(app: FastAPI,
         """A title and a sentence, or `None` when this origin may serve."""
         running = deployment.populating
         if running is not None and not getattr(running, "finished", False):
+            counted = (f", {running.done} of {running.total}"
+                       if running.total else "")
             return ("Being populated", (
                 f"a generated election is being filled on this deployment: "
-                f"{running.phase}, {running.done} of {running.total}. Every "
-                f"origin but the setup console refuses until the record is "
-                f"written, so that nothing partial is ever served and no "
-                f"ballot anybody cast by hand can reach it."))
+                f"{running.phase}{counted}. Every origin but the setup "
+                f"console refuses until the record is written, so that "
+                f"nothing partial is ever served and no ballot anybody cast "
+                f"by hand can reach it."))
         if not deployment.served:
             return ("No election yet", NOTHING_AUTHORED)
         return None

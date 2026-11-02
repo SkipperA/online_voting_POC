@@ -1433,9 +1433,10 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         if running is not None and not running.finished:
             raise HTTPException(
                 409,
-                f"a generated election is being filled: {running.phase}, "
-                f"{running.done} of {running.total}. Nothing else may be "
-                f"authored until it is done.")
+                f"a generated election is being filled: {running.phase}"
+                + (f", {running.done} of {running.total}" if running.total
+                   else "")
+                + ". Nothing else may be authored until it is done.")
 
     def _why_not_replace() -> str | None:
         """Why the served election may not be put aside right now.
@@ -1688,8 +1689,10 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(422, str(exc))
 
-        progress = generate.Progress(
-            election_id=election_id, total=distribution.submissions)
+        # No total here: each phase sets its own, because they count
+        # different things and one figure across the run is wrong for at
+        # least one of them.
+        progress = generate.Progress(election_id=election_id)
         # Set before the election is authored rather than after. An
         # election that briefly existed with no refusal in front of it is
         # an election somebody could have reached, and one that briefly
