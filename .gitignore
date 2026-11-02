@@ -13,9 +13,13 @@ interop/lib/
 web/voter-app/static/bundle.js
 
 # Swift. `.build` is the package's own output. The Xcode projects are not
-# committed on purpose -- `ios/README.md` has the five steps that create
-# them, because a generated `pbxproj` is several hundred lines nobody
-# reviews and no test covers.
+# committed on purpose -- `ios/README.md` has the steps that create them,
+# because a generated `pbxproj` is several hundred lines nobody reviews
+# and no test covers. The two `Info.plist` files **are** committed, and
+# deliberately: a plist is one application telling the system what another
+# may hand it, which is a protocol statement rather than build mechanics,
+# and leaving it generated made the URL registration an instruction in a
+# README that failed silently when it was skipped.
 ios/**/.build/
 ios/**/*.xcodeproj/
 ios/**/*.xcworkspace/

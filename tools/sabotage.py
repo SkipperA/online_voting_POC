@@ -623,6 +623,41 @@ MUTATIONS = [
         replace='    public static let walletScheme = "ovpoc-wallet-v2"  // SABOTAGE',
     ),
     Mutation(
+        name="wallet_url_scheme_unregistered",
+        what=(
+            "The wallet claims a different URL scheme from the one the "
+            "voting application opens, so the hand-off finds nobody and "
+            "does nothing at all."
+        ),
+        path="ios/WalletApp/Info.plist",
+        find="\t\t\t\t<string>ovpoc-wallet</string>",
+        replace="\t\t\t\t<string>ovpoc-wallet-old</string>",
+    ),
+    Mutation(
+        name="voting_application_offers_itself_for_documents",
+        what=(
+            "The voting application declares a document type, which puts "
+            "it in the share sheet for the signed token request -- the "
+            "one file it must never receive. No code required."
+        ),
+        path="ios/VoterApp/Info.plist",
+        find="\t<key>UIFileSharingEnabled</key>",
+        replace=(
+            "\t<key>CFBundleDocumentTypes</key>\n"
+            "\t<array>\n"
+            "\t\t<dict>\n"
+            "\t\t\t<key>CFBundleTypeRole</key>\n"
+            "\t\t\t<string>Viewer</string>\n"
+            "\t\t\t<key>LSItemContentTypes</key>\n"
+            "\t\t\t<array>\n"
+            "\t\t\t\t<string>com.adobe.pdf</string>\n"
+            "\t\t\t</array>\n"
+            "\t\t</dict>\n"
+            "\t</array>\n"
+            "\t<key>UIFileSharingEnabled</key>"
+        ),
+    ),
+    Mutation(
         name="hand_off_carries_the_voter_id",
         what=(
             "The hand-off to the wallet grows a field naming the voter, "

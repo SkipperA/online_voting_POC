@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The wallet's two declarations, in the repository rather than in Xcode.
+
+  Everything here is a thing one application says about what another may
+  hand it, and until now both lived only as instructions in
+  `ios/README.md`. That is the worst place for them: a URL type an
+  operator did not add fails by doing *nothing at all* — `openURL`
+  reports the refusal, the voting application now says so, and before it
+  did the symptom was a wallet that simply never appeared.
+
+  Xcode generates an `Info.plist` from build settings by default. Point
+  the target's `INFOPLIST_FILE` at this file and the generated keys
+  (display name, launch screen, versions) are merged into it, so nothing
+  is lost and these two blocks become reviewable, diffable and testable.
+  `tests/test_native_sources.py` reads this file with `plistlib` and
+  requires it to agree with `HandOff.swift`.
+
+  There is deliberately no `LSApplicationQueriesSchemes`: that key is for
+  `canOpenURL`, which asks the system which applications are installed,
+  and nothing here asks. The voting application opens the wallet and
+  learns from the attempt.
+
+  **This file sits beside the `.xcodeproj`, not among the sources, and
+  that is load-bearing.** From Xcode 16 a new project uses a
+  file-system-synchronized folder: everything inside `WalletApp/` is a
+  member of the target automatically. An `Info.plist` in there is
+  therefore also copied as a *resource*, the bundle's own `Info.plist` is
+  produced twice, and the build fails with `Multiple commands produce ...
+  Info.plist`. One level up is outside the synchronized folder and inside
+  `SRCROOT`, so `INFOPLIST_FILE` is the bare name and nothing sweeps it
+  into the resources. `test_the_info_plists_are_not_inside_the_synchronized
+  _sources` is what stops it moving back.
+-->
+<plist version="1.0">
+<dict>
+	<!--
+	  How the voting application opens this one. The scheme is
+	  `HandOff.walletScheme`, and the two must not drift: a rename in
+	  code alone leaves an application that opens a scheme nobody
+	  claims.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>hu.diw.ovpoc.wallet</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ovpoc-wallet</string>
+			</array>
+		</dict>
+	</array>
+
+	<!--
+	  And how a request reaches it the other way: as a file somebody
+	  carried, which is the browser demonstration's whole arrangement
+	  and the fallback when the hand-off finds nobody.
+
+	  `public.json` rather than an exported type of our own, because the
+	  file is `blinded-key.json` on both demonstrations and renaming it
+	  for the phone would give the two different artefacts. The cost is
+	  that this wallet offers itself for any JSON file on the device;
+	  that is honest, since what it does with one is read it and refuse
+	  it by name, which is the screen's purpose.
+
+	  `Alternate` rather than `Owner`: this application did not create
+	  the file and has no claim to every JSON on the system.
+	-->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Token request</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.json</string>
+			</array>
+		</dict>
+	</array>
+
+	<!--
+	  So the request and the exported transcripts are reachable from the
+	  Files app, which is also what lets a cryptographer in the room take
+	  the payloads away and check them somewhere else.
+	-->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+</dict>
+</plist>

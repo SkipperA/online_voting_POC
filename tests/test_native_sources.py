@@ -546,3 +546,138 @@ def test_the_wallet_does_not_re_ask_who_it_belongs_to_on_every_launch():
     assert "func adopt(" in wallet and "loadPersonas" in wallet, (
         "the persona picker has gone, and with it the ability to "
         "demonstrate more than one citizen from one phone")
+
+
+# --------------------------------------------------------------------------
+# What each application declares to the operating system
+# --------------------------------------------------------------------------
+
+def _info_plist(target: str) -> dict:
+    """The target's committed `Info.plist`, parsed.
+
+    `plistlib` is in the standard library, which is the whole reason this
+    check can exist: the suite depends on what `pyproject.toml` declares
+    and on nothing else, and a plist parser installed on one machine
+    would make this test mean something different on two.
+    """
+    import plistlib
+
+    path = NATIVE / target / "Info.plist"
+    assert path.exists(), (
+        f"{target} has no committed Info.plist. The URL type that makes "
+        "the hand-off work lives there, and a generated one leaves it as "
+        "an instruction nobody can check")
+    return plistlib.loads(path.read_bytes())
+
+
+def _schemes(plist: dict) -> set[str]:
+    return {scheme
+            for entry in plist.get("CFBundleURLTypes", [])
+            for scheme in entry.get("CFBundleURLSchemes", [])}
+
+
+def test_each_application_registers_the_scheme_the_other_opens_it_with():
+    """The check `ios/README.md` could only ask a human to perform.
+
+    A scheme nobody registered fails by doing *nothing at all*: `openURL`
+    reports the refusal to the caller and to no one else, and the symptom
+    on the device is a wallet that never appears. That is how this
+    shipped, and the reason the plists are now in the repository rather
+    than typed into a generated file Xcode owns.
+
+    What this asserts is the join: the scheme the code opens is the
+    scheme the other application claims. It is still not a mechanism --
+    nothing here can check what is installed on a phone -- but the half
+    that can be checked now is.
+    """
+    handoff = (NATIVE / "OVPOCKit" / "Sources" / "OVPOCKit"
+               / "HandOff.swift").read_text(encoding="utf-8")
+    declared = dict(re.findall(
+        r'static let (walletScheme|voterScheme)\s*=\s*"([^"]+)"', handoff))
+
+    assert declared["walletScheme"] in _schemes(_info_plist("WalletApp")), (
+        "the voting application opens a scheme the wallet does not claim")
+    assert declared["voterScheme"] in _schemes(_info_plist("VoterApp")), (
+        "the wallet opens a scheme the voting application does not claim")
+
+    # And neither claims the other's, which would have an application
+    # opening itself and the voter never seeing the office answer.
+    assert declared["voterScheme"] not in _schemes(_info_plist("WalletApp"))
+    assert declared["walletScheme"] not in _schemes(_info_plist("VoterApp"))
+
+
+def test_the_wallet_can_be_handed_the_request_as_a_file():
+    """The fallback has to be reachable, or the diagnosis is just bad news.
+
+    When the hand-off finds nobody the voting application offers to share
+    the request, and a share sheet only offers applications that declare
+    they can open that kind of file. The request is `blinded-key.json` on
+    both demonstrations -- deliberately the same artefact -- so the
+    wallet declares `public.json`.
+
+    The cost is that it offers itself for any JSON on the device. That is
+    honest: what it does with one is read it and refuse it by name, which
+    is the consent screen's entire purpose.
+    """
+    from pathlib import PurePosixPath
+
+    flow = (NATIVE / "OVPOCKit" / "Sources" / "OVPOCKit"
+            / "VoterFlow.swift").read_text(encoding="utf-8")
+    name = re.search(r'walletRequestFileName\s*=\s*"([^"]+)"', flow)
+    assert name, "the wallet route's request file is no longer named here"
+    suffix = PurePosixPath(name.group(1)).suffix
+
+    types = {uti
+             for entry in _info_plist("WalletApp").get("CFBundleDocumentTypes", [])
+             for uti in entry.get("LSItemContentTypes", [])}
+    expected = {".json": "public.json", ".pdf": "com.adobe.pdf"}.get(suffix)
+    assert expected and expected in types, (
+        f"the request is a {suffix} file and the wallet declares {types or 'nothing'}: "
+        "a share sheet will not offer the wallet, so the fallback the "
+        "voting application points at does not exist")
+
+
+def test_the_voting_application_declares_no_document_type():
+    """The inbound tripwire's other half, and the half with no picker.
+
+    `test_the_voting_application_has_no_way_to_hand_a_document_in`
+    watches the Swift for a file picker, because an Upload button needs
+    one. A `CFBundleDocumentTypes` entry needs none: it puts this
+    application in the share sheet and in *Open with* for the signed
+    document, and the voter does the rest. Same shortcut, no code.
+
+    This application holds `k_p^a` and `r` and must never learn `id`,
+    which is in the signing certificate and therefore in the signed
+    document. Clause A8.
+    """
+    plist = _info_plist("VoterApp")
+    assert not plist.get("CFBundleDocumentTypes"), (
+        "the voting application declares a document type, which offers it "
+        "in the share sheet for the signed document -- the one file it "
+        "must never receive (clause A8)")
+
+
+def test_the_info_plists_are_not_inside_the_synchronized_sources():
+    """Beside the project, never among the sources, and the build says why.
+
+    From Xcode 16 a new project uses a file-system-synchronized folder:
+    every file under `<Target>/<Target>/` belongs to the target without
+    anybody adding it. An `Info.plist` there is therefore also copied as
+    a *resource*, so the bundle's own `Info.plist` is produced twice and
+    the build fails with `Multiple commands produce ... Info.plist`.
+
+    One level up is outside that folder and still inside `SRCROOT`, so
+    `INFOPLIST_FILE` is the bare name. This is the kind of arrangement
+    that gets quietly undone by somebody tidying files toward the code
+    they describe, and the failure is a build error with no obvious
+    connection to the move.
+    """
+    for target in ("VoterApp", "WalletApp"):
+        stray = NATIVE / target / target / "Info.plist"
+        assert not stray.exists(), (
+            f"{target}'s Info.plist is inside the synchronized source "
+            "folder, where Xcode will also copy it as a resource: the "
+            "build fails with 'Multiple commands produce'. It belongs "
+            f"at ios/{target}/Info.plist, beside the project")
+        assert (NATIVE / target / "Info.plist").exists(), (
+            f"ios/{target}/Info.plist is missing")

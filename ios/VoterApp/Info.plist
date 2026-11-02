@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The voting application's one declaration, and the one it must not make.
+
+  See `ios/WalletApp/WalletApp/Info.plist` for why these are committed
+  rather than typed into Xcode: a URL type an operator did not add fails
+  by doing nothing at all.
+
+  **This file sits beside the `.xcodeproj`, not among the sources, and
+  that is load-bearing.** From Xcode 16 a new project uses a
+  file-system-synchronized folder: everything inside `VoterApp/` is a
+  member of the target automatically. An `Info.plist` in there is
+  therefore also copied as a *resource*, the bundle's own `Info.plist` is
+  produced twice, and the build fails with `Multiple commands produce ...
+  Info.plist`. One level up is outside the synchronized folder and inside
+  `SRCROOT`, so `INFOPLIST_FILE` is the bare name and nothing sweeps it
+  into the resources. `test_the_info_plists_are_not_inside_the_synchronized
+  _sources` is what stops it moving back.
+-->
+<plist version="1.0">
+<dict>
+	<!--
+	  How the wallet puts the voter back here once the office has
+	  answered. The scheme is `HandOff.voterScheme`.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>hu.diw.ovpoc.voter</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ovpoc-voter</string>
+			</array>
+		</dict>
+	</array>
+
+	<!--
+	  **There is deliberately no `CFBundleDocumentTypes` here, and that
+	  is a property rather than an omission.**
+
+	  This application holds `k_p^a` and `r`, so it is the component that
+	  must never learn `id`. On the qualified-signature route `id` is in
+	  the signing certificate and therefore in the *signed* document: the
+	  application writes the unsigned one, the voter carries it, and the
+	  voter hands the signed one to the office themselves on a page the
+	  office serves.
+
+	  A document type would put this application in the share sheet and
+	  in "Open with" for the signed document, which is how the Upload
+	  button eventually gets built — one screen, one saved step, and the
+	  whole property gone. `test_the_voting_application_has_no_way_to_hand
+	  _a_document_in` watches the Swift for a file picker; this file is
+	  the other half, because a share sheet needs no picker at all.
+	  Clause A8.
+	-->
+
+	<!--
+	  Exported transcripts reachable from the Files app, which is what
+	  lets somebody take the payloads away and check them elsewhere. It
+	  is an *outbound* arrangement: a folder the user can read, not a way
+	  for another application to hand this one a document.
+	-->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+</dict>
+</plist>
