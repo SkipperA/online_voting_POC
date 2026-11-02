@@ -36,12 +36,17 @@ struct ContentView: View {
                         Button("Open a token request") { choosingFile = true }
                     } footer: {
                         Text("On this phone the voting application hands the "
-                             + "request straight over and this wallet opens on "
-                             + "its own; in the browser it saves a file you "
-                             + "carry here, and that button is the same route "
-                             + "by hand. What never changes is this screen: an "
-                             + "application can put the question in front of "
-                             + "you, and cannot answer it. Clause A8.")
+                             + "request straight over and this wallet opens "
+                             + "on its own; in the browser it saves a file "
+                             + "you carry here, and that button is the same "
+                             + "route by hand. What never changes is this "
+                             + "screen: an application can put the question "
+                             + "in front of you, and cannot answer it. "
+                             + "Clause A8.\n\n"
+                             + "If the voting application just opened this "
+                             + "wallet and you are reading this, the request "
+                             + "did not arrive — share it over as a file and "
+                             + "use the button.")
                     }
                     
                 case .working:
@@ -134,18 +139,27 @@ struct ContentView: View {
                     break   // the picker was dismissed; not an event
                 }
             }
-            // The voting application opening this one. `HandOff.request`
-            // answers `nil` for anything that is not a request, because a
-            // URL scheme can be opened by anything on the device and a
-            // malformed one is an ordinary event rather than an alarm.
-            .onOpenURL { url in Task { await model.receive(url) } }
-            // And back, once the office has answered — but only for a
-            // request that arrived that way. `returnTo` is nil for a file
-            // the voter carried in, so this wallet does not decide where
-            // somebody who walked in goes next.
-            .onChange(of: model.returnTo) { _, destination in
-                if let destination { openURL(destination) }
-            }
+        }
+        // Outside the navigation stack, deliberately. A URL that launches
+        // the application arrives before anything inside a container view
+        // is reliably in the hierarchy, and a missed launch URL is the
+        // silent failure this whole screen exists to avoid.
+        //
+        // The voting application opening this one. `HandOff.request`
+        // answers `nil` for anything that is not a request, because a URL
+        // scheme can be opened by anything on the device and a malformed
+        // one is an ordinary event rather than an alarm.
+        .onOpenURL { url in Task { await model.receive(url) } }
+        // Whose wallet this is, remembered from last time. A real wallet
+        // does not ask on every launch, and asking is clause S1's
+        // substitution rather than a step the design has.
+        .task { await model.restoreRememberedPersona() }
+        // And back to the voting application, once the office has
+        // answered — but only for a request that arrived that way.
+        // `returnTo` is nil for a file the voter carried in, so this
+        // wallet does not decide where somebody who walked in goes next.
+        .onChange(of: model.returnTo) { _, destination in
+            if let destination { openURL(destination) }
         }
     }
     

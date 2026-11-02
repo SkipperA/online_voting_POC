@@ -59,6 +59,15 @@ fetching that citizen's private key from origin 8002 — an endpoint whose own
 docstring says a real wallet exposes no such thing. A private key crosses a
 network, which is the one sentence of this clause an audience should hear.
 
+The wallet remembers which citizen it adopted, and that is this clause
+staying within its own scope rather than a convenience. A real wallet belongs
+to one person and opens on the question being asked, never on *who are you*;
+the picker substitutes for the ownership, and re-running it on every launch
+would substitute the one-question flow as well — which the clause does not
+cover and the phone demonstration exists to show. Only the identifier is
+kept. The key is fetched again on each adoption, so nothing here caches a
+credential on the device, and the picker stays for playing another citizen.
+
 The honest version is the other one: the wallet generates its key and the
 population register records the public half, which is what §3.2 describes.
 It needs `POST /voters` to accept a supplied key, and a setup console a phone

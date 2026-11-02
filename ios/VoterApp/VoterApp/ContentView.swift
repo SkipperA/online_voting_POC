@@ -85,7 +85,16 @@ struct ContentView: View {
         // The voter still has to sign over there; what has gone is the
         // carrying, not the consent.
         .onChange(of: model.handOff) { _, url in
-            if let url { openURL(url) }
+            guard let url else { return }
+            // The completion is the whole point of using it. `openURL`
+            // reports whether *anything* on the device claimed the
+            // scheme, and reports it to nobody by default -- so a wallet
+            // that is not installed, or one whose URL type was never
+            // registered in Xcode, is a handover that silently did not
+            // happen. Told, this application can offer the file instead.
+            openURL(url) { accepted in
+                Task { @MainActor in model.handOffWasAccepted(accepted) }
+            }
         }
         // The wallet puts the voter back here when it has transmitted.
         .onOpenURL { url in
@@ -162,6 +171,31 @@ struct ContentView: View {
         case .awaitingWallet:
             switch model.route {
             case .wallet:
+                // The hand-off went nowhere. Said plainly and with the
+                // way out beside it, rather than leaving a voter looking
+                // at a screen that says the wallet should have opened.
+                if model.handOffAccepted == false {
+                    Section {
+                        if let url = model.requestFileURL {
+                            ShareLink("Send the request to the wallet", item: url)
+                        }
+                    } header: {
+                        Text("Nothing on this device opened the wallet")
+                    } footer: {
+                        Text("Either the wallet application is not installed, "
+                             + "or it is installed and did not register the "
+                             + "URL type the hand-off uses — step 5 of "
+                             + "ios/README.md, which Xcode writes into a file "
+                             + "this repository does not carry.\n\n"
+                             + "Nothing is lost. The request is unchanged and "
+                             + "the button above carries it over by hand, "
+                             + "which is exactly what the browser "
+                             + "demonstration does and what the wallet's own "
+                             + "Open button is for. Then come back and press "
+                             + "Collect.")
+                    }
+                }
+
                 Section {
                     if let outcome = model.walletOutcome {
                         LabeledContent("the office answered", value: outcome)
@@ -170,26 +204,28 @@ struct ContentView: View {
                 } header: {
                     Text("Over to the wallet")
                 } footer: {
-                    Text("The blinded key went straight to the wallet, which "
-                         + "should have opened. Sign there and you come back "
-                         + "here holding the token.\n\n"
-                         + "What crossed is the blinded key, the election and "
-                         + "its digest — the same three things the browser "
-                         + "demonstration writes into a file the voter carries. "
-                         + "It does not say who you are: the wallet adds that "
-                         + "and transmits to the office itself, so this "
-                         + "application never learns your identifier and never "
-                         + "sees your signature.\n\n"
-                         + "What it can now do, and could not before, is put "
-                         + "the signing question in front of you. It cannot "
-                         + "answer it. Clause A8.\n\n"
-                         + "If nothing opened, the wallet is not installed or "
-                         + "did not register the scheme. The request is also "
-                         + "written to this app's Documents folder, so the "
-                         + "wallet's own Open button reaches it through the "
-                         + "Files app — which is the browser's arrangement, by "
-                         + "hand. Collect is here for when the switch back "
-                         + "does not happen on its own.")
+                    Text(model.handOffAccepted == false
+                         ? "What crossed is the blinded key, the election and "
+                           + "its digest — and by the button above, it crosses "
+                           + "as a file, which is the browser's arrangement. "
+                           + "It does not say who you are: the wallet adds "
+                           + "that and transmits to the office itself. Clause "
+                           + "A8."
+                         : "The blinded key went straight to the wallet, which "
+                           + "should have opened. Sign there and you come back "
+                           + "here holding the token.\n\n"
+                           + "What crossed is the blinded key, the election "
+                           + "and its digest — the same three things the "
+                           + "browser demonstration writes into a file the "
+                           + "voter carries. It does not say who you are: the "
+                           + "wallet adds that and transmits to the office "
+                           + "itself, so this application never learns your "
+                           + "identifier and never sees your signature.\n\n"
+                           + "What it can now do, and could not before, is "
+                           + "put the signing question in front of you. It "
+                           + "cannot answer it. Clause A8.\n\n"
+                           + "Collect is here for when the switch back does "
+                           + "not happen on its own.")
                 }
 
             case .qualifiedSignature:

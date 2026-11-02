@@ -846,6 +846,31 @@ register is `VRO.register` — a set of ids, and nothing else.
   wallet that was never installed.
   `test_the_two_applications_agree_on_the_hand_off` is what keeps the three
   in step.
+
+  **So the hand-off reports whether anything accepted it.** `openURL`'s
+  completion says whether some application on the device claimed the
+  scheme, and says it to nobody by default — which left the voter looking
+  at a screen asserting the wallet should have opened, beside a wallet
+  that had not. The voting application now names the unregistered scheme
+  and offers the request as a file, because a diagnosis with no fallback
+  is only bad news. This is the office's own rule about opaque refusals,
+  on the other side of the glass: an outcome uninformative to a stranger
+  must be *more* informative to the operator, not less.
+
+  **The wallet remembers whose it is**, and that is clause S1 staying
+  inside its own scope. A real wallet opens on the question being asked,
+  never on *who are you*; the picker substitutes for the ownership, and
+  re-running it on every launch would substitute the one-question flow
+  too — which the clause does not cover and this demonstration exists to
+  show. Identifier only, in `UserDefaults`; the key is fetched again on
+  each adoption, so nothing caches a credential. The two launch paths
+  (`restoreRememberedPersona` and `receive`) are written so that either
+  order works: `receive` only ever *stores* a request when there is no
+  flow to read it with, and `adopt` drains what is stored.
+  `.onOpenURL` sits outside the `NavigationStack` for the matching
+  reason — a URL that launches the application arrives before anything
+  inside a container view is reliably in the hierarchy, and a missed
+  launch URL is the same silent failure one layer down.
 - **The voting application names the office's hand-in page and that is not
   a breach of A8.** What the clause protects is the *inbound* direction:
   the application holds `k_p^a` and `r`, so it must never see the signed

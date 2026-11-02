@@ -109,9 +109,12 @@ instead:
    not committed, so a test is the only thing that can; get a scheme wrong and
    the symptom is nothing happening at all, with no error anywhere.
 
-   Omit this step and both apps still work: the hand-off silently does
-   nothing, the voter uses *Open a token request* and *Collect the token*, and
-   what you are demonstrating is the browser's arrangement on a phone.
+   Omit this step and both apps still work, and now say so. `openURL`
+   reports whether anything on the device claimed the scheme, so the voting
+   application answers *Nothing on this device opened the wallet*, names this
+   step, and offers the request as a file — which is the browser's
+   arrangement on a phone, and a fine demonstration as long as nobody
+   believes they are seeing the other one.
 6. **Both apps allow file sharing.** In each target's `Info.plist` set
    `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace` to `YES`, so
    the request and the exported transcripts are reachable from the Files app.
@@ -151,6 +154,11 @@ laptop deployment separates the origins by port, which a phone on another
 machine cannot reach.
 
 ## Two audiences, one screen
+
+The wallet remembers which citizen it is, so a cold launch from a hand-off
+goes straight to the signing question rather than back through the picker;
+the picker is still there for playing somebody else, and clause S1 says why
+it exists at all.
 
 The policy maker taps *Enrol in election* and watches four steps complete by
 themselves — the configuration pinned, the key fingerprint compared, the

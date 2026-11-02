@@ -52,6 +52,57 @@ final class WalletModel {
     private let origins: Origins
     private let personas: any PersonaSource
 
+    /// Whose wallet this was, last time it was used.
+    ///
+    /// A real wallet does not ask who you are when it launches: it
+    /// belongs to one citizen and its key is hardware-bound to them.
+    /// Clause S1 substitutes a picker for that, and a picker re-run on
+    /// every launch substitutes *two* things -- the ownership and the
+    /// one-question flow -- where the clause only covers the first. So
+    /// the choice is remembered and the picker stays for changing it.
+    ///
+    /// The identifier is all that is kept. The key is fetched again on
+    /// adoption, which is the demonstration endpoint doing what it
+    /// already does and not a credential cached on the device. That the
+    /// wallet holds an identifier at all is the whole point of it being
+    /// the component that does.
+    private static let rememberedKey = "hu.diw.ovpoc.wallet.persona"
+
+    private static var remembered: String? {
+        UserDefaults.standard.string(forKey: rememberedKey)
+    }
+
+    private static func remember(_ voterID: String?) {
+        let defaults = UserDefaults.standard
+        if let voterID {
+            defaults.set(voterID, forKey: rememberedKey)
+        } else {
+            defaults.removeObject(forKey: rememberedKey)
+        }
+    }
+
+    /// Become whoever this wallet was last time, at launch.
+    ///
+    /// Ordering with `receive` is deliberately not relied upon: a cold
+    /// launch from a hand-off runs both, in either order. Whichever is
+    /// first, `adopt` is reached exactly once -- this one refuses when a
+    /// flow already exists, and `receive` only ever *stores* the request
+    /// when there is no flow to read it with.
+    func restoreRememberedPersona() async {
+        guard flow == nil, adopted == nil, let remembered = Self.remembered
+        else { return }
+        await adopt(remembered)
+        if flow == nil {
+            // The remembered citizen is not on this election's register
+            // -- most likely it was minted again with a different
+            // electorate. Forget them and offer the picker, rather than
+            // leaving a wallet that refuses on every launch.
+            Self.remember(nil)
+            phase = .noPersona
+            await loadPersonas()
+        }
+    }
+
     init(origins: Origins = .hosted) {
         self.origins = origins
         self.personas = DemoPersonaClient(origins: origins)
@@ -91,6 +142,7 @@ final class WalletModel {
                 elections: ConfigClient(origins: origins),
                 office: OfficeRequestClient(origins: origins))
             adopted = voterID
+            Self.remember(voterID)
             summary = []
             sent = []
             phase = .idle
@@ -147,8 +199,12 @@ final class WalletModel {
     func receive(_ url: URL) async {
         guard let bytes = HandOff.request(from: url) else { return }
         guard let flow else {
+            // Held, not dropped. A hand-off can arrive before anybody has
+            // adopted a persona -- on a cold launch it always does -- and
+            // a request discarded there leaves the voter looking at an
+            // empty wallet with nothing to say what went wrong.
             pending = url
-            await loadPersonas()
+            if Self.remembered == nil { await loadPersonas() }
             return
         }
         phase = .working
