@@ -90,6 +90,38 @@ public enum HandOff {
         return url.url
     }
 
+    /// What this build told the system it answers to.
+    ///
+    /// Read from the *running bundle*, and that is the whole point. The
+    /// `Info.plist` in this repository is reached only if the target's
+    /// `INFOPLIST_FILE` names it, and no test anywhere can see a build
+    /// setting: `test_each_application_registers_the_scheme_the_other
+    /// _opens_it_with` establishes that the committed file is right, and
+    /// says nothing about whether the build read it.
+    ///
+    /// Unset, the build registers nothing, and the symptom is identical
+    /// to a scheme spelled wrong -- the hand-off does nothing, nowhere,
+    /// with no error on either side. An hour went into that once. A line
+    /// on the screen saying what this binary actually answers to is the
+    /// cheapest instrument that would have ended it, and it is the same
+    /// argument `service/build.py` makes for printing the revision: a
+    /// deployment that cannot say which code it is gets checked by
+    /// proxies invented on the spot.
+    public static func schemesRegistered(by bundle: Bundle = .main) -> [String] {
+        schemes(in: bundle.object(forInfoDictionaryKey: "CFBundleURLTypes"))
+    }
+
+    /// The scheme list out of a `CFBundleURLTypes` value.
+    ///
+    /// Separated from the bundle so it can be tested: a `Bundle` with an
+    /// arbitrary info dictionary is not something a test can build, and
+    /// the part that goes wrong is the shape -- absent, not an array,
+    /// an entry with no schemes.
+    public static func schemes(in urlTypes: Any?) -> [String] {
+        guard let entries = urlTypes as? [[String: Any]] else { return [] }
+        return entries.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
+    }
+
     /// The outcome the wallet reported, or `nil` if this is not that.
     public static func outcome(from url: URL) -> String? {
         guard url.scheme == voterScheme, url.host == collectedHost,

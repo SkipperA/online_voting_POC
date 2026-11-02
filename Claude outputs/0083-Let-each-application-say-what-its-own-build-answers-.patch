@@ -1,0 +1,390 @@
+From fd804a597e7ad38a19b554c89a4bdb5245b8368e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 2 Nov 2026 16:50:18 +0100
+Subject: [PATCH] Let each application say what its own build answers to
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Nothing in this suite can see a build setting, and that is the gap the
+last two days fell into. Every check reads the repository -- that the
+committed plists agree with `HandOff`, that each application opens the
+other's scheme and not its own -- and an `INFOPLIST_FILE` nobody
+applied passes all of them while producing a binary that registers
+nothing at all.
+
+Its symptom is identical to a scheme spelled wrong, to a wallet that is
+not installed, and to a hand-off never attempted: nothing happens, on
+two screens, with no error on either. The whole repository was correct
+and the phone did nothing, which is the worst shape a fault can have.
+
+So both applications read their own `CFBundleURLTypes` at launch and
+print it -- *This build · answers to · ovpoc-wallet* -- quietly when it
+is right and in red with the one build setting named when it is not.
+The wallet's is the one that matters, since the voting application
+cannot see whether its sibling registered anything; the voting
+application's own line is worth having because the two targets are
+configured in the same sitting, so an application that does not answer
+to its own scheme is one whose sibling almost certainly does not
+either.
+
+This is `service/build.py`'s argument one layer down. A thing that
+cannot say what it is gets checked by proxies invented on the spot, and
+those proxies are wrong in ways nobody notices.
+
+`HandOff.schemes(in:)` is split out from `schemesRegistered(by:)`
+because a `Bundle` with an arbitrary info dictionary is not something a
+test can build, and the part that goes wrong is the reading of the
+shape: absent, not an array, an entry naming itself and claiming no
+scheme. `testTheRegisteredSchemesAreReadOutOfTheUrlTypes` requires each
+of those to read as *nothing* rather than as a crash or a plausible
+wrong answer -- a screen that exists to break a silence must not be
+able to invent one.
+
+The mutation is honest about what it establishes: removing the read
+makes a broken build look like a working one, and it is caught by a
+Python grep rather than by anything that compiles Swift.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WBaumDFkzp8JDM11vKQD2F
+---
+ CLAUDE.md                                     | 17 ++++++++
+ ios/OVPOCKit/Sources/OVPOCKit/HandOff.swift   | 32 ++++++++++++++
+ .../Tests/OVPOCKitTests/HandOffTests.swift    | 29 +++++++++++++
+ ios/README.md                                 | 21 ++++++---
+ ios/VoterApp/VoterApp/ContentView.swift       | 43 +++++++++++++++++++
+ ios/WalletApp/WalletApp/ContentView.swift     | 43 +++++++++++++++++++
+ tests/test_native_sources.py                  | 30 +++++++++++++
+ tools/sabotage.py                             | 11 +++++
+ 8 files changed, 220 insertions(+), 6 deletions(-)
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 18d965f..a27e637 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -863,6 +863,23 @@ register is `VRO.register` — a set of ids, and nothing else.
+   nothing that points back at the move, which is why
+   `test_the_info_plists_are_not_inside_the_synchronized_sources` exists.
+ 
++  **And each application prints what its own build answers to**, because
++  nothing in the suite can see a build setting. Every other check here
++  reads the repository: that the committed plists agree with `HandOff`,
++  that each application opens the other's scheme and not its own. An
++  `INFOPLIST_FILE` nobody applied passes all of them and produces a
++  binary that registers nothing — whose symptom is identical to a scheme
++  spelled wrong, to a wallet that is not installed, and to a hand-off
++  never attempted: nothing happens, on two screens, with no error on
++  either. It cost an hour before the line existed, and the line is three
++  of them. The general rule, which `service/build.py` already states one
++  layer up: **a thing that cannot say what it is gets checked by proxies
++  invented on the spot**, and those proxies are wrong in ways nobody
++  notices. `HandOff.schemes(in:)` is split out from
++  `schemesRegistered(by:)` because a `Bundle` with an arbitrary info
++  dictionary is not something a test can build, and the part that goes
++  wrong is the reading of the shape.
++
+   Three declarations in them, all of which fail quietly:
+   `CFBundleURLSchemes` on each side must equal `HandOff`'s two constants
+   (`test_each_application_registers_the_scheme_the_other_opens_it_with`,
+diff --git a/ios/OVPOCKit/Sources/OVPOCKit/HandOff.swift b/ios/OVPOCKit/Sources/OVPOCKit/HandOff.swift
+index f0a61eb..8520ff6 100644
+--- a/ios/OVPOCKit/Sources/OVPOCKit/HandOff.swift
++++ b/ios/OVPOCKit/Sources/OVPOCKit/HandOff.swift
+@@ -90,6 +90,38 @@ public enum HandOff {
+         return url.url
+     }
+ 
++    /// What this build told the system it answers to.
++    ///
++    /// Read from the *running bundle*, and that is the whole point. The
++    /// `Info.plist` in this repository is reached only if the target's
++    /// `INFOPLIST_FILE` names it, and no test anywhere can see a build
++    /// setting: `test_each_application_registers_the_scheme_the_other
++    /// _opens_it_with` establishes that the committed file is right, and
++    /// says nothing about whether the build read it.
++    ///
++    /// Unset, the build registers nothing, and the symptom is identical
++    /// to a scheme spelled wrong -- the hand-off does nothing, nowhere,
++    /// with no error on either side. An hour went into that once. A line
++    /// on the screen saying what this binary actually answers to is the
++    /// cheapest instrument that would have ended it, and it is the same
++    /// argument `service/build.py` makes for printing the revision: a
++    /// deployment that cannot say which code it is gets checked by
++    /// proxies invented on the spot.
++    public static func schemesRegistered(by bundle: Bundle = .main) -> [String] {
++        schemes(in: bundle.object(forInfoDictionaryKey: "CFBundleURLTypes"))
++    }
++
++    /// The scheme list out of a `CFBundleURLTypes` value.
++    ///
++    /// Separated from the bundle so it can be tested: a `Bundle` with an
++    /// arbitrary info dictionary is not something a test can build, and
++    /// the part that goes wrong is the shape -- absent, not an array,
++    /// an entry with no schemes.
++    public static func schemes(in urlTypes: Any?) -> [String] {
++        guard let entries = urlTypes as? [[String: Any]] else { return [] }
++        return entries.flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
++    }
++
+     /// The outcome the wallet reported, or `nil` if this is not that.
+     public static func outcome(from url: URL) -> String? {
+         guard url.scheme == voterScheme, url.host == collectedHost,
+diff --git a/ios/OVPOCKit/Tests/OVPOCKitTests/HandOffTests.swift b/ios/OVPOCKit/Tests/OVPOCKitTests/HandOffTests.swift
+index 638edb1..f8b687c 100644
+--- a/ios/OVPOCKit/Tests/OVPOCKitTests/HandOffTests.swift
++++ b/ios/OVPOCKit/Tests/OVPOCKitTests/HandOffTests.swift
+@@ -145,6 +145,35 @@ final class HandOffTests: XCTestCase {
+         }
+     }
+ 
++    /// What a build says it answers to, out of the shapes a plist can
++    /// take. The bundle itself is not constructible in a test; the part
++    /// that goes wrong is this reading, so this is the part separated
++    /// out and checked.
++    func testTheRegisteredSchemesAreReadOutOfTheUrlTypes() {
++        // The shape a correct build has.
++        let good: Any = [["CFBundleURLName": "hu.diw.ovpoc.wallet",
++                          "CFBundleURLSchemes": ["ovpoc-wallet"]]]
++        XCTAssertEqual(HandOff.schemes(in: good), ["ovpoc-wallet"])
++
++        // Several entries, several schemes: flattened in order.
++        let many: Any = [["CFBundleURLSchemes": ["a", "b"]],
++                         ["CFBundleURLSchemes": ["c"]]]
++        XCTAssertEqual(HandOff.schemes(in: many), ["a", "b", "c"])
++
++        // And every way a build can have registered nothing. Each of
++        // these must read as *nothing*, never as a crash and never as a
++        // plausible wrong answer: the screen that shows this is the one
++        // instrument for a fault that otherwise looks like silence.
++        for empty: Any? in [nil,
++                            [],
++                            ["not a dictionary"],
++                            [["CFBundleURLName": "named, claims nothing"]],
++                            [["CFBundleURLSchemes": "not an array"]]] {
++            XCTAssertEqual(HandOff.schemes(in: empty), [],
++                           "read a scheme out of \(String(describing: empty))")
++        }
++    }
++
+     /// The two schemes are different strings, which is not a tautology:
+     /// one application registering the other's would have the wallet
+     /// opening itself, and the voter would never see the office answer.
+diff --git a/ios/README.md b/ios/README.md
+index c83f276..bdcd0dd 100644
+--- a/ios/README.md
++++ b/ios/README.md
+@@ -176,12 +176,21 @@ step 4 gives:
+    the *scheme menu* lists both apps; the navigator's appearance is not a
+    reliable signal either way.
+ 
+-7. **Check it in one move.** Enrol in the voting application. The wallet
+-   should come to the front by itself, already knowing whose it is, showing
+-   the prepared request and asking for a signature. If you see the file
+-   button instead, the request did not arrive; if you see *Nothing on this
+-   device opened the wallet*, the scheme did not register and step 5 is
+-   where to look.
++7. **Check it in one move.** Both applications print, at the bottom of
++   their first screen, what their own build answers to — *This build ·
++   answers to · `ovpoc-wallet`*. That line is the only visible evidence
++   that step 4 took: nothing in the test suite can see a build setting,
++   and an `INFOPLIST_FILE` nobody applied produces a binary that
++   registers nothing, whose symptom is identical to a wallet that is not
++   installed. If either app says **This build registers no URL scheme of
++   its own**, go back to step 4 before anything else.
++
++   Then enrol in the voting application. The wallet should come to the
++   front by itself, already knowing whose it is, showing the prepared
++   request and asking for a signature. If you see the file button
++   instead, the request did not arrive; if you see *Nothing on this
++   device opened the wallet*, the wallet's build is the one that did not
++   register.
+ Both apps address the hosted deployment — `config.diw.hu`, `vro.diw.hu`,
+ `ebb.diw.hu` — so a device works over the internet with nothing configured. A
+ laptop deployment separates the origins by port, which a phone on another
+diff --git a/ios/VoterApp/VoterApp/ContentView.swift b/ios/VoterApp/VoterApp/ContentView.swift
+index 70275f7..9ebc9f9 100644
+--- a/ios/VoterApp/VoterApp/ContentView.swift
++++ b/ios/VoterApp/VoterApp/ContentView.swift
+@@ -76,6 +76,8 @@ struct ContentView: View {
+                              + "to take on trust.")
+                     }
+                 }
++
++                buildRegistration
+             }
+             .navigationTitle("Voter application")
+             .task { await model.readTheElectionForTheLabel() }
+@@ -109,6 +111,47 @@ struct ContentView: View {
+         }
+     }
+ 
++    /// What this binary answers to, read out of its own bundle.
++    ///
++    /// Quiet when it is right and loud when it is not. The scheme this
++    /// application registers is how the wallet puts the voter back here;
++    /// it is also the only visible evidence that the target's
++    /// `INFOPLIST_FILE` was set at all, because the two targets are
++    /// configured the same way and in the same sitting. An application
++    /// that does not answer to its own scheme is one whose sibling
++    /// almost certainly does not either -- and the wallet's silence is
++    /// indistinguishable from a wallet that is not installed.
++    ///
++    /// No test can see a build setting. This is the instrument that can.
++    @ViewBuilder
++    private var buildRegistration: some View {
++        let registered = HandOff.schemesRegistered()
++        if registered.contains(HandOff.voterScheme) {
++            Section("This build") {
++                LabeledContent("answers to", value: registered.joined(separator: " · "))
++                    .font(.footnote)
++            }
++        } else {
++            Section {
++                Text("This build registers no URL scheme of its own.")
++                    .font(.callout)
++                    .foregroundStyle(.red)
++            } header: {
++                Text("This build")
++            } footer: {
++                Text("It should answer to \(HandOff.voterScheme), which is "
++                     + "how the wallet brings you back here once the office "
++                     + "has answered.\n\n"
++                     + "The cause is almost always one build setting: "
++                     + "Packaging → Info.plist File, which must be "
++                     + "Info.plist for both targets — step 4 of "
++                     + "ios/README.md. If it is unset here it is unset on "
++                     + "the wallet too, and the hand-off will do nothing "
++                     + "with no error on either side.")
++            }
++        }
++    }
++
+     /// What the choice above actually changes, said before it is made.
+     ///
+     /// One step differs and the footer says which. Everything a reader
+diff --git a/ios/WalletApp/WalletApp/ContentView.swift b/ios/WalletApp/WalletApp/ContentView.swift
+index b009f48..11e67b9 100644
+--- a/ios/WalletApp/WalletApp/ContentView.swift
++++ b/ios/WalletApp/WalletApp/ContentView.swift
+@@ -128,6 +128,8 @@ struct ContentView: View {
+                         Button("Open a different request") { choosingFile = true }
+                     }
+                 }
++
++                buildRegistration
+             }
+             .navigationTitle("Identity Wallet")
+             .fileImporter(isPresented: $choosingFile,
+@@ -163,6 +165,47 @@ struct ContentView: View {
+         }
+     }
+     
++    /// What this binary answers to, read out of its own bundle.
++    ///
++    /// This is the one that matters: the voting application cannot see
++    /// whether this wallet registered its scheme, and an unregistered
++    /// one is indistinguishable from a wallet that is not installed.
++    /// Whoever is holding the phone can see it here, which is the
++    /// cheapest instrument there is for a fault that otherwise shows up
++    /// as nothing happening on two screens at once.
++    ///
++    /// Read from the running bundle, not from the file in the
++    /// repository. A test can check what the committed `Info.plist`
++    /// says; nothing can check whether the build was told to read it.
++    @ViewBuilder
++    private var buildRegistration: some View {
++        let registered = HandOff.schemesRegistered()
++        if registered.contains(HandOff.walletScheme) {
++            Section("This build") {
++                LabeledContent("answers to", value: registered.joined(separator: " · "))
++                    .font(.footnote)
++            }
++        } else {
++            Section {
++                Text("This build registers no URL scheme of its own.")
++                    .font(.callout)
++                    .foregroundStyle(.red)
++            } header: {
++                Text("This build")
++            } footer: {
++                Text("It should answer to \(HandOff.walletScheme). Until it "
++                     + "does, the voting application cannot open this "
++                     + "wallet: it will report that nothing on the device "
++                     + "did, and you carry the request over as a file "
++                     + "instead — which works, and is the browser's "
++                     + "arrangement rather than the integrated one.\n\n"
++                     + "One build setting: Packaging → Info.plist File, "
++                     + "which must be Info.plist. Step 4 of "
++                     + "ios/README.md.")
++            }
++        }
++    }
++
+     @ViewBuilder
+     private var persona: some View {
+         Section {
+diff --git a/tests/test_native_sources.py b/tests/test_native_sources.py
+index 6b0c692..55260cb 100644
+--- a/tests/test_native_sources.py
++++ b/tests/test_native_sources.py
+@@ -681,3 +681,33 @@ def test_the_info_plists_are_not_inside_the_synchronized_sources():
+             f"at ios/{target}/Info.plist, beside the project")
+         assert (NATIVE / target / "Info.plist").exists(), (
+             f"ios/{target}/Info.plist is missing")
++
++
++def test_each_application_says_which_schemes_its_own_build_registers():
++    """The one fault nothing else in this suite can see.
++
++    Every other check here reads the repository: that the committed
++    plists agree with `HandOff`, that the two applications open each
++    other's schemes and not their own. None of them can see a *build
++    setting*, and an `INFOPLIST_FILE` nobody set produces a binary that
++    registers nothing at all -- whose symptom is identical to a scheme
++    spelled wrong, to a wallet that is not installed, and to a hand-off
++    that was never attempted: nothing happens, on two screens, with no
++    error on either.
++
++    So each application reads its own bundle and says what it answers
++    to. It is the argument `service/build.py` makes for printing the
++    revision, one layer down: a thing that cannot say what it is gets
++    checked by proxies invented on the spot, and this one cost an hour
++    before it existed.
++    """
++    for target, scheme in (("VoterApp", "voterScheme"),
++                           ("WalletApp", "walletScheme")):
++        source = "".join(p.read_text(encoding="utf-8")
++                         for p in sorted((NATIVE / target).rglob("*.swift")))
++        assert "HandOff.schemesRegistered(" in source, (
++            f"{target} never reads its own CFBundleURLTypes, so a build "
++            "that registered nothing looks exactly like one that worked")
++        assert f"HandOff.{scheme}" in source, (
++            f"{target} does not check its own registration against the "
++            "scheme the other application opens it with")
+diff --git a/tools/sabotage.py b/tools/sabotage.py
+index 29b8dc2..9fa56b0 100644
+--- a/tools/sabotage.py
++++ b/tools/sabotage.py
+@@ -657,6 +657,17 @@ MUTATIONS = [
+             "\t<key>UIFileSharingEnabled</key>"
+         ),
+     ),
++    Mutation(
++        name="a_build_that_registers_nothing_looks_like_one_that_worked",
++        what=(
++            "The wallet stops reading its own CFBundleURLTypes, so a "
++            "build whose Info.plist setting was never applied shows the "
++            "same screen as one that works."
++        ),
++        path="ios/WalletApp/WalletApp/ContentView.swift",
++        find="        let registered = HandOff.schemesRegistered()",
++        replace="        let registered = [HandOff.walletScheme]  // SABOTAGE",
++    ),
+     Mutation(
+         name="hand_off_carries_the_voter_id",
+         what=(
+
+base-commit: 4f09ebbc34fd73540593fdc5f428368741320595
+-- 
+2.43.0
+

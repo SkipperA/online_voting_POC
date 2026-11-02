@@ -76,6 +76,8 @@ struct ContentView: View {
                              + "to take on trust.")
                     }
                 }
+
+                buildRegistration
             }
             .navigationTitle("Voter application")
             .task { await model.readTheElectionForTheLabel() }
@@ -105,6 +107,47 @@ struct ContentView: View {
             // released. One look, not a timer.
             if phase == .active {
                 Task { await model.cameBackToTheForeground() }
+            }
+        }
+    }
+
+    /// What this binary answers to, read out of its own bundle.
+    ///
+    /// Quiet when it is right and loud when it is not. The scheme this
+    /// application registers is how the wallet puts the voter back here;
+    /// it is also the only visible evidence that the target's
+    /// `INFOPLIST_FILE` was set at all, because the two targets are
+    /// configured the same way and in the same sitting. An application
+    /// that does not answer to its own scheme is one whose sibling
+    /// almost certainly does not either -- and the wallet's silence is
+    /// indistinguishable from a wallet that is not installed.
+    ///
+    /// No test can see a build setting. This is the instrument that can.
+    @ViewBuilder
+    private var buildRegistration: some View {
+        let registered = HandOff.schemesRegistered()
+        if registered.contains(HandOff.voterScheme) {
+            Section("This build") {
+                LabeledContent("answers to", value: registered.joined(separator: " · "))
+                    .font(.footnote)
+            }
+        } else {
+            Section {
+                Text("This build registers no URL scheme of its own.")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            } header: {
+                Text("This build")
+            } footer: {
+                Text("It should answer to \(HandOff.voterScheme), which is "
+                     + "how the wallet brings you back here once the office "
+                     + "has answered.\n\n"
+                     + "The cause is almost always one build setting: "
+                     + "Packaging → Info.plist File, which must be "
+                     + "Info.plist for both targets — step 4 of "
+                     + "ios/README.md. If it is unset here it is unset on "
+                     + "the wallet too, and the hand-off will do nothing "
+                     + "with no error on either side.")
             }
         }
     }

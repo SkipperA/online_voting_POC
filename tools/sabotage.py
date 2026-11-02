@@ -658,6 +658,17 @@ MUTATIONS = [
         ),
     ),
     Mutation(
+        name="a_build_that_registers_nothing_looks_like_one_that_worked",
+        what=(
+            "The wallet stops reading its own CFBundleURLTypes, so a "
+            "build whose Info.plist setting was never applied shows the "
+            "same screen as one that works."
+        ),
+        path="ios/WalletApp/WalletApp/ContentView.swift",
+        find="        let registered = HandOff.schemesRegistered()",
+        replace="        let registered = [HandOff.walletScheme]  // SABOTAGE",
+    ),
+    Mutation(
         name="hand_off_carries_the_voter_id",
         what=(
             "The hand-off to the wallet grows a field naming the voter, "

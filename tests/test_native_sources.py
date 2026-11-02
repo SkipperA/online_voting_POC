@@ -681,3 +681,33 @@ def test_the_info_plists_are_not_inside_the_synchronized_sources():
             f"at ios/{target}/Info.plist, beside the project")
         assert (NATIVE / target / "Info.plist").exists(), (
             f"ios/{target}/Info.plist is missing")
+
+
+def test_each_application_says_which_schemes_its_own_build_registers():
+    """The one fault nothing else in this suite can see.
+
+    Every other check here reads the repository: that the committed
+    plists agree with `HandOff`, that the two applications open each
+    other's schemes and not their own. None of them can see a *build
+    setting*, and an `INFOPLIST_FILE` nobody set produces a binary that
+    registers nothing at all -- whose symptom is identical to a scheme
+    spelled wrong, to a wallet that is not installed, and to a hand-off
+    that was never attempted: nothing happens, on two screens, with no
+    error on either.
+
+    So each application reads its own bundle and says what it answers
+    to. It is the argument `service/build.py` makes for printing the
+    revision, one layer down: a thing that cannot say what it is gets
+    checked by proxies invented on the spot, and this one cost an hour
+    before it existed.
+    """
+    for target, scheme in (("VoterApp", "voterScheme"),
+                           ("WalletApp", "walletScheme")):
+        source = "".join(p.read_text(encoding="utf-8")
+                         for p in sorted((NATIVE / target).rglob("*.swift")))
+        assert "HandOff.schemesRegistered(" in source, (
+            f"{target} never reads its own CFBundleURLTypes, so a build "
+            "that registered nothing looks exactly like one that worked")
+        assert f"HandOff.{scheme}" in source, (
+            f"{target} does not check its own registration against the "
+            "scheme the other application opens it with")

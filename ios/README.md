@@ -176,12 +176,21 @@ step 4 gives:
    the *scheme menu* lists both apps; the navigator's appearance is not a
    reliable signal either way.
 
-7. **Check it in one move.** Enrol in the voting application. The wallet
-   should come to the front by itself, already knowing whose it is, showing
-   the prepared request and asking for a signature. If you see the file
-   button instead, the request did not arrive; if you see *Nothing on this
-   device opened the wallet*, the scheme did not register and step 5 is
-   where to look.
+7. **Check it in one move.** Both applications print, at the bottom of
+   their first screen, what their own build answers to — *This build ·
+   answers to · `ovpoc-wallet`*. That line is the only visible evidence
+   that step 4 took: nothing in the test suite can see a build setting,
+   and an `INFOPLIST_FILE` nobody applied produces a binary that
+   registers nothing, whose symptom is identical to a wallet that is not
+   installed. If either app says **This build registers no URL scheme of
+   its own**, go back to step 4 before anything else.
+
+   Then enrol in the voting application. The wallet should come to the
+   front by itself, already knowing whose it is, showing the prepared
+   request and asking for a signature. If you see the file button
+   instead, the request did not arrive; if you see *Nothing on this
+   device opened the wallet*, the wallet's build is the one that did not
+   register.
 Both apps address the hosted deployment — `config.diw.hu`, `vro.diw.hu`,
 `ebb.diw.hu` — so a device works over the internet with nothing configured. A
 laptop deployment separates the origins by port, which a phone on another

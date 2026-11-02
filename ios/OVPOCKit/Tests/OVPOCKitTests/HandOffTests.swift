@@ -145,6 +145,35 @@ final class HandOffTests: XCTestCase {
         }
     }
 
+    /// What a build says it answers to, out of the shapes a plist can
+    /// take. The bundle itself is not constructible in a test; the part
+    /// that goes wrong is this reading, so this is the part separated
+    /// out and checked.
+    func testTheRegisteredSchemesAreReadOutOfTheUrlTypes() {
+        // The shape a correct build has.
+        let good: Any = [["CFBundleURLName": "hu.diw.ovpoc.wallet",
+                          "CFBundleURLSchemes": ["ovpoc-wallet"]]]
+        XCTAssertEqual(HandOff.schemes(in: good), ["ovpoc-wallet"])
+
+        // Several entries, several schemes: flattened in order.
+        let many: Any = [["CFBundleURLSchemes": ["a", "b"]],
+                         ["CFBundleURLSchemes": ["c"]]]
+        XCTAssertEqual(HandOff.schemes(in: many), ["a", "b", "c"])
+
+        // And every way a build can have registered nothing. Each of
+        // these must read as *nothing*, never as a crash and never as a
+        // plausible wrong answer: the screen that shows this is the one
+        // instrument for a fault that otherwise looks like silence.
+        for empty: Any? in [nil,
+                            [],
+                            ["not a dictionary"],
+                            [["CFBundleURLName": "named, claims nothing"]],
+                            [["CFBundleURLSchemes": "not an array"]]] {
+            XCTAssertEqual(HandOff.schemes(in: empty), [],
+                           "read a scheme out of \(String(describing: empty))")
+        }
+    }
+
     /// The two schemes are different strings, which is not a tautology:
     /// one application registering the other's would have the wallet
     /// opening itself, and the voter would never see the office answer.

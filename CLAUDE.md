@@ -863,6 +863,23 @@ register is `VRO.register` — a set of ids, and nothing else.
   nothing that points back at the move, which is why
   `test_the_info_plists_are_not_inside_the_synchronized_sources` exists.
 
+  **And each application prints what its own build answers to**, because
+  nothing in the suite can see a build setting. Every other check here
+  reads the repository: that the committed plists agree with `HandOff`,
+  that each application opens the other's scheme and not its own. An
+  `INFOPLIST_FILE` nobody applied passes all of them and produces a
+  binary that registers nothing — whose symptom is identical to a scheme
+  spelled wrong, to a wallet that is not installed, and to a hand-off
+  never attempted: nothing happens, on two screens, with no error on
+  either. It cost an hour before the line existed, and the line is three
+  of them. The general rule, which `service/build.py` already states one
+  layer up: **a thing that cannot say what it is gets checked by proxies
+  invented on the spot**, and those proxies are wrong in ways nobody
+  notices. `HandOff.schemes(in:)` is split out from
+  `schemesRegistered(by:)` because a `Bundle` with an arbitrary info
+  dictionary is not something a test can build, and the part that goes
+  wrong is the reading of the shape.
+
   Three declarations in them, all of which fail quietly:
   `CFBundleURLSchemes` on each side must equal `HandOff`'s two constants
   (`test_each_application_registers_the_scheme_the_other_opens_it_with`,

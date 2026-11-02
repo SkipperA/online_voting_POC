@@ -128,6 +128,8 @@ struct ContentView: View {
                         Button("Open a different request") { choosingFile = true }
                     }
                 }
+
+                buildRegistration
             }
             .navigationTitle("Identity Wallet")
             .fileImporter(isPresented: $choosingFile,
@@ -163,6 +165,47 @@ struct ContentView: View {
         }
     }
     
+    /// What this binary answers to, read out of its own bundle.
+    ///
+    /// This is the one that matters: the voting application cannot see
+    /// whether this wallet registered its scheme, and an unregistered
+    /// one is indistinguishable from a wallet that is not installed.
+    /// Whoever is holding the phone can see it here, which is the
+    /// cheapest instrument there is for a fault that otherwise shows up
+    /// as nothing happening on two screens at once.
+    ///
+    /// Read from the running bundle, not from the file in the
+    /// repository. A test can check what the committed `Info.plist`
+    /// says; nothing can check whether the build was told to read it.
+    @ViewBuilder
+    private var buildRegistration: some View {
+        let registered = HandOff.schemesRegistered()
+        if registered.contains(HandOff.walletScheme) {
+            Section("This build") {
+                LabeledContent("answers to", value: registered.joined(separator: " · "))
+                    .font(.footnote)
+            }
+        } else {
+            Section {
+                Text("This build registers no URL scheme of its own.")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            } header: {
+                Text("This build")
+            } footer: {
+                Text("It should answer to \(HandOff.walletScheme). Until it "
+                     + "does, the voting application cannot open this "
+                     + "wallet: it will report that nothing on the device "
+                     + "did, and you carry the request over as a file "
+                     + "instead — which works, and is the browser's "
+                     + "arrangement rather than the integrated one.\n\n"
+                     + "One build setting: Packaging → Info.plist File, "
+                     + "which must be Info.plist. Step 4 of "
+                     + "ios/README.md.")
+            }
+        }
+    }
+
     @ViewBuilder
     private var persona: some View {
         Section {
