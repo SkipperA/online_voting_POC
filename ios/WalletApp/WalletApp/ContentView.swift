@@ -11,31 +11,55 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @State private var model = WalletModel()
     @State private var choosingFile = false
-    
+    @Environment(\.openURL) private var openURL
+
     var body: some View {
         NavigationStack {
             Form {
                 persona
-                
+
                 switch model.phase {
                 case .noPersona:
-                    EmptyView()
-                    
+                    if model.awaitingPersona {
+                        Section {
+                            Text("A token request is waiting.")
+                        } footer: {
+                            Text("The voting application handed one over, but "
+                                 + "a request is signed by somebody. Choose "
+                                 + "whose wallet this is and it will be "
+                                 + "checked and shown to you.")
+                        }
+                    }
+
                 case .idle:
                     Section {
                         Button("Open a token request") { choosingFile = true }
                     } footer: {
-                        Text("The voting application saves a file and you "
-                             + "carry it here. It cannot open this wallet "
-                             + "itself, and that is deliberate: a wallet an "
-                             + "application can invoke is an interface with a "
-                             + "consent screen painted on it.")
+                        Text("On this phone the voting application hands the "
+                             + "request straight over and this wallet opens on "
+                             + "its own; in the browser it saves a file you "
+                             + "carry here, and that button is the same route "
+                             + "by hand. What never changes is this screen: an "
+                             + "application can put the question in front of "
+                             + "you, and cannot answer it. Clause A8.")
                     }
                     
                 case .working:
                     Section { HStack { ProgressView(); Text("Checking…") } }
                     
                 case .loaded:
+                    if model.cameFromTheVotingApplication {
+                        Section {
+                            Text("The voting application sent this request "
+                                 + "over and opened this wallet.")
+                        } footer: {
+                            Text("It did not come with a name attached. This "
+                                 + "wallet fetched the election's own "
+                                 + "configuration and checked the request "
+                                 + "against it, which is why the next screen "
+                                 + "is worth reading.")
+                        }
+                    }
                     Section("You are being asked to authorise") {
                         ForEach(model.summary, id: \.name) { field in
                             VStack(alignment: .leading, spacing: 2) {
@@ -80,8 +104,11 @@ struct ContentView: View {
                     Section {
                         Button("Open another request") { choosingFile = true }
                     } footer: {
-                        Text("Go back to the voting application and collect "
-                             + "the token.")
+                        Text(model.cameFromTheVotingApplication
+                             ? "Taking you back to the voting application, "
+                               + "where the token is waiting to be collected."
+                             : "Go back to the voting application and collect "
+                               + "the token.")
                     }
                     
                 case .refused(let why):
@@ -106,6 +133,18 @@ struct ContentView: View {
                 case .failure:
                     break   // the picker was dismissed; not an event
                 }
+            }
+            // The voting application opening this one. `HandOff.request`
+            // answers `nil` for anything that is not a request, because a
+            // URL scheme can be opened by anything on the device and a
+            // malformed one is an ordinary event rather than an alarm.
+            .onOpenURL { url in Task { await model.receive(url) } }
+            // And back, once the office has answered — but only for a
+            // request that arrived that way. `returnTo` is nil for a file
+            // the voter carried in, so this wallet does not decide where
+            // somebody who walked in goes next.
+            .onChange(of: model.returnTo) { _, destination in
+                if let destination { openURL(destination) }
             }
         }
     }

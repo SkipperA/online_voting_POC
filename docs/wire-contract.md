@@ -71,6 +71,39 @@ gaps list.
 
 ---
 
+## 1b. Handover — voting application → wallet
+
+Between steps 2 and 3, and not on any wire the article draws: §5.3 has the
+voter's application pass $`c`$ to the wallet and says nothing about how,
+because inside one device it is not a protocol question. It is a
+demonstration question, and this build answers it twice.
+
+| Field | Code | Discharges | Note |
+|---|---|---|---|
+| `blinded_key` | `VoterFlow.requestFileBytes` | Req. 3, §5.2 | The same $`c`$, base64url |
+| `election_id` | `VoterFlow.requestFileBytes` | §5.1 | Which poll. The wallet refuses another one |
+| `config_digest` | `VoterFlow.requestFileBytes` | §5.1 | The configuration the application pinned, so a request made before a mint is visible as one |
+| — (no identifier) | — | Req. 1, §5.3 | Nothing here could carry one: the application holds no `id`. The same three fields as the signed document, for the same reason |
+
+Two carriers, one content. In the browser the voter downloads the file and
+opens it in the wallet origin; on the phone `HandOff.toWallet` puts **those
+same bytes** on `ovpoc-wallet://request?r=…` and the wallet opens. The bytes
+are passed through rather than unpacked, so `WalletFlow.load` is the single
+reader and the two checks above happen once, against a configuration the
+wallet fetched itself. A hand-off that rebuilt the three fields would be a
+second renderer of one object.
+
+What differs is not the content but who initiates: a file waits to be
+carried, a URL opens the wallet. Clause A8 is where that trade is written
+down, and `docs/threats.md` carries what it costs.
+
+The way back, `ovpoc-voter://collected?outcome=…`, carries the office's
+answer and nothing else — which the voting application could learn anyway by
+presenting $`c`$, and which saves a refused voter from watching a collect
+that never succeeds.
+
+---
+
 ## 2. Token request — wallet → VRO
 
 Steps 3–4. The article's package $`[\,id,\, c,\, s\,]`$ (§5.3).

@@ -144,6 +144,23 @@ public final class VoterFlow {
         route == .wallet ? Self.walletRequestFileName : Self.documentRequestFileName
     }
 
+    /// The hand-off to the wallet application, on the wallet route only.
+    ///
+    /// `nil` on the qualified-signature route, and that is not an
+    /// omission. There the voter signs in their own wallet and hands the
+    /// document to the office themselves; the signed document carries
+    /// `id` and must never come back to this application, so there is no
+    /// inbound direction and nothing to open. Clause A8.
+    ///
+    /// What it carries is the request file's own bytes -- `c`, the
+    /// election and the configuration digest -- so the wallet reads
+    /// exactly what the file would have contained, through the same
+    /// reader and the same two checks.
+    public var walletHandOff: URL? {
+        guard route == .wallet, let requestFile else { return nil }
+        return HandOff.toWallet(request: requestFile)
+    }
+
     /// The fingerprint of `c`, for a surface that must show it beside the
     /// document rather than only inside a disclosure row. `nil` until
     /// blinding.

@@ -250,14 +250,33 @@ check is remote, automatic, and free of the friction a records request imposes.
   Timing side channels are not considered.
 - **No rate limiting, no denial-of-service resistance, no logging, no key
   management.** All the operational apparatus a real deployment would need.
-- **The iOS app boundary is a convention, not an origin.** The native clients
-  hand the token request over as a file the voter carries, exactly as the two
-  browser origins do, so the voting application cannot provoke a signature.
-  But two browser origins are separated by the browser, which a page cannot
-  talk its way around, while two applications are separated by a sandbox
-  enforced by the same system that offers `openURL`. Nothing in the repository
-  stops a later edit adding an inter-app channel; what stops it is this entry
-  and clause A8. A reviewer should check for it rather than assume it.
+- **The iOS voting application can open the wallet, and the browser's cannot.**
+  On the phone the token request crosses on a URL scheme: the voting
+  application hands it over and the wallet opens with a signing question in
+  front of the voter. That is a deployment's shape — a relying party invokes
+  the wallet, which answers with a consent screen — and it is the thing the
+  browser demonstration deliberately does not do, where the only route is a
+  file the voter carries.
+
+  What is *not* given up is §5.3's property: only `c` crosses, the identifier
+  is added on the wallet's side, and the wallet transmits `[id, c, s]` to the
+  office over its own connection. What is given up is the separate property
+  that the application cannot provoke a signing question at all. It still
+  cannot answer one — the wallet fetches the election's configuration itself
+  and refuses a request for another election or a superseded configuration,
+  whichever way the request arrived — so what a hostile voting application
+  gains is the ability to make a wallet ask, repeatedly, about a request the
+  voter can read before consenting.
+
+  Underneath both: two browser origins are separated by the browser, which a
+  page cannot talk its way around, while two applications are separated by a
+  sandbox enforced by the same system that offers `openURL`. What crosses that
+  sandbox is then the wallet's own discipline, and here it is one inbound
+  shape carrying the request file's bytes, read by the same reader through the
+  same two checks. Nothing in the repository stops a later edit adding a
+  second, laxer one; what stops it is this entry, clause A8 and
+  `test_only_the_wallet_transmits_and_only_the_voter_app_is_returned_to`. A
+  reviewer should check for it rather than assume it.
 - **The iOS blinding factor is not recoverable.** `_CryptoExtras` gives its
   blinding inverse no accessor, deliberately, so the voter app cannot persist
   it. An app terminated between blinding and unblinding leaves a token that

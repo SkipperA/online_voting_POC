@@ -60,6 +60,8 @@ confident the surrounding comments sound.
 | unrecorded_anchors_are_trusted | `test_a_certificate_nobody_recorded_refuses_to_load`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_check_command_notices_a_file_nobody_recorded` |
 | unconfigured_office_blames_the_citizen | `test_an_office_told_nothing_to_trust_says_so`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | upload_size_cap_removed | `test_an_office_with_anchors_still_caps_the_upload`<br>`test_an_oversized_upload_is_refused_without_being_read`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| hand_off_scheme_renamed_in_code_alone | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_two_applications_agree_on_the_hand_off` |
+| hand_off_carries_the_voter_id | `test_the_hand_off_carries_no_identifier` |
 
 ## Detail
 
@@ -689,7 +691,26 @@ Caught by:
 - `test_an_oversized_upload_is_refused_without_being_read`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 
+### `hand_off_scheme_renamed_in_code_alone`
+
+The wallet's URL scheme is renamed in the package and nowhere else, so the registration an operator was told to make in Xcode no longer matches and the hand-off silently does nothing.
+
+Patched in `ios/OVPOCKit/Sources/OVPOCKit/HandOff.swift`.
+
+Caught by:
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_two_applications_agree_on_the_hand_off`
+
+### `hand_off_carries_the_voter_id`
+
+The hand-off to the wallet grows a field naming the voter, which any application on the device could then read.
+
+Patched in `ios/OVPOCKit/Sources/OVPOCKit/HandOff.swift`.
+
+Caught by:
+- `test_the_hand_off_carries_no_identifier`
+
 ## Summary
 
-- 49 of 49 mutations were detected.
+- 51 of 51 mutations were detected.
 - 0 were not.

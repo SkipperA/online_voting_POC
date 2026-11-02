@@ -16,6 +16,11 @@ import SwiftUI
 struct ContentView: View {
     @State private var model = VoterModel()
     @Environment(\.scenePhase) private var scenePhase
+    /// How this application opens the wallet. The environment's, not
+    /// `UIApplication`'s: the model decides *that* a hand-off exists and
+    /// the view performs it, which keeps the one type `swift test` reaches
+    /// free of the operating system.
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         NavigationStack {
@@ -73,6 +78,18 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Voter application")
+            .task { await model.readTheElectionForTheLabel() }
+        }
+        // Blinding is done and the wallet route has somewhere to go, so it
+        // goes -- no tap, which is the whole of what this demonstrates.
+        // The voter still has to sign over there; what has gone is the
+        // carrying, not the consent.
+        .onChange(of: model.handOff) { _, url in
+            if let url { openURL(url) }
+        }
+        // The wallet puts the voter back here when it has transmitted.
+        .onOpenURL { url in
+            Task { await model.returnedFromWallet(outcome: HandOff.outcome(from: url)) }
         }
         .onChange(of: scenePhase) { _, phase in
             // Coming back from the wallet is when the office may have
@@ -126,6 +143,12 @@ struct ContentView: View {
             }
 
             Section {
+                // Which election, before enrolling in it rather than
+                // after. Read for the label only -- the configuration
+                // this run is bound to is the one `enrol` pins.
+                if let name = model.electionName {
+                    LabeledContent("election", value: name)
+                }
                 Button("Enrol in election") { Task { await model.enrol() } }
             } footer: {
                 Text("Pins the published configuration, checks the office's key "
@@ -140,18 +163,33 @@ struct ContentView: View {
             switch model.route {
             case .wallet:
                 Section {
-                    if let url = model.requestFileURL {
-                        ShareLink("Send the request to the wallet", item: url)
+                    if let outcome = model.walletOutcome {
+                        LabeledContent("the office answered", value: outcome)
                     }
                     Button("Collect the token") { Task { await model.collect() } }
                 } header: {
                     Text("Over to the wallet")
                 } footer: {
-                    Text("The file carries the blinded key and the election it is "
-                         + "for. It does not say who you are — the wallet adds "
-                         + "that, and sends it to the office itself. This "
-                         + "application never learns your identifier, and cannot "
-                         + "make the wallet sign anything.")
+                    Text("The blinded key went straight to the wallet, which "
+                         + "should have opened. Sign there and you come back "
+                         + "here holding the token.\n\n"
+                         + "What crossed is the blinded key, the election and "
+                         + "its digest — the same three things the browser "
+                         + "demonstration writes into a file the voter carries. "
+                         + "It does not say who you are: the wallet adds that "
+                         + "and transmits to the office itself, so this "
+                         + "application never learns your identifier and never "
+                         + "sees your signature.\n\n"
+                         + "What it can now do, and could not before, is put "
+                         + "the signing question in front of you. It cannot "
+                         + "answer it. Clause A8.\n\n"
+                         + "If nothing opened, the wallet is not installed or "
+                         + "did not register the scheme. The request is also "
+                         + "written to this app's Documents folder, so the "
+                         + "wallet's own Open button reaches it through the "
+                         + "Files app — which is the browser's arrangement, by "
+                         + "hand. Collect is here for when the switch back "
+                         + "does not happen on its own.")
                 }
 
             case .qualifiedSignature:

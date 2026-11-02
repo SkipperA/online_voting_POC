@@ -34,6 +34,21 @@ final class WalletModel {
     private(set) var available: [String] = []
     private(set) var adopted: String?
 
+    /// Whether this request arrived from the voting application rather
+    /// than as a file somebody carried. It decides one thing only: whether
+    /// to put the voter back where they came from afterwards.
+    private(set) var cameFromTheVotingApplication = false
+    /// Where to send them back to, once the office has answered.
+    private(set) var returnTo: URL?
+    /// A hand-off that arrived before anybody had chosen who they are.
+    ///
+    /// The voting application can open this wallet now, and on a fresh
+    /// install it opens onto a persona picker. Dropping the request there
+    /// would leave the voter looking at a wallet with nothing in it,
+    /// wondering what went wrong, so it waits.
+    private var pending: URL?
+    var awaitingPersona: Bool { pending != nil }
+
     private let origins: Origins
     private let personas: any PersonaSource
 
@@ -79,6 +94,11 @@ final class WalletModel {
             summary = []
             sent = []
             phase = .idle
+            // A request that arrived before there was anybody to sign it.
+            if let waiting = pending {
+                pending = nil
+                await receive(waiting)
+            }
         } catch {
             phase = .refused("Could not take that identity: \(error)")
         }
@@ -96,6 +116,8 @@ final class WalletModel {
         guard let flow else { return }
         phase = .working
 
+        cameFromTheVotingApplication = false
+        returnTo = nil
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
 
@@ -113,6 +135,38 @@ final class WalletModel {
         }
     }
 
+    /// A request handed over by the voting application, not carried.
+    ///
+    /// The bytes are the file's own, so they go through the same reader
+    /// and the same two checks against a configuration this wallet
+    /// fetches itself. That is what keeps the consent screen worth having
+    /// on this path: the voting application can now open this one — which
+    /// it could not before, and which clause A8 is explicit about — and
+    /// the thing it opens still refuses a request for a different
+    /// election or a superseded configuration.
+    func receive(_ url: URL) async {
+        guard let bytes = HandOff.request(from: url) else { return }
+        guard let flow else {
+            pending = url
+            await loadPersonas()
+            return
+        }
+        phase = .working
+        do {
+            _ = try await flow.load(bytes)
+            summary = flow.consentSummary
+            cameFromTheVotingApplication = true
+            returnTo = nil
+            phase = .loaded
+        } catch let failure as WalletFlow.Failure {
+            summary = []
+            phase = .refused(Self.explain(failure))
+        } catch {
+            summary = []
+            phase = .refused("That request could not be read: \(error)")
+        }
+    }
+
     /// The voter authorises; the wallet signs and transmits.
     func consent() async {
         guard let flow else { return }
@@ -121,6 +175,12 @@ final class WalletModel {
             sent = try flow.transmitted()
             let outcome = try await flow.consentAndTransmit()
             phase = .transmitted(outcome)
+            // Back where they came from, and only if they came. A file
+            // carried in by hand came from no application in particular,
+            // and opening one would be this wallet deciding where the
+            // voter goes next.
+            returnTo = cameFromTheVotingApplication
+                ? HandOff.backToVoter(outcome: outcome) : nil
         } catch {
             phase = .refused("The office did not accept the request: \(error)")
         }

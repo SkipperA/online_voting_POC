@@ -32,6 +32,13 @@ final class VoterModel {
     private(set) var phase: Phase = .fresh
     private(set) var problem: String?
     private(set) var requestFileURL: URL?
+    /// The wallet hand-off, set once blinding is done and the route is
+    /// the wallet's. The view opens it -- this type speaks to the
+    /// operating system about its own lifecycle and about nothing else,
+    /// and `openURL` belongs to the environment a view has.
+    private(set) var handOff: URL?
+    /// What the wallet said the office answered, when it put us back.
+    private(set) var walletOutcome: String?
     private(set) var transcriptURL: URL?
     private(set) var lastVerification: Bool?
 
@@ -83,13 +90,37 @@ final class VoterModel {
     /// must not learn it. Clause A8.
     var handInPage: URL { origins.handIn }
 
+    /// The election, for the screen that has not pinned one yet.
+    ///
+    /// Read for the label alone. The configuration this run is *bound* to
+    /// is the one `enrol` fetches, checks the fingerprint against and
+    /// pins; this is so the first screen can say which election you are
+    /// about to enrol in, rather than asking you to take it on trust and
+    /// find out afterwards. Once `enrol` has run, the pinned one is what
+    /// `election` returns and this is not consulted again.
+    private(set) var previewElection: Election?
+
+    func readTheElectionForTheLabel() async {
+        guard previewElection == nil, flow.election == nil else { return }
+        previewElection = try? await ConfigClient(origins: origins).election()
+    }
+
+    /// What to call the election on screen, pinned if it has been.
+    var electionName: String? {
+        (flow.election ?? previewElection)?.electionID
+    }
+
     /// The one tap. Four steps that ask the voter nothing.
     func enrol() async {
         phase = .working("Pinning the configuration, generating a key, blinding…")
         problem = nil
+        walletOutcome = nil
         do {
             try await flow.enrol(via: route)
             requestFileURL = try writeRequestFile()
+            // Only the wallet route has one. On the other, the document
+            // goes to the voter's own wallet and comes back to nobody.
+            handOff = flow.walletHandOff
             phase = .awaitingWallet
             refreshTranscript()
         } catch {
@@ -115,6 +146,17 @@ final class VoterModel {
         } catch {
             report(error)
         }
+    }
+
+    /// The wallet put us back, having transmitted. Collect at once.
+    ///
+    /// The outcome it reports is the office's answer to the wallet, which
+    /// this application could have learned anyway by asking for `s_c`;
+    /// what it buys is that a voter who was refused is told so here
+    /// rather than watching a collect that never succeeds.
+    func returnedFromWallet(outcome: String?) async {
+        walletOutcome = outcome
+        await collect()
     }
 
     /// Returning from the wallet is the one moment `s_c` is likely to

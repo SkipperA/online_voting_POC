@@ -513,32 +513,50 @@ keeps the election.*
 
 ---
 
-### A8 — There is no app sandbox boundary, only a file (iOS)
+### A8 — Two handovers, because they demonstrate two different things
 
 In the browser the wallet grants nothing to anyone, and the surface map says
 why: a wallet reachable cross-origin by the voting application would be an API
 with a consent screen painted on it. The only thing 8001 can put into 8002 is
-a file the voter carries.
+a file the voter carries. That is what the browser demonstration shows, and it
+goes on showing it unchanged.
 
-The native clients keep that exactly, and it is the reason they are slower to
-use than they could be. The voter app writes the token request to a file; the
-voter moves it to the wallet themselves; the wallet signs and transmits
-`[id, c, s]` to the office itself; and the voter returns to the voting
-application and presses *Collect*. Nothing opens the wallet, nothing calls
-back, and the voting application cannot provoke a signature — which is the
-property a URL scheme would have given up, in exchange for one tap.
+The phone shows the other thing. `HandOff.swift` puts the request on a URL
+scheme the wallet registers: the voting application opens the wallet, the
+wallet checks what it was handed, the voter consents, the wallet transmits
+`[id, c, s]` to the office itself and opens the voting application again. One
+tap, which is what a deployment looks like — the European Digital Identity
+Wallet is invoked by the relying party and answers with a consent screen,
+rather than waiting for somebody to carry a file into it.
 
-What is substituted is not the boundary but what enforces it. Two browser
-origins are separated by the browser, which the page cannot talk its way
-around; two iOS applications are separated by the app sandbox, which is
-enforced by the same operating system that offers `openURL`. Nothing in the
-repository prevents a later edit from adding an inter-app channel. What is
-here is the discipline, the file, and this clause — not a mechanism that makes
-the shortcut impossible.
+**Both are needed, and a demonstration showing only one teaches something
+false.** Only the file makes the boundary visible: the request can be opened
+and read before it is signed, because it is a file and not a message. Only the
+call shows the shape a real deployment has. Showing only the file would teach
+an audience that the integrated flow is unavailable rather than that it is a
+trade; showing only the call would hide what the trade costs.
 
-The handover is also where the demonstration is most legible, which is worth
-saying to an audience rather than apologising for: the request can be opened
-and read before it is signed, because it is a file and not a message.
+What the trade costs is exactly one property, and it is worth stating
+precisely because it is narrower than it sounds. §5.3's property — that no
+single component holds `id` and `k_p^a` together with the office's signature
+over their association — is untouched: only `c` crosses, the identifier is
+added on the wallet's side of the boundary, and the wallet still transmits to
+the office itself. What is given up is the separate property that the voting
+application cannot *provoke* a signing question at all. On the phone it can.
+It still cannot answer it: the wallet fetches the election's configuration
+itself and refuses a request for another election or a superseded
+configuration, exactly as it does for a file, and the consent screen is the
+same screen.
+
+What is substituted — the reason this is a clause and not a feature — is what
+*enforces* the separation. Two browser origins are separated by the browser,
+which the page cannot talk its way around. Two iOS applications are separated
+by the app sandbox, enforced by the same operating system that offers
+`openURL`; and what a wallet exposes over that channel is then the wallet's
+own discipline. Here that discipline is: one inbound shape, carrying the
+request file's bytes and nothing else, read by the same reader through the
+same two checks. Nothing in the repository makes a second, laxer channel
+impossible. What is here is the discipline, the single shape, and this clause.
 
 On the qualified-signature route the outbound direction is unchanged — still
 a file the voter carries, still enforcement by discipline — but **the inbound
@@ -562,9 +580,11 @@ where to take a document is not handling what they take there. A voter told
 to hand the signed document in themselves and not told where is a voter
 looking for a button, which is how the button gets built.
 
-**Label:** *The request moves between the apps as a file you carry, the way it
-moves between two browser origins. On the qualified-signature route nothing
-comes back to the application at all.*
+**Label:** *In the browser the request moves as a file you carry, so you can
+read it before it is signed. On the phone the voting application hands it to
+the wallet and the wallet opens — which is what a deployment looks like, and
+is the one thing it can make the wallet do. On the qualified-signature route
+nothing comes back to the application at all.*
 
 ---
 

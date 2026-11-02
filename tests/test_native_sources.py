@@ -19,6 +19,7 @@ here means only that the cheapest class of mistake is absent.
 from __future__ import annotations
 
 import pathlib
+import re
 
 import pytest
 
@@ -389,3 +390,100 @@ def test_the_document_renderer_still_names_no_option():
     for forbidden in ("optionName", "election.question", "election.options"):
         assert forbidden not in renderer, (
             f"{forbidden} reaches the token-request document")
+
+
+# --------------------------------------------------------------------------
+# The hand-off between the two applications
+# --------------------------------------------------------------------------
+
+def test_the_two_applications_agree_on_the_hand_off():
+    """Three places have to say the same two words, and one is generated.
+
+    `Info.plist` is produced by Xcode and excluded from the repository, so
+    the registration that makes a URL scheme work lives in `ios/README.md`
+    as an instruction to a human. The code that *opens* those schemes is
+    in `HandOff.swift`. Nothing connects the two, and the failure when
+    they disagree is the worst kind: the hand-off does nothing at all, no
+    error is raised anywhere, and the demonstration looks like a wallet
+    that was never installed.
+
+    So this reads the scheme names out of the package and requires the
+    README to name both. It is not a mechanism either -- nothing here can
+    check what an operator typed into Xcode -- but it makes a rename a
+    visible edit in three files rather than a quiet one in two.
+    """
+    handoff = (NATIVE / "OVPOCKit" / "Sources" / "OVPOCKit"
+               / "HandOff.swift").read_text(encoding="utf-8")
+
+    schemes = dict(re.findall(
+        r'static let (walletScheme|voterScheme)\s*=\s*"([^"]+)"', handoff))
+    assert set(schemes) == {"walletScheme", "voterScheme"}, (
+        "HandOff.swift no longer declares both scheme names where this "
+        f"test can read them: found {sorted(schemes)}")
+    assert schemes["walletScheme"] != schemes["voterScheme"], (
+        "both applications would register the same URL scheme, and which "
+        "one the system opens is then undefined")
+
+    readme = (NATIVE / "README.md").read_text(encoding="utf-8")
+    for role, scheme in schemes.items():
+        assert scheme in readme, (
+            f"{scheme} ({role}) is opened by the code and registered by "
+            "nobody: ios/README.md is where an Xcode URL Type is written "
+            "down, because Info.plist is not in this repository")
+
+
+def test_the_hand_off_carries_no_identifier():
+    """What crosses is the request file's bytes, and nothing beside them.
+
+    The voting application does not hold `id` and cannot put one here.
+    The risk is the opposite direction: a later edit adding a field to
+    make the wallet's screen friendlier -- the voter's name, say, read
+    from somewhere -- would put the one thing §5.3 keeps apart into a URL
+    that any application on the device can be handed.
+
+    `HandOffTests.testTheHandOffNamesTheElectionAndNobodyElse` asserts the
+    payload's three keys from the Swift side. This asserts the source
+    names nothing of the sort, which is the cheaper half and the one that
+    runs on every machine.
+    """
+    handoff = (NATIVE / "OVPOCKit" / "Sources" / "OVPOCKit"
+               / "HandOff.swift").read_text(encoding="utf-8")
+    for forbidden in ("voterID", "voter_id", '"id"', "identifier:"):
+        assert forbidden not in handoff, (
+            f"{forbidden} appears in the hand-off, which the voting "
+            "application can build and anything on the device can read")
+
+
+def test_only_the_wallet_transmits_and_only_the_voter_app_is_returned_to():
+    """The direction of each scheme, asserted where it is used.
+
+    Opening a URL is the one thing these applications can do to each
+    other, so which one opens which is the whole of the arrangement. The
+    voting application opens the wallet with a request; the wallet opens
+    the voting application with an outcome. A wallet that built a request
+    URL, or a voting application that built an outcome, would be a sign
+    that the two halves had been copied into each other.
+    """
+    voter = "".join(p.read_text(encoding="utf-8")
+                    for p in sorted((NATIVE / "VoterApp").rglob("*.swift")))
+    wallet = "".join(p.read_text(encoding="utf-8")
+                     for p in sorted((NATIVE / "WalletApp").rglob("*.swift")))
+
+    assert "HandOff.outcome(" in voter, (
+        "the voting application does not read the wallet's outcome")
+    assert "HandOff.backToVoter(" not in voter, (
+        "the voting application builds its own return URL, which would "
+        "let it report an outcome the office never gave")
+
+    assert "HandOff.request(" in wallet, (
+        "the wallet does not read a handed-over request")
+    assert "HandOff.toWallet(" not in wallet, (
+        "the wallet builds a request hand-off, which only the voting "
+        "application has any business doing")
+
+    # And the file route stays. A phone with no wallet installed, and a
+    # request somebody carried in, both end up at this picker.
+    assert "fileImporter" in wallet, (
+        "the wallet can no longer open a request file: the browser's "
+        "arrangement is what the phone's is a trade against, and clause "
+        "A8 needs both to exist")
