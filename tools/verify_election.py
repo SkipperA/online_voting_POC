@@ -59,6 +59,11 @@ class Report:
         self.checks: list[dict] = []
         self.sections: list[str] = []
         self.tally: dict = {}
+        #: Whether the configuration declares a synthetic electorate.
+        #: Reported beside the verdict rather than folded into it: a
+        #: generated election verifies perfectly, which is exactly why a
+        #: reader has to be told. Clause S8.
+        self.generated: bool = False
 
     def section(self, title: str) -> None:
         self.sections.append(title)
@@ -78,7 +83,8 @@ class Report:
         return not self.failures
 
     def as_dict(self) -> dict:
-        return {"ok": self.ok, "checks": self.checks, "tally": self.tally}
+        return {"ok": self.ok, "checks": self.checks, "tally": self.tally,
+                "generated": self.generated}
 
 
 def unb64(text: str) -> bytes:
@@ -153,6 +159,22 @@ def run_checks(config_bytes: bytes, ledger_bytes: bytes,
           "release register pins the same configuration")
     check(ledger_bytes == canonical(ledger),
           "ledger is canonically serialised, so its hash is comparable")
+
+    # Reported, never failed. `generated` is a true statement about the
+    # electorate and not a defect in the record: every signature below is
+    # genuine, every chain link verifies, and this verifier will pass a
+    # generated election exactly as it passes any other -- which is the
+    # whole reason the fact has to be *said*. It is in the configuration,
+    # so it is inside the digest the ledger and the register both pin:
+    # a generated election cannot be re-labelled without invalidating
+    # every artefact that names it. Clause S8.
+    report.generated = bool(config.get("generated"))
+    check(True,
+          "this election was GENERATED -- a synthetic electorate, no human "
+          "chose any selection"
+          if report.generated else
+          "the configuration does not declare a generated electorate",
+          "clause S8" if report.generated else "")
 
     report.section("Every ballot came from an eligible voter, and said what it says")
     accepted = ledger["accepted"]
@@ -263,6 +285,19 @@ def verify(config_path: Path, ledger_path: Path, releases_path: Path) -> int:
             print(f"  - {failure}")
         return 1
     print("\nEvery check passed. This result follows from the published records.")
+    # Last, and after the verdict rather than before it, because it is the
+    # sentence a reader most needs to carry away from a report that said
+    # yes to everything. A generated election passes every check here, and
+    # passing them is not evidence that anybody voted.
+    if report.generated:
+        print("\nBUT NOBODY CHOSE THESE VOTES. This election declares a "
+              "generated electorate:\n"
+              "  the citizens were invented and no human chose any "
+              "selection. Every signature,\n"
+              "  token and chain link above is genuine -- which is why the "
+              "checks pass, and why\n"
+              "  this line is here rather than left for the data to imply. "
+              "Clause S8.")
     return 0
 
 

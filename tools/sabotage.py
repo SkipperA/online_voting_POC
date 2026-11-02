@@ -623,6 +623,51 @@ MUTATIONS = [
         replace='    public static let walletScheme = "ovpoc-wallet-v2"  // SABOTAGE',
     ),
     Mutation(
+        name="a_real_polls_participation_register_is_published",
+        what=(
+            "The close archives the office's register into the public "
+            "record for every election, not only a generated one -- so a "
+            "real poll's list of who was issued a token goes into the "
+            "directory somebody zips and sends on."
+        ),
+        path="service/api.py",
+        find="    if deployment.config.generated:\n        try:\n            (folder / \"supervision.json\").write_bytes(",
+        replace="    if True:  # SABOTAGE\n        try:\n            (folder / \"supervision.json\").write_bytes(",
+    ),
+    Mutation(
+        name="the_challenge_bundle_carries_the_answer",
+        what=(
+            "The challenge bundle copies the answer key in beside the "
+            "dataset, so the question it asks is one anybody can look up."
+        ),
+        path="tools/publish_challenge.py",
+        find="    answer_digest = digest(answer_key)",
+        replace=(
+            "    answer_digest = digest(answer_key)\n"
+            "    shutil.copyfile(answer_key, out / answer_key.name)  # SABOTAGE"
+        ),
+    ),
+    Mutation(
+        name="guessing_is_scored_as_a_win",
+        what=(
+            "The scorer calls any claim with a hit a win, so the challenge "
+            "is settled by the first person who submits ten guesses."
+        ),
+        path="tools/score_challenge.py",
+        find='        "leaked": p < ALPHA,',
+        replace='        "leaked": len(hits) > 0,  # SABOTAGE',
+    ),
+    Mutation(
+        name="a_generated_election_verifies_without_saying_so",
+        what=(
+            "The independent verifier stops reporting a synthetic "
+            "electorate, so a page of green ticks is all a reader gets."
+        ),
+        path="tools/verify_election.py",
+        find='    report.generated = bool(config.get("generated"))',
+        replace="    report.generated = False  # SABOTAGE",
+    ),
+    Mutation(
         name="wallet_url_scheme_unregistered",
         what=(
             "The wallet claims a different URL scheme from the one the "

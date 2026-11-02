@@ -1,0 +1,1361 @@
+From f8d134452b7499766a5235f2c077347acf13604d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 2 Nov 2026 18:50:08 +0100
+Subject: [PATCH] Publish a generated election as a challenge, with a withheld
+ answer and a scorer
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+`docs/Challenge.md` is the statement, and it is short on purpose: a vague
+one is won by redefinition.
+
+**What is published.** Four files. The configuration, the ledger, the
+release register -- and `supervision.json`, the office's own register,
+which a real poll keeps behind its perimeter because absence from it is
+conclusive proof of non-voting (§3.7). Handing it over is the whole
+demonstration: an attacker gets the citizens' identifiers and the blinded
+values `c` they asked the office to sign *together*, which is strictly
+more than any observer of a real poll ever holds.
+
+**The claim.** Exhibit a mapping from citizen identifiers to ad-hoc public
+keys that is correct materially more often than guessing. It should hold
+because the only object connecting the two is the blinding factor `r`,
+which never left the voting application: `c = enc(k_p^a)·r^e` is uniformly
+distributed and independent of `k_p^a`, so for every key in the ledger
+there is an `r` making it the preimage of any given `c`. The hiding is
+information-theoretic, which is why the register is publishable at all and
+why the challenge is about the record rather than about a key length.
+
+Four caveats in the statement, all load-bearing: the electorate is
+synthetic (S8) while none of the cryptography is; ballots under one
+ad-hoc key are linkable to each other by design, and that is variant B's
+handle rather than a win; the dataset has no timestamps because the ledger
+has none, so an attack assuming timing is out of scope here and in scope
+for the design (A2); and the office could link if it retained `r` or the
+issuance order, which it does not -- the two orders are drawn
+independently and the registers are not even the same length.
+
+**Two refusals for one mistake**, because publishing a real poll's
+participation register cannot be taken back. `archive_at_close` writes the
+register only when the configuration declares a generated electorate, and
+`tools/publish_challenge.py` refuses a directory whose configuration does
+not. Both read the flag from the configuration, so a reloaded election
+cannot acquire the behaviour.
+
+`supervision_register` moves out of the supervision app's closure to
+module level, so the archive writes the bytes the origin serves. One
+renderer: a challenge about a file written specially for the occasion is a
+challenge about nothing. It counts as a supervisor download, because it is
+one -- the archived file records its own release and says 1, not 0.
+
+**The answer never leaves.** `publish_challenge.py` hashes the answer key
+and never reads its contents; its SHA-256 goes in the manifest and in the
+statement the bundle carries, before the challenge opens.
+`test_the_answer_is_not_in_the_bundle` reads every byte published looking
+for a key beside its citizen, rather than checking a file name.
+
+**`tools/score_challenge.py` is the scoring rule as code**, because a rule
+described and not implemented is a rule that gets argued about after
+somebody claims a win. Exact binomial tail, no normal approximation --
+the tail is the whole question and an approximation is worst exactly there
+-- summed from the far end inward. Threshold 1e-3 rather than the
+customary 0.05, because this is a public invitation and somebody will
+submit many claims. A claim is scored over every identifier it names,
+including ones the election has never heard of: counting only the
+recognised ones would make padding free, and dropping them silently would
+tell somebody working from a different election that they had merely
+guessed badly. `--expect-digest` is the half of the commitment that
+protects the claimant.
+
+**The verifier says so, after its verdict rather than among the checks.** A
+generated election passes every check -- that is the point of generating
+one -- so the sentence a reader must carry away from a page of green ticks
+is that passing them is not evidence anybody voted.
+
+Four mutations, each dry-run caught by the test that names it: the
+register archived for every election, the answer copied into the bundle,
+a scorer that calls any hit a win, and a verifier that stops reporting
+the electorate.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01WBaumDFkzp8JDM11vKQD2F
+---
+ CLAUDE.md                  |  52 +++++
+ docs/Challenge.md          | 128 ++++++++++++
+ docs/Demo_Scope_Limits.md  |  11 ++
+ service/api.py             | 117 ++++++++---
+ tests/test_challenge.py    | 386 +++++++++++++++++++++++++++++++++++++
+ tools/publish_challenge.py | 187 ++++++++++++++++++
+ tools/sabotage.py          |  45 +++++
+ tools/score_challenge.py   | 167 ++++++++++++++++
+ tools/verify_election.py   |  37 +++-
+ 9 files changed, 1101 insertions(+), 29 deletions(-)
+ create mode 100644 docs/Challenge.md
+ create mode 100644 tests/test_challenge.py
+ create mode 100644 tools/publish_challenge.py
+ create mode 100644 tools/score_challenge.py
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+index a27e637..2c0a9b1 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -665,6 +665,56 @@ register is `VRO.register` — a set of ids, and nothing else.
+   when the run has finished -- a live one spans the mint it started with,
+   and clearing it there would take the refusal off every origin halfway
+   through.
++- **The challenge publishes the office's own register, and the archive is
++  where that decision lives.** `docs/Challenge.md` is the statement: four
++  files, a claim that nobody can link a citizen to a ballot, and the
++  withheld answer key whose SHA-256 is published before the challenge
++  opens. The fourth file is `supervision.json` -- the release register,
++  which a real poll keeps behind its perimeter because absence from it is
++  conclusive proof of non-voting (§3.7), and which a generated election
++  hands over on purpose. An attacker therefore gets the identifiers and
++  the blinded values *together*, which is strictly more than any observer
++  of a real poll holds, and the claim is that it still does not help:
++  `c = enc(k_p^a)·r^e` hides `k_p^a` information-theoretically, so for
++  every ad-hoc key in the ledger there is an `r` making it the preimage of
++  any `c`. That is why the register is publishable at all, and why the
++  challenge is about the record rather than about a key length.
++
++  Two safeguards for one mistake, because the mistake cannot be taken
++  back. `archive_at_close` refuses to *write* the register unless
++  `config.generated` -- read from the configuration, so a reloaded
++  election cannot acquire the behaviour -- and
++  `tools/publish_challenge.py` refuses to publish a directory whose
++  configuration does not declare one. Either alone is a single point of
++  failure for publishing a real participation register.
++  `a_real_polls_participation_register_is_published` is the mutation, and
++  `test_the_answer_is_not_in_the_bundle` reads every byte published
++  looking for a key beside its citizen rather than checking a file name.
++
++  `supervision_register` moved out of the supervision app's closure to
++  module level so the archive writes the bytes the origin serves. One
++  renderer, for the reason this project keeps relearning: a challenge
++  about a file written specially for the occasion is a challenge about
++  nothing. It counts as a supervisor download, because it is one -- the
++  archived file records its own release and says 1 rather than 0.
++
++  `tools/score_challenge.py` is the scoring rule as code, because a rule
++  described and not implemented is a rule that gets argued about after
++  somebody claims a win. Exact binomial tail, no normal approximation --
++  the tail is the whole question and an approximation is worst exactly
++  there -- and a threshold of 1e-3 rather than the customary 0.05,
++  because this is a public invitation and somebody will submit many
++  claims. A claim is scored over every identifier it names, including
++  ones this election has never heard of: counting only the recognised
++  ones would make padding free, and dropping them silently would tell
++  somebody working from a different election that they had merely
++  guessed badly.
++
++  The independent verifier reports the generated electorate *after* its
++  verdict rather than among the checks. A generated election passes every
++  check -- that is the point of generating one -- so the sentence a
++  reader must carry away from a page of green ticks is that passing them
++  is not evidence anybody voted.
+ - **Which election is served is chosen on the console, and the rule is
+   about evidence.** `Deployment.switch_to` fills the running object in
+   place, exactly as `mint` does and for the same reason -- every origin's
+@@ -1168,6 +1218,8 @@ python -m pytest -q          # full suite
+ python demo.py               # narrated end-to-end run
+ python ext_demo.py           # narrated end-to-end run with all tests
+ python tools/sabotage.py     # regenerate docs/sabotage.md
++python tools/publish_challenge.py <election> --answer-key <k> --out <dir>
++python tools/score_challenge.py <answer-key> <claim> --expect-digest <sha256>
+ python demo_svr.py           # happy path against a live service
+ python ext_demo_svr.py       # adversarial scenarios against a live service
+ cd web/voter-app && npm install && npm run build   # the voter app's bundle.js
+diff --git a/docs/Challenge.md b/docs/Challenge.md
+new file mode 100644
+index 0000000..a4ee554
+--- /dev/null
++++ b/docs/Challenge.md
+@@ -0,0 +1,128 @@
++# The challenge
++
++A generated election, published whole, with an invitation: link a voter to
++their vote.
++
++This is the normative text. An actual challenge ships a copy of it with the
++digests of that election's files filled in — `tools/publish_challenge.py`
++writes the bundle — and the copy in the bundle is the one that binds.
++
++---
++
++## What is published
++
++Four files, and nothing that describes how they were made.
++
++| File | What it is |
++|---|---|
++| `election.json` | The configuration, byte for byte as it was published. Every client pinned its digest; every signature below names it |
++| `ledger.json` | The accepted ballots and the hash chain over them. Each record carries the ad-hoc public key $`k_p^a`$ it was signed under, the selection, the office's token over that key, and the voter's signature |
++| `releases.json` | The public release register: one commitment per issued token, the chain over them, and the office's signed head and count |
++| `supervision.json` | **The office's own register.** One entry per citizen: their identifier, the opening behind their commitment, and the request they signed — which carries the blinded value $`c`$ they asked the office to sign and their wallet signature over $`\mathrm{hash}([id, c])`$ |
++
++The fourth file is the one that makes this a challenge rather than a
++demonstration. A real deployment keeps it behind the supervision perimeter,
++because it names every citizen who was issued a token and absence from it is
++conclusive proof of non-voting (§3.7). Here it is handed over deliberately:
++an attacker gets the identifiers and the blinded values *together*, which is
++strictly more than any observer of a real poll ever holds.
++
++Nothing else is published. No generation log, no mapping file, no synthetic
++voter table, nothing ordered by how the generator happened to run.
++
++## The claim
++
++> Given all four files, nobody can say which ballot belongs to which citizen.
++
++Precisely: exhibit a mapping from citizen identifiers to ad-hoc public keys
++that is correct materially more often than guessing.
++
++With $`N`$ citizens, a blind guess is right one time in $`N`$. A claim may
++name as many or as few citizens as you like; it is scored by how far its hit
++count sits above the binomial expectation for a claim of that size, and
++`tools/score_challenge.py` is the scorer. There is no partial credit and no
++appeal to plausibility: a mapping is right about a citizen or it is not.
++
++**Any method counts.** Cryptanalysis, statistics, structure in the dataset,
++an implementation mistake, anything. If the generator leaks, that is a
++finding worth having and it wins.
++
++## Why it should hold
++
++The only object connecting a citizen to their ballot is the blinding factor
++$`r`$. It is generated inside the voting application, used once, and
++discarded; the office never sees it and nothing in these four files records
++it.
++
++```math
++c = \mathrm{enc}(k_p^a)\cdot r^{e_R} \bmod n_R
++```
++
++Because $`r`$ ranges over the whole multiplicative group, $`c`$ is uniformly
++distributed and independent of $`k_p^a`$: for **every** ad-hoc key in the
++ledger there exists an $`r`$ that makes it the preimage of **any** given
++$`c`$. The hiding is information-theoretic, not computational. Publishing
++$`c`$ for every citizen therefore gives away nothing, and a larger computer
++does not help — which is why the supervision register can be published at
++all, and why this challenge is about the record rather than about a key
++length.
++
++## What is withheld, and committed
++
++The true mapping from citizen to ad-hoc key. One file, written outside every
++election directory, served by nothing.
++
++Its SHA-256 is published *with this statement, before the challenge opens*.
++A submitted claim is scored against an answer nobody could have moved
++afterwards. That is this project's own idiom, the same one the office uses
++for a commitment: commit first, disclose on demand.
++
++## Four caveats, all of them load-bearing
++
++**The electorate is synthetic.** No human chose any of these selections, and
++the citizens are invented — the identifiers say so on their face. What is
++*not* synthetic is any of the cryptography: every blind signature, token,
++ballot signature and chain link was produced by the protocol exactly as it
++is in any other poll here, which is the only reason attacking this dataset
++means anything. Clause S8 carries the disclosure and every surface shows it.
++
++**Ballots under one ad-hoc key are linkable to each other, deliberately.**
++Re-voting is the design's answer to coercion, and variant B gives the voter a
++handle they control. Finding that two ledger entries share a key is not a
++win — it is the design working. Linking either of them to a *citizen* is.
++
++**This dataset has no timestamps, because the ledger has none.** There is no
++scheduler and no time in a ballot record. A real deployment leaks through the
++network layer — who contacted the ballot box and when — and that is clause A2
++and an open problem, not something this dataset models. An attack that
++assumes timing is out of scope here and very much in scope for the design.
++
++**The office could link, and does not.** An office that retained $`r`$, or
++the order in which it issued, could tie a commitment to a ballot. It retains
++neither: the issuance order and the casting order of this election were drawn
++independently, so index $`i`$ of one register is not index $`i`$ of the other,
++and the registers are not even the same length because some citizens
++abstained. A real poll decorrelates the two because citizens choose when to
++ask and when to cast; the mitigation a deployment would owe — a random delay
++between consent and cast, a ballot box that queues and draws — belongs in the
++deployment and is named in `docs/threats.md`.
++
++## Submitting a claim
++
++A claim is one JSON object: citizen identifier to base64url ad-hoc public key,
++exactly as `ledger.json` spells them.
++
++```json
++{
++  "GEN-000042": "k7Qf…",
++  "GEN-001337": "9vTa…"
++}
++```
++
++```
++python tools/score_challenge.py answer-key.json claim.json \
++    --expect-digest <the SHA-256 published with the dataset>
++```
++
++The scorer refuses to run if the answer key does not hash to the published
++digest, which is the half of the commitment that protects *you*.
+diff --git a/docs/Demo_Scope_Limits.md b/docs/Demo_Scope_Limits.md
+index 5a0cf45..41858a8 100644
+--- a/docs/Demo_Scope_Limits.md
++++ b/docs/Demo_Scope_Limits.md
+@@ -362,6 +362,17 @@ entry is conclusive proof of non-participation — the lever §3.7 spends a
+ page keeping out of circulation. It can be published here because the
+ citizens are fictional, and that is the only reason.
+ 
++That publication is `docs/Challenge.md`: the register goes out *with* the
++ledger and the invitation to link a citizen to their ballot, which hands an
++attacker the identifiers and the blinded values together — strictly more
++than any observer of a real poll ever holds. Two separate refusals keep it
++to generated elections, because the mistake cannot be taken back: the close
++writes the register into the public record only when the configuration
++declares a generated electorate, and the publishing tool refuses a directory
++whose configuration does not. The flag is read from the configuration both
++times, so a reloaded election cannot acquire the behaviour by being
++remembered wrongly.
++
+ **The label is injected rather than written into any page**
+ (`service/apps.py:_page`), and the flag it reads lives in `election.json`,
+ inside the digest every client pins. So a surface added later cannot be
+diff --git a/service/api.py b/service/api.py
+index d053234..72288a2 100644
+--- a/service/api.py
++++ b/service/api.py
+@@ -315,6 +315,49 @@ CLOSED = "closed"
+ POLL_STATE = "poll.state.json"
+ 
+ 
++def supervision_register(deployment: Deployment) -> dict:
++    """The office's register, as the supervision origin serves it.
++
++    Module level rather than a closure inside `supervisor_app`, because a
++    generated election archives it at the close and must archive *these*
++    bytes. A second rendering here would be a second object: the register
++    a challenge publishes has to be the register a supervisor is shown, or
++    the challenge is about a file this project invented for the occasion.
++    `test_the_archived_register_is_what_the_origin_serves` is the tripwire.
++
++    Raises `ValueError` while the box has not produced a verifiable signed
++    statement that it closed. The caller decides what that means: the
++    endpoint answers 409, and the archive writes nothing.
++    """
++    # The office opens supervision on the box's *signed statement* that it
++    # closed, verified under the key pinned in the published configuration
++    # -- not on the box's memory, which is what reading `published_view()`
++    # from here amounted to. Both run in one process, so the old check was
++    # correct and proved nothing: a separate deployment would have had to
++    # ask, and this is what it would ask for. The statement is also what a
++    # supervisor can be shown, if they want to know on whose word the
++    # register was released.
++    closed = deployment.ebb.closed_at()
++    if closed is None or not verify_phase(
++        deployment.config.ebb_statement_key, deployment.config.election_id,
++        "closed", closed[0], closed[1],
++    ):
++        raise ValueError("supervision opens when the ballot box closes")
++    closed_at, closing_statement = closed
++    return {
++        "format": SUPERVISION_FORMAT,
++        "election_id": deployment.config.election_id,
++        "configuration_digest": deployment.config.digest_hex(),
++        "genesis_hash": deployment.config.genesis_hash.hex(),
++        **deployment.vro.supervision_dump(),
++        "supervisor_downloads": deployment.vro.supervisor_downloads,
++        # On whose word this was released. A supervisor can check it under
++        # the same key, and so can anyone they show it to.
++        "closed_at": closed_at,
++        "closing_statement": b64(closing_statement),
++    }
++
++
+ def poll_state(deployment: Deployment) -> dict:
+     """Everything a closed poll needs to be shown again, public and not."""
+     return {
+@@ -357,6 +400,39 @@ def archive_at_close(deployment: Deployment) -> Path | None:
+     (folder / "releases.json").write_bytes(canonical_bytes(releases_dump(deployment)))
+     (deployment.data_folder / POLL_STATE).write_bytes(
+         canonical_bytes(poll_state(deployment)))
++    # The office's register, for a generated election only.
++    #
++    # On a real poll this belongs behind the supervision perimeter and
++    # emphatically not in `closed/`, which is the public record: it names
++    # every citizen who was released a token, which is the participation
++    # register clause §3.7 exists to keep out of public view. On a
++    # generated election there is nobody to protect -- the electorate is
++    # invented, clause S8 -- and publishing it *is* the demonstration:
++    # the challenge hands an attacker the identifiers and the blinded
++    # values together and asks them to find the link anyway.
++    #
++    # Written here rather than fetched from the origin later because the
++    # register is rebuilt from memory and the perimeter is a password: a
++    # challenge whose dataset depended on somebody downloading it through
++    # a gate before the next restart is the race `archive_at_close`
++    # already exists to lose.
++    # Note that this counts as a supervisor download, because it is one:
++    # `supervisor_downloads` exists so the office cannot hand the register
++    # out quietly, and handing it to the public record is the loudest way
++    # there is. The archived file therefore records its own release and
++    # says 1 rather than 0, which is the accurate thing for a file
++    # somebody is holding to say.
++    if deployment.config.generated:
++        try:
++            (folder / "supervision.json").write_bytes(
++                canonical_bytes(supervision_register(deployment)))
++        except ValueError:
++            # The box has not produced a verifiable closing statement.
++            # The poll is still shut and the three public files are still
++            # written; what is missing is the challenge dataset, which is
++            # a generated election's extra and never a condition on the
++            # close.
++            pass
+     (folder / "README.md").write_text(
+         "# the closed poll\n\n"
+         "The three files `tools/verify_election.py` takes, in its order:\n\n"
+@@ -365,7 +441,13 @@ def archive_at_close(deployment: Deployment) -> Path | None:
+         "the dumps name its digest, and a configuration re-rendered later would not\n"
+         "match it. Written once, at the close, and not rewritten afterwards.\n\n"
+         "This is the published record, not a durable ballot box: the live registry\n"
+-        "is in memory and a restart during a poll still loses it.\n",
++        "is in memory and a restart during a poll still loses it.\n\n"
++        "A **generated** election has a fourth file, `supervision.json`: the\n"
++        "office's release register, which a real poll keeps behind its\n"
++        "supervision perimeter because it names every citizen who was issued a\n"
++        "token. Here the electorate is invented (clause S8) and publishing it is\n"
++        "the point -- it is the challenge dataset. See `docs/Challenge.md` and\n"
++        "`tools/publish_challenge.py`.\n",
+         encoding="utf-8",
+     )
+     return folder
+@@ -1197,33 +1279,12 @@ def supervisor_app(deployment: Deployment, base) -> FastAPI:
+     app = base(origins.SUPERVISOR)
+ 
+     def _dump() -> dict:
+-        # The office opens supervision on the box's *signed statement* that
+-        # it closed, verified under the key pinned in the published
+-        # configuration -- not on the box's memory, which is what reading
+-        # `published_view()` from here amounted to. Both run in one process,
+-        # so the old check was correct and proved nothing: a separate
+-        # deployment would have had to ask, and this is what it would ask
+-        # for. The statement is also what a supervisor can be shown, if
+-        # they want to know on whose word the register was released.
+-        closed = deployment.ebb.closed_at()
+-        if closed is None or not verify_phase(
+-            deployment.config.ebb_statement_key, deployment.config.election_id,
+-            "closed", closed[0], closed[1],
+-        ):
+-            raise HTTPException(409, "supervision opens when the ballot box closes")
+-        closed_at, closing_statement = closed
+-        return {
+-            "format": SUPERVISION_FORMAT,
+-            "election_id": deployment.config.election_id,
+-            "configuration_digest": deployment.config.digest_hex(),
+-            "genesis_hash": deployment.config.genesis_hash.hex(),
+-            **deployment.vro.supervision_dump(),
+-            "supervisor_downloads": deployment.vro.supervisor_downloads,
+-            # On whose word this was released. A supervisor can check it
+-            # under the same key, and so can anyone they show it to.
+-            "closed_at": closed_at,
+-            "closing_statement": b64(closing_statement),
+-        }
++        # One renderer, shared with the archive a generated election
++        # writes at its close. See `supervision_register`.
++        try:
++            return supervision_register(deployment)
++        except ValueError as exc:
++            raise HTTPException(409, str(exc))
+ 
+     @app.get("/certificates")
+     async def certificates() -> dict:
+diff --git a/tests/test_challenge.py b/tests/test_challenge.py
+new file mode 100644
+index 0000000..9dade24
+--- /dev/null
++++ b/tests/test_challenge.py
+@@ -0,0 +1,386 @@
++"""The challenge: what is published, what is withheld, and how a claim is scored.
++
++A generated election is published whole -- including the office's own
++register, which a real poll keeps behind its supervision perimeter -- with
++an invitation to link a citizen to their ballot. `docs/Challenge.md` is the
++statement; these are the parts of it that can be made to fail.
++
++Three properties, and they are different in kind:
++
++  * the dataset is the *real* record, not a second rendering of it made for
++    the occasion. A challenge about a file this project wrote specially is
++    a challenge about nothing;
++  * the answer never leaves. The bundle carries its digest, which is what
++    lets a claim submitted later be scored against an answer that cannot
++    have moved;
++  * the scoring rule exists as code. A rule described but not implemented
++    is a rule that gets argued about after somebody claims a win.
++"""
++
++from __future__ import annotations
++
++import json
++import sys
++from pathlib import Path
++
++import pytest
++
++from ovpoc.messages import canonical_bytes
++from service import api, generate
++from service.generate import ANSWER_KEYS, Distribution
++from service.state import Deployment
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
++
++import publish_challenge  # noqa: E402
++import score_challenge  # noqa: E402
++import verify_election  # noqa: E402
++
++TEST_BITS = 2048
++
++#: Small. Nothing here is about scale -- the generator's own tests cover
++#: that -- and every ballot is a blind signature.
++PLAN = Distribution(per_option={1: 5, 2: 4, 3: 3},
++                    protest={-1: 2}, abstentions=3, revotes=2)
++
++
++def _made(root, *, generated: bool) -> Deployment:
++    made = Deployment.create(
++        bits=TEST_BITS, election_id="challenge-2026", num_choices=3,
++        question="Ki legyen a képviselő?", options=["Egy", "Kettő", "Három"],
++        generated=generated, document_root=root / "config", trust_anchors=None)
++    made.data_dir = root / "elections"
++    made.save(made.data_dir)
++    return made
++
++
++@pytest.fixture(scope="module")
++def published(tmp_path_factory):
++    """One filled, closed, archived generated election."""
++    made = _made(tmp_path_factory.mktemp("challenge"), generated=True)
++    generate.populate(made, PLAN)
++    api.archive_at_close(made)
++    return made
++
++
++@pytest.fixture(scope="module")
++def answer_key(published) -> Path:
++    return published.data_dir / ANSWER_KEYS / f"{published.data_folder.name}.json"
++
++
++@pytest.fixture(scope="module")
++def bundle(tmp_path_factory, published, answer_key) -> Path:
++    out = tmp_path_factory.mktemp("bundle")
++    publish_challenge.build(published.data_folder, answer_key, out)
++    return out
++
++
++# -- the office's register is archived, and only when nobody is exposed ----
++
++def test_the_archive_carries_the_office_register_for_a_generated_election(published):
++    """The fourth file, and the one that makes this a challenge.
++
++    The first three are what any citizen could download while the poll ran.
++    This one names every citizen who was issued a token and carries the
++    blinded value they asked the office to sign -- so an attacker gets the
++    identifiers and the blinded values *together*, which is strictly more
++    than any observer of a real poll ever holds. Handing it over is the
++    whole demonstration: the claim is that it still does not help.
++    """
++    assert (published.data_folder / "closed" / "supervision.json").is_file()
++
++
++def test_the_archived_register_is_what_the_origin_serves(published):
++    """One renderer, or the challenge is about a file we wrote for it.
++
++    `supervision_register` was a closure inside the supervision app until
++    the archive needed it. A second rendering here would be a second
++    object, differing in whatever a later edit touched on one side -- and
++    the difference would show up as an attacker's recount of a published
++    dataset disagreeing with a supervisor's, with no way to say which was
++    the register.
++    """
++    archived = json.loads(
++        (published.data_folder / "closed" / "supervision.json").read_text(
++            encoding="utf-8"))
++    again = api.supervision_register(published)
++
++    assert set(archived) == set(again), (
++        "the archive and the origin disagree about what a register has in it")
++
++    # Everything but the counter, which must differ: `supervisor_downloads`
++    # is published so that the office cannot hand the register out quietly,
++    # and both the archive and this second call are the office handing it
++    # out. The archived file therefore records its own release -- it says
++    # 1, not 0 -- which is the accurate thing for a file somebody is
++    # holding to say.
++    assert archived["supervisor_downloads"] >= 1
++    assert again["supervisor_downloads"] > archived["supervisor_downloads"]
++    archived.pop("supervisor_downloads")
++    again.pop("supervisor_downloads")
++    assert canonical_bytes(archived) == canonical_bytes(again)
++
++
++def test_a_real_poll_archives_no_register(tmp_path):
++    """§3.7 in a directory rather than in a warning.
++
++    Absence from the release register is conclusive proof of non-voting,
++    which is what a coercer demanding turnout needs. On a real poll that
++    register stays behind the perimeter, and `closed/` is the *public*
++    record -- the one somebody zips and sends on. The flag is read from
++    the configuration, so an election cannot acquire the behaviour by
++    being reloaded.
++    """
++    real = _made(tmp_path, generated=False)
++    for voter in ("Nagy Béla", "Kiss Anna"):
++        real.vro.enrol(voter)
++    real.ebb.open()
++    real.ebb.close()
++    api.archive_at_close(real)
++
++    closed = real.data_folder / "closed"
++    assert (closed / "ledger.json").is_file(), "the public record is still written"
++    assert not (closed / "supervision.json").exists(), (
++        "a real poll's participation register was archived into the public "
++        "record")
++
++
++# -- the bundle ------------------------------------------------------------
++
++def test_the_bundle_carries_the_four_files_and_their_digests(bundle):
++    import hashlib
++
++    manifest = json.loads((bundle / "MANIFEST.json").read_text(encoding="utf-8"))
++    assert set(manifest["files"]) == set(publish_challenge.PUBLISHED)
++    for name, stated in manifest["files"].items():
++        actual = hashlib.sha256((bundle / name).read_bytes()).hexdigest()
++        assert actual == stated, f"{name} does not hash to what the manifest says"
++
++    # And the plain file, because the first thing anybody does with a
++    # downloaded dataset is check it with the tool they already have.
++    sums = (bundle / "SHA256SUMS").read_text(encoding="utf-8")
++    for name, stated in manifest["files"].items():
++        assert f"{stated}  {name}" in sums
++
++
++def test_the_answer_is_not_in_the_bundle(bundle, answer_key):
++    """The one mistake that would end the challenge quietly.
++
++    Not a file-name check: the test reads every byte published and looks
++    for an ad-hoc key beside the citizen it belongs to. A bundle that
++    carried the answer under another name, or inside another file, would
++    pass a listing and fail this.
++    """
++    answer = json.loads(answer_key.read_text(encoding="utf-8"))
++    mapping = answer["citizen_to_adhoc_key"]
++    assert mapping, "the fixture produced no answer at all"
++
++    for path in sorted(bundle.rglob("*")):
++        if not path.is_file():
++            continue
++        text = path.read_text(encoding="utf-8", errors="replace")
++        for citizen, key in mapping.items():
++            assert not (citizen in text and key in text), (
++                f"{path.name} names {citizen} beside their ad-hoc key")
++
++
++def test_the_bundle_commits_to_the_answer_it_withheld(bundle, answer_key):
++    import hashlib
++
++    manifest = json.loads((bundle / "MANIFEST.json").read_text(encoding="utf-8"))
++    stated = manifest["withheld"]["answer_key"]["sha256"]
++    assert stated == hashlib.sha256(answer_key.read_bytes()).hexdigest()
++    # And the statement a reader is handed says the same thing, since that
++    # is the copy that binds.
++    assert stated in (bundle / "CHALLENGE.md").read_text(encoding="utf-8")
++
++
++def test_the_statement_names_every_file_the_tool_publishes():
++    """The table and the tool, kept in step.
++
++    A statement that promised a file the bundle does not carry would be
++    read as the dataset being incomplete; one that omitted a file the
++    bundle does carry would understate what an attacker was given, which
++    is worse -- it makes the claim look stronger than it is.
++    """
++    statement = (Path(__file__).resolve().parents[1]
++                 / "docs" / "Challenge.md").read_text(encoding="utf-8")
++    for name in publish_challenge.PUBLISHED:
++        assert f"`{name}`" in statement, (
++            f"docs/Challenge.md does not name {name}, which the bundle "
++            "publishes")
++
++
++def test_publishing_a_real_poll_is_refused(tmp_path, answer_key):
++    """The tool's own §3.7 check, after the archive's.
++
++    Two refusals for one mistake, deliberately: the archive declines to
++    *write* the register for a real poll, and this declines to publish a
++    directory whose configuration does not declare a synthetic electorate.
++    Either alone is a single point of failure for the one error that
++    cannot be taken back.
++    """
++    real = _made(tmp_path, generated=False)
++    real.vro.enrol("Nagy Béla")
++    real.ebb.open()
++    real.ebb.close()
++    api.archive_at_close(real)
++    # Hand it the register it refuses to write, so the test is about the
++    # configuration check rather than about a missing file.
++    (real.data_folder / "closed" / "supervision.json").write_bytes(b"{}")
++
++    with pytest.raises(SystemExit) as refused:
++        publish_challenge.build(real.data_folder, answer_key, tmp_path / "out")
++    assert "generated" in str(refused.value)
++
++
++def test_publishing_without_the_answer_is_refused(tmp_path, published):
++    """A challenge nobody can settle is a claim."""
++    with pytest.raises(SystemExit) as refused:
++        publish_challenge.build(published.data_folder,
++                                tmp_path / "nothing-here.json", tmp_path / "out")
++    assert "answer" in str(refused.value).lower()
++
++
++# -- scoring ---------------------------------------------------------------
++
++def _answer(n: int) -> dict:
++    return {"election_id": "challenge-2026",
++            "citizen_to_adhoc_key": {f"GEN-{i:06d}": f"key-{i}" for i in range(n)}}
++
++
++def test_a_perfect_claim_is_upheld():
++    answer = _answer(500)
++    result = score_challenge.score(answer, dict(answer["citizen_to_adhoc_key"]))
++    assert result["hits"] == 500
++    assert result["leaked"] is True
++
++
++def test_guessing_is_not_upheld():
++    """The null hypothesis, exercised rather than asserted.
++
++    One hit out of ten over five hundred citizens is what luck looks like,
++    and a scorer that called it a win would hand the challenge to the first
++    person who submitted ten guesses.
++    """
++    answer = _answer(500)
++    claim = {f"GEN-{i:06d}": f"key-{i + 1}" for i in range(10)}
++    claim["GEN-000000"] = "key-0"          # one lucky hit
++    result = score_challenge.score(answer, claim)
++    assert result["hits"] == 1
++    assert result["leaked"] is False
++
++
++def test_a_small_claim_can_still_win():
++    """Scope is the claimant's to choose, and a narrow claim is not a weak one.
++
++    Somebody who can link five citizens out of five hundred and says so has
++    broken the property exactly as thoroughly as somebody who links all of
++    them. The threshold is about the chance of being right, never about
++    how much was attempted.
++    """
++    answer = _answer(500)
++    claim = {f"GEN-{i:06d}": f"key-{i}" for i in range(5)}
++    result = score_challenge.score(answer, claim)
++    assert result["hits"] == 5
++    assert result["leaked"] is True
++
++
++def test_a_claim_padded_with_strangers_does_not_look_better():
++    """Named and unrecognised, counted and reported.
++
++    A claim scored only over the identifiers it got right would make
++    padding free. Counting every identifier the claimant named keeps the
++    denominator honest; reporting the unknown ones keeps a claimant who
++    was working from a different election from being told, silently, that
++    they guessed badly.
++    """
++    answer = _answer(500)
++    claim = {"GEN-000000": "key-0"}
++    claim.update({f"NOBODY-{i}": "x" for i in range(200)})
++    result = score_challenge.score(answer, claim)
++    assert result["hits"] == 1
++    assert result["recognised"] == 1
++    assert len(result["unknown"]) == 200
++    assert result["claimed"] == 201
++    assert result["leaked"] is False
++
++
++def test_an_empty_claim_claims_nothing():
++    result = score_challenge.score(_answer(500), {})
++    assert result["hits"] == 0 and result["p_value"] == 1.0
++    assert result["leaked"] is False
++
++
++@pytest.mark.parametrize("hits, claimed, n", [
++    (0, 10, 100), (1, 1, 2), (3, 7, 50), (10, 10, 1000), (5, 1000, 3),
++])
++def test_the_tail_is_a_probability(hits, claimed, n):
++    assert 0.0 <= score_challenge.at_least(hits, claimed, n) <= 1.0
++
++
++def test_more_hits_are_never_more_likely():
++    """Monotone, which is the property the threshold rests on.
++
++    If the tail were not monotone in `hits`, a claim could be made to look
++    luckier by getting *more* of it right, and the verdict would be
++    nonsense in a way nobody would notice until somebody argued it.
++    """
++    tail = [score_challenge.at_least(k, 40, 500) for k in range(41)]
++    assert tail == sorted(tail, reverse=True)
++
++
++def test_the_scorer_refuses_an_answer_that_does_not_match_the_commitment(
++        tmp_path, answer_key, capsys):
++    """The half of the commitment that protects the claimant.
++
++    Without it they are taking our word that the file they are scored
++    against is the one we published a digest of. With it, a swapped answer
++    key is an exit code rather than an argument.
++    """
++    claim = tmp_path / "claim.json"
++    claim.write_text("{}", encoding="utf-8")
++    code = score_challenge.main([str(answer_key), str(claim),
++                                 "--expect-digest", "00" * 32])
++    assert code == 2
++    assert "does not match" in capsys.readouterr().err
++
++
++def test_the_scorer_runs_against_the_real_answer(tmp_path, answer_key, capsys):
++    import hashlib
++
++    claim = tmp_path / "claim.json"
++    claim.write_text("{}", encoding="utf-8")
++    code = score_challenge.main([
++        str(answer_key), str(claim),
++        "--expect-digest", hashlib.sha256(answer_key.read_bytes()).hexdigest()])
++    assert code == 0
++    assert "NOT UPHELD" in capsys.readouterr().out
++
++
++# -- the verifier says so --------------------------------------------------
++
++def test_the_verifier_reports_a_generated_electorate(bundle, capsys):
++    """A generated election passes every check, which is why it is said.
++
++    The checker's verdict is about the record and the record is perfect.
++    Nothing in it is about who chose the selections, and a reader handed a
++    page of green ticks will not infer the question. So the line comes
++    after the verdict rather than before it: it is what they should carry
++    away from a report that said yes to everything.
++    """
++    code = verify_election.verify(bundle / "election.json",
++                                  bundle / "ledger.json",
++                                  bundle / "releases.json")
++    out = capsys.readouterr().out
++    assert code == 0, out
++    assert "Every check passed" in out
++    assert "NOBODY CHOSE THESE VOTES" in out
++    assert "S8" in out
++
++
++def test_the_verifier_says_nothing_of_the_sort_about_a_real_poll():
++    """The other direction, which a test written one way round would miss."""
++    report = verify_election.Report()
++    assert report.generated is False
++    assert report.as_dict()["generated"] is False
+diff --git a/tools/publish_challenge.py b/tools/publish_challenge.py
+new file mode 100644
+index 0000000..433b10d
+--- /dev/null
++++ b/tools/publish_challenge.py
+@@ -0,0 +1,187 @@
++"""Build the challenge bundle from a closed generated election.
++
++What this does and, more importantly, what it refuses to do.
++
++It copies four files out of an election's `closed/` directory, writes the
++statement beside them with that election's digests filled in, and writes a
++manifest of SHA-256s. It never reads the answer key's *contents* -- only
++its digest -- so a mistake here cannot put the answer in the bundle.
++
++Run on the machine holding the data volume:
++
++    python tools/publish_challenge.py \\
++        deploy/election-data/election-0003 \\
++        --answer-key deploy/election-data/answer-keys/election-0003.json \\
++        --out /tmp/challenge-0003
++
++Then attach the bundle to a release. It is deliberately not served by any
++origin: the hosted deployment is a single-core VPS, a conference audience
++downloading several megabytes from it at once is a self-inflicted outage,
++and a dataset whose availability depends on the demonstration still running
++is not a published dataset.
++
++`tools/` may shell out and may assume things `tests/` may not; this one
++assumes nothing beyond the standard library.
++"""
++
++from __future__ import annotations
++
++import argparse
++import hashlib
++import json
++import shutil
++import sys
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[1]
++
++#: The four files, in the order the statement's table lists them. The first
++#: three are what any citizen could download while the poll was open; the
++#: fourth is the office's own register, which a real deployment keeps behind
++#: its perimeter and a generated election publishes on purpose.
++PUBLISHED = ("election.json", "ledger.json", "releases.json", "supervision.json")
++
++STATEMENT = ROOT / "docs" / "Challenge.md"
++
++
++def digest(path: Path) -> str:
++    """SHA-256 of a file, read in chunks.
++
++    Chunked because the ledger of a ten-thousand-voter election is not
++    small and there is no reason for this to be the thing that cannot run
++    on the server it is run on.
++    """
++    h = hashlib.sha256()
++    with path.open("rb") as handle:
++        for block in iter(lambda: handle.read(1 << 20), b""):
++            h.update(block)
++    return h.hexdigest()
++
++
++def read_election(closed: Path) -> dict:
++    """The configuration, for the identity this bundle claims to be about."""
++    return json.loads((closed / "election.json").read_text(encoding="utf-8"))
++
++
++def build(election_dir: Path, answer_key: Path, out: Path) -> dict:
++    """Write the bundle. Returns the manifest it wrote.
++
++    Every refusal here is about publishing the wrong thing rather than
++    about tidiness, so each one names what would have gone wrong.
++    """
++    closed = election_dir / "closed"
++    if not closed.is_dir():
++        raise SystemExit(
++            f"{election_dir} has no closed/ directory. A challenge is "
++            "published from a poll that finished: the record is written at "
++            "the close and nowhere else.")
++
++    missing = [name for name in PUBLISHED if not (closed / name).is_file()]
++    if missing:
++        extra = ""
++        if "supervision.json" in missing:
++            extra = (
++                "\n\nsupervision.json is written at the close for a "
++                "*generated* election only. Either this election was not "
++                "generated -- in which case publishing its register would "
++                "publish a real participation register, which is the one "
++                "thing §3.7 keeps out of public view -- or it closed before "
++                "the box produced a verifiable closing statement.")
++        raise SystemExit(f"{closed} is missing: {', '.join(missing)}{extra}")
++
++    config = read_election(closed)
++    if not config.get("generated"):
++        raise SystemExit(
++            f"{closed / 'election.json'} does not declare `generated`. This "
++            "tool publishes a synthetic electorate and an office register "
++            "together; doing that to a real poll would publish who voted.")
++
++    if not answer_key.is_file():
++        raise SystemExit(
++            f"{answer_key} does not exist. The challenge is a claim without "
++            "it: its digest is what lets a submitted solution be scored "
++            "against an answer nobody could have moved afterwards.")
++
++    out.mkdir(parents=True, exist_ok=True)
++    files = {}
++    for name in PUBLISHED:
++        shutil.copyfile(closed / name, out / name)
++        files[name] = digest(out / name)
++
++    # The answer key is *hashed*, never copied and never parsed. Keeping it
++    # out of this function's reach is cheaper than remembering not to write
++    # it: there is no code path here that holds its contents.
++    answer_digest = digest(answer_key)
++
++    manifest = {
++        "format": "ovpoc-challenge/1",
++        "election_id": config["election_id"],
++        "configuration_digest": files["election.json"],
++        "files": files,
++        "withheld": {
++            "answer_key": {
++                "filename": answer_key.name,
++                "sha256": answer_digest,
++                "note": (
++                    "The true mapping from citizen to ad-hoc public key. Not "
++                    "in this bundle. This digest is the commitment: it is "
++                    "published now so that a claim submitted later is scored "
++                    "against an answer that cannot have been changed."),
++            }
++        },
++    }
++    (out / "MANIFEST.json").write_text(
++        json.dumps(manifest, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
++        encoding="utf-8")
++
++    statement = STATEMENT.read_text(encoding="utf-8")
++    header = "\n".join([
++        "<!-- Written by tools/publish_challenge.py. This copy is the one"
++        " that binds. -->",
++        "",
++        f"> **Election** `{config['election_id']}`  ",
++        f"> **Configuration digest** `{files['election.json']}`  ",
++        f"> **Answer key SHA-256** `{answer_digest}`  ",
++        "> The answer key is withheld. Its digest above is published now, with"
++        " the dataset.",
++        "",
++        "---",
++        "",
++    ])
++    (out / "CHALLENGE.md").write_text(header + statement, encoding="utf-8")
++
++    # A plain sha256sum file beside the JSON one, because the first thing
++    # anybody does with a downloaded dataset is check it with the tool they
++    # already have rather than with ours.
++    (out / "SHA256SUMS").write_text(
++        "".join(f"{value}  {name}\n" for name, value in sorted(files.items())),
++        encoding="utf-8")
++    return manifest
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
++    parser.add_argument("election", type=Path,
++                        help="an election directory holding closed/")
++    parser.add_argument("--answer-key", type=Path, required=True,
++                        help="the withheld mapping; hashed, never copied")
++    parser.add_argument("--out", type=Path, required=True,
++                        help="directory to write the bundle into")
++    args = parser.parse_args(argv)
++
++    manifest = build(args.election.resolve(), args.answer_key.resolve(),
++                     args.out.resolve())
++    print(f"bundle written to {args.out}")
++    print(f"  election      {manifest['election_id']}")
++    for name, value in sorted(manifest["files"].items()):
++        print(f"  {name:<20} {value}")
++    print(f"  answer key    {manifest['withheld']['answer_key']['sha256']}"
++          "  (withheld)")
++    print()
++    print("Publish the digest above with the dataset, before the challenge "
++          "opens.")
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/tools/sabotage.py b/tools/sabotage.py
+index 9fa56b0..ce858e6 100644
+--- a/tools/sabotage.py
++++ b/tools/sabotage.py
+@@ -622,6 +622,51 @@ MUTATIONS = [
+         find='    public static let walletScheme = "ovpoc-wallet"',
+         replace='    public static let walletScheme = "ovpoc-wallet-v2"  // SABOTAGE',
+     ),
++    Mutation(
++        name="a_real_polls_participation_register_is_published",
++        what=(
++            "The close archives the office's register into the public "
++            "record for every election, not only a generated one -- so a "
++            "real poll's list of who was issued a token goes into the "
++            "directory somebody zips and sends on."
++        ),
++        path="service/api.py",
++        find="    if deployment.config.generated:\n        try:\n            (folder / \"supervision.json\").write_bytes(",
++        replace="    if True:  # SABOTAGE\n        try:\n            (folder / \"supervision.json\").write_bytes(",
++    ),
++    Mutation(
++        name="the_challenge_bundle_carries_the_answer",
++        what=(
++            "The challenge bundle copies the answer key in beside the "
++            "dataset, so the question it asks is one anybody can look up."
++        ),
++        path="tools/publish_challenge.py",
++        find="    answer_digest = digest(answer_key)",
++        replace=(
++            "    answer_digest = digest(answer_key)\n"
++            "    shutil.copyfile(answer_key, out / answer_key.name)  # SABOTAGE"
++        ),
++    ),
++    Mutation(
++        name="guessing_is_scored_as_a_win",
++        what=(
++            "The scorer calls any claim with a hit a win, so the challenge "
++            "is settled by the first person who submits ten guesses."
++        ),
++        path="tools/score_challenge.py",
++        find='        "leaked": p < ALPHA,',
++        replace='        "leaked": len(hits) > 0,  # SABOTAGE',
++    ),
++    Mutation(
++        name="a_generated_election_verifies_without_saying_so",
++        what=(
++            "The independent verifier stops reporting a synthetic "
++            "electorate, so a page of green ticks is all a reader gets."
++        ),
++        path="tools/verify_election.py",
++        find='    report.generated = bool(config.get("generated"))',
++        replace="    report.generated = False  # SABOTAGE",
++    ),
+     Mutation(
+         name="wallet_url_scheme_unregistered",
+         what=(
+diff --git a/tools/score_challenge.py b/tools/score_challenge.py
+new file mode 100644
+index 0000000..877f40b
+--- /dev/null
++++ b/tools/score_challenge.py
+@@ -0,0 +1,167 @@
++"""Score a submitted claim against the withheld answer key.
++
++A challenge whose scoring rule is described but not implemented is a rule
++that gets argued about after somebody claims a win. This is the rule.
++
++    python tools/score_challenge.py answer-key.json claim.json \\
++        --expect-digest <the SHA-256 published with the dataset>
++
++A claim is one JSON object mapping citizen identifier to base64url ad-hoc
++public key, spelled as `ledger.json` spells them. It may name as many or as
++few citizens as the claimant likes.
++
++The verdict is a p-value, not an opinion. Under the null hypothesis -- the
++record leaks nothing, so a claim is guessing -- each named citizen is right
++with probability 1/N independently, where N is the number of citizens in the
++answer key. The probability of getting *at least* the observed number of
++hits by chance is computed exactly from the binomial distribution, with no
++normal approximation: the counts are small, the tail is what matters, and an
++approximation in the tail is exactly where it is worst.
++
++Nothing here depends on anything outside the standard library, and that is
++deliberate for a tool somebody else is meant to be able to run against our
++answer without taking our word for the arithmetic.
++"""
++
++from __future__ import annotations
++
++import argparse
++import hashlib
++import json
++import math
++import sys
++from pathlib import Path
++
++#: Below this the claim is treated as a win: the record leaked. One in a
++#: thousand rather than the customary one in twenty, because this is a
++#: public claim about a cryptographic property and somebody will submit
++#: many claims. A threshold that a handful of attempts can cross by luck is
++#: a threshold that will be crossed by luck.
++ALPHA = 1e-3
++
++
++def digest(path: Path) -> str:
++    h = hashlib.sha256()
++    with path.open("rb") as handle:
++        for block in iter(lambda: handle.read(1 << 20), b""):
++            h.update(block)
++    return h.hexdigest()
++
++
++def at_least(hits: int, claimed: int, n: int) -> float:
++    """P(at least `hits` correct) for `claimed` independent guesses of 1/n.
++
++    Exact, summed from the far tail inward so the smallest terms are added
++    first. `math.comb` and floats are enough here: the numbers a claim
++    produces are small, and summing from the top avoids losing the tail to
++    a partial sum that is already of order one.
++    """
++    if n <= 0 or claimed <= 0:
++        return 1.0
++    hits = max(0, min(hits, claimed))
++    if hits == 0:
++        return 1.0
++    p = 1.0 / n
++    total = 0.0
++    for k in range(claimed, hits - 1, -1):
++        total += math.comb(claimed, k) * (p ** k) * ((1.0 - p) ** (claimed - k))
++    return min(1.0, total)
++
++
++def score(answer: dict, claim: dict) -> dict:
++    """Hits, the population guessed from, and how surprising that is.
++
++    Citizens named in the claim that the answer key has never heard of are
++    counted and reported rather than ignored. They are not hits, and a
++    claim padded with invented identifiers must not look better than one
++    that was honest about its scope -- but silently dropping them would
++    also hide a claimant who was working from a different election.
++    """
++    truth = answer["citizen_to_adhoc_key"]
++    n = len(truth)
++
++    unknown = sorted(set(claim) - set(truth))
++    named = [voter for voter in claim if voter in truth]
++    hits = sorted(voter for voter in named if claim[voter] == truth[voter])
++
++    claimed = len(claim)          # the claimant's own stated scope
++    p = at_least(len(hits), claimed, n)
++    return {
++        "election_id": answer.get("election_id"),
++        "citizens": n,
++        "claimed": claimed,
++        "recognised": len(named),
++        "unknown": unknown,
++        "hits": len(hits),
++        "correct": hits,
++        "expected_by_chance": claimed / n if n else 0.0,
++        "p_value": p,
++        "leaked": p < ALPHA,
++    }
++
++
++def report(result: dict) -> str:
++    lines = [
++        f"election            {result['election_id']}",
++        f"citizens            {result['citizens']}",
++        f"claimed             {result['claimed']}",
++        f"recognised          {result['recognised']}",
++        f"hits                {result['hits']}",
++        f"expected by chance  {result['expected_by_chance']:.4f}",
++        f"p-value             {result['p_value']:.3e}",
++    ]
++    if result["unknown"]:
++        shown = ", ".join(result["unknown"][:5])
++        more = "" if len(result["unknown"]) <= 5 else f" (+{len(result['unknown']) - 5} more)"
++        lines.append(f"not in this election {shown}{more}")
++    lines.append("")
++    if result["leaked"]:
++        lines.append(
++            f"CLAIM UPHELD. {result['hits']} correct out of "
++            f"{result['claimed']} is not chance (p < {ALPHA:g}). The record "
++            "links citizens to ballots and the design's privacy claim is "
++            "wrong, or this dataset leaks something a real poll would not. "
++            "Either is a finding; publish the method.")
++    else:
++        lines.append(
++            f"CLAIM NOT UPHELD. {result['hits']} correct out of "
++            f"{result['claimed']} is consistent with guessing "
++            f"(p = {result['p_value']:.3e}, threshold {ALPHA:g}).")
++    return "\n".join(lines)
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
++    parser.add_argument("answer_key", type=Path)
++    parser.add_argument("claim", type=Path)
++    parser.add_argument(
++        "--expect-digest",
++        help="the answer key's SHA-256 as published with the dataset; the "
++             "scorer refuses to run if it does not match")
++    args = parser.parse_args(argv)
++
++    if args.expect_digest:
++        # The half of the commitment that protects the *claimant*. Without
++        # it they are taking our word that the file they are scored against
++        # is the one we committed to.
++        actual = digest(args.answer_key)
++        if actual != args.expect_digest.strip().lower():
++            print(f"answer key does not match the published digest\n"
++                  f"  published {args.expect_digest}\n"
++                  f"  this file {actual}", file=sys.stderr)
++            return 2
++
++    answer = json.loads(args.answer_key.read_text(encoding="utf-8"))
++    claim = json.loads(args.claim.read_text(encoding="utf-8"))
++    if not isinstance(claim, dict):
++        print("a claim is one JSON object: citizen identifier to base64url "
++              "ad-hoc public key", file=sys.stderr)
++        return 2
++
++    result = score(answer, claim)
++    print(report(result))
++    return 1 if result["leaked"] else 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/tools/verify_election.py b/tools/verify_election.py
+index 97088c7..96579e7 100644
+--- a/tools/verify_election.py
++++ b/tools/verify_election.py
+@@ -59,6 +59,11 @@ class Report:
+         self.checks: list[dict] = []
+         self.sections: list[str] = []
+         self.tally: dict = {}
++        #: Whether the configuration declares a synthetic electorate.
++        #: Reported beside the verdict rather than folded into it: a
++        #: generated election verifies perfectly, which is exactly why a
++        #: reader has to be told. Clause S8.
++        self.generated: bool = False
+ 
+     def section(self, title: str) -> None:
+         self.sections.append(title)
+@@ -78,7 +83,8 @@ class Report:
+         return not self.failures
+ 
+     def as_dict(self) -> dict:
+-        return {"ok": self.ok, "checks": self.checks, "tally": self.tally}
++        return {"ok": self.ok, "checks": self.checks, "tally": self.tally,
++                "generated": self.generated}
+ 
+ 
+ def unb64(text: str) -> bytes:
+@@ -154,6 +160,22 @@ def run_checks(config_bytes: bytes, ledger_bytes: bytes,
+     check(ledger_bytes == canonical(ledger),
+           "ledger is canonically serialised, so its hash is comparable")
+ 
++    # Reported, never failed. `generated` is a true statement about the
++    # electorate and not a defect in the record: every signature below is
++    # genuine, every chain link verifies, and this verifier will pass a
++    # generated election exactly as it passes any other -- which is the
++    # whole reason the fact has to be *said*. It is in the configuration,
++    # so it is inside the digest the ledger and the register both pin:
++    # a generated election cannot be re-labelled without invalidating
++    # every artefact that names it. Clause S8.
++    report.generated = bool(config.get("generated"))
++    check(True,
++          "this election was GENERATED -- a synthetic electorate, no human "
++          "chose any selection"
++          if report.generated else
++          "the configuration does not declare a generated electorate",
++          "clause S8" if report.generated else "")
++
+     report.section("Every ballot came from an eligible voter, and said what it says")
+     accepted = ledger["accepted"]
+     tokens_ok = votes_ok = 0
+@@ -263,6 +285,19 @@ def verify(config_path: Path, ledger_path: Path, releases_path: Path) -> int:
+             print(f"  - {failure}")
+         return 1
+     print("\nEvery check passed. This result follows from the published records.")
++    # Last, and after the verdict rather than before it, because it is the
++    # sentence a reader most needs to carry away from a report that said
++    # yes to everything. A generated election passes every check here, and
++    # passing them is not evidence that anybody voted.
++    if report.generated:
++        print("\nBUT NOBODY CHOSE THESE VOTES. This election declares a "
++              "generated electorate:\n"
++              "  the citizens were invented and no human chose any "
++              "selection. Every signature,\n"
++              "  token and chain link above is genuine -- which is why the "
++              "checks pass, and why\n"
++              "  this line is here rather than left for the data to imply. "
++              "Clause S8.")
+     return 0
+ 
+ 
+
+base-commit: aa09aeb954e0001bfdf8112bae0766127566dbc7
+-- 
+2.43.0
+

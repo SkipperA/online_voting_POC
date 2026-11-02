@@ -665,6 +665,56 @@ register is `VRO.register` — a set of ids, and nothing else.
   when the run has finished -- a live one spans the mint it started with,
   and clearing it there would take the refusal off every origin halfway
   through.
+- **The challenge publishes the office's own register, and the archive is
+  where that decision lives.** `docs/Challenge.md` is the statement: four
+  files, a claim that nobody can link a citizen to a ballot, and the
+  withheld answer key whose SHA-256 is published before the challenge
+  opens. The fourth file is `supervision.json` -- the release register,
+  which a real poll keeps behind its perimeter because absence from it is
+  conclusive proof of non-voting (§3.7), and which a generated election
+  hands over on purpose. An attacker therefore gets the identifiers and
+  the blinded values *together*, which is strictly more than any observer
+  of a real poll holds, and the claim is that it still does not help:
+  `c = enc(k_p^a)·r^e` hides `k_p^a` information-theoretically, so for
+  every ad-hoc key in the ledger there is an `r` making it the preimage of
+  any `c`. That is why the register is publishable at all, and why the
+  challenge is about the record rather than about a key length.
+
+  Two safeguards for one mistake, because the mistake cannot be taken
+  back. `archive_at_close` refuses to *write* the register unless
+  `config.generated` -- read from the configuration, so a reloaded
+  election cannot acquire the behaviour -- and
+  `tools/publish_challenge.py` refuses to publish a directory whose
+  configuration does not declare one. Either alone is a single point of
+  failure for publishing a real participation register.
+  `a_real_polls_participation_register_is_published` is the mutation, and
+  `test_the_answer_is_not_in_the_bundle` reads every byte published
+  looking for a key beside its citizen rather than checking a file name.
+
+  `supervision_register` moved out of the supervision app's closure to
+  module level so the archive writes the bytes the origin serves. One
+  renderer, for the reason this project keeps relearning: a challenge
+  about a file written specially for the occasion is a challenge about
+  nothing. It counts as a supervisor download, because it is one -- the
+  archived file records its own release and says 1 rather than 0.
+
+  `tools/score_challenge.py` is the scoring rule as code, because a rule
+  described and not implemented is a rule that gets argued about after
+  somebody claims a win. Exact binomial tail, no normal approximation --
+  the tail is the whole question and an approximation is worst exactly
+  there -- and a threshold of 1e-3 rather than the customary 0.05,
+  because this is a public invitation and somebody will submit many
+  claims. A claim is scored over every identifier it names, including
+  ones this election has never heard of: counting only the recognised
+  ones would make padding free, and dropping them silently would tell
+  somebody working from a different election that they had merely
+  guessed badly.
+
+  The independent verifier reports the generated electorate *after* its
+  verdict rather than among the checks. A generated election passes every
+  check -- that is the point of generating one -- so the sentence a
+  reader must carry away from a page of green ticks is that passing them
+  is not evidence anybody voted.
 - **Which election is served is chosen on the console, and the rule is
   about evidence.** `Deployment.switch_to` fills the running object in
   place, exactly as `mint` does and for the same reason -- every origin's
@@ -1168,6 +1218,8 @@ python -m pytest -q          # full suite
 python demo.py               # narrated end-to-end run
 python ext_demo.py           # narrated end-to-end run with all tests
 python tools/sabotage.py     # regenerate docs/sabotage.md
+python tools/publish_challenge.py <election> --answer-key <k> --out <dir>
+python tools/score_challenge.py <answer-key> <claim> --expect-digest <sha256>
 python demo_svr.py           # happy path against a live service
 python ext_demo_svr.py       # adversarial scenarios against a live service
 cd web/voter-app && npm install && npm run build   # the voter app's bundle.js

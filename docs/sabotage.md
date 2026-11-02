@@ -18,7 +18,7 @@ confident the surrounding comments sound.
 | wallet_signature_check_removed | `test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_office_console_shows_recorded_beside_disclosed` |
 | finalize_selfcheck_removed | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_finalize_rejects_a_dishonest_vro_response` |
 | chain_verification_disabled | `test_altering_a_recorded_ballot_breaks_the_hash_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain` |
-| ledger_chaining_removed | `test_a_stranger_can_recompute_the_result_from_the_downloads`<br>`test_an_accented_ballot_runs_the_protocol_unchanged`<br>`test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_every_ballot_verifies_and_the_recount_holds`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_independent_verifier_counts_by_number_and_needs_no_name`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed`<br>`test_the_verifier_service_runs_the_same_checks` |
+| ledger_chaining_removed | `test_a_stranger_can_recompute_the_result_from_the_downloads`<br>`test_an_accented_ballot_runs_the_protocol_unchanged`<br>`test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_every_ballot_verifies_and_the_recount_holds`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_independent_verifier_counts_by_number_and_needs_no_name`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed`<br>`test_the_verifier_reports_a_generated_electorate`<br>`test_the_verifier_service_runs_the_same_checks` |
 | rejected_ballots_supersede | `test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_the_adversarial_scenarios_all_hold` |
 | selection_range_check_removed | `test_a_protest_ballot_is_counted_as_invalid_not_rejected`<br>`test_a_protest_selection_acquires_no_name`<br>`test_distinct_protest_codes_are_not_merged`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_box_accepts_by_number_and_not_by_name`<br>`test_the_tally_is_the_distribution_that_was_asked_for` |
 | vro_key_pinning_removed | `test_a_substituted_vro_key_is_refused_by_the_voter_app`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
@@ -60,7 +60,14 @@ confident the surrounding comments sound.
 | unrecorded_anchors_are_trusted | `test_a_certificate_nobody_recorded_refuses_to_load`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_check_command_notices_a_file_nobody_recorded` |
 | unconfigured_office_blames_the_citizen | `test_an_office_told_nothing_to_trust_says_so`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | upload_size_cap_removed | `test_an_office_with_anchors_still_caps_the_upload`<br>`test_an_oversized_upload_is_refused_without_being_read`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
-| hand_off_scheme_renamed_in_code_alone | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_two_applications_agree_on_the_hand_off` |
+| hand_off_scheme_renamed_in_code_alone | `test_each_application_registers_the_scheme_the_other_opens_it_with`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_two_applications_agree_on_the_hand_off` |
+| a_real_polls_participation_register_is_published | `test_a_real_poll_archives_no_register`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_close_writes_the_three_files`<br>`test_the_office_register_comes_back_with_its_openings`<br>`test_the_written_bytes_are_the_bytes_the_endpoints_serve` |
+| the_challenge_bundle_carries_the_answer | `test_the_answer_is_not_in_the_bundle` |
+| guessing_is_scored_as_a_win | `test_a_claim_padded_with_strangers_does_not_look_better`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_guessing_is_not_upheld` |
+| a_generated_election_verifies_without_saying_so | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_verifier_reports_a_generated_electorate` |
+| wallet_url_scheme_unregistered | `test_each_application_registers_the_scheme_the_other_opens_it_with`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| voting_application_offers_itself_for_documents | `test_the_voting_application_declares_no_document_type` |
+| a_build_that_registers_nothing_looks_like_one_that_worked | `test_each_application_says_which_schemes_its_own_build_registers`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | hand_off_carries_the_voter_id | `test_the_hand_off_carries_no_identifier` |
 
 ## Detail
@@ -190,6 +197,7 @@ Caught by:
 - `test_the_independent_verifier_counts_by_number_and_needs_no_name`
 - `test_the_release_dump_needs_no_signature_of_its_own`
 - `test_the_reloaded_register_chains_to_the_head_the_office_signed`
+- `test_the_verifier_reports_a_generated_electorate`
 - `test_the_verifier_service_runs_the_same_checks`
 
 ### `rejected_ballots_supersede`
@@ -698,8 +706,81 @@ The wallet's URL scheme is renamed in the package and nowhere else, so the regis
 Patched in `ios/OVPOCKit/Sources/OVPOCKit/HandOff.swift`.
 
 Caught by:
+- `test_each_application_registers_the_scheme_the_other_opens_it_with`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 - `test_the_two_applications_agree_on_the_hand_off`
+
+### `a_real_polls_participation_register_is_published`
+
+The close archives the office's register into the public record for every election, not only a generated one -- so a real poll's list of who was issued a token goes into the directory somebody zips and sends on.
+
+Patched in `service/api.py`.
+
+Caught by:
+- `test_a_real_poll_archives_no_register`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_close_writes_the_three_files`
+- `test_the_office_register_comes_back_with_its_openings`
+- `test_the_written_bytes_are_the_bytes_the_endpoints_serve`
+
+### `the_challenge_bundle_carries_the_answer`
+
+The challenge bundle copies the answer key in beside the dataset, so the question it asks is one anybody can look up.
+
+Patched in `tools/publish_challenge.py`.
+
+Caught by:
+- `test_the_answer_is_not_in_the_bundle`
+
+### `guessing_is_scored_as_a_win`
+
+The scorer calls any claim with a hit a win, so the challenge is settled by the first person who submits ten guesses.
+
+Patched in `tools/score_challenge.py`.
+
+Caught by:
+- `test_a_claim_padded_with_strangers_does_not_look_better`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_guessing_is_not_upheld`
+
+### `a_generated_election_verifies_without_saying_so`
+
+The independent verifier stops reporting a synthetic electorate, so a page of green ticks is all a reader gets.
+
+Patched in `tools/verify_election.py`.
+
+Caught by:
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_verifier_reports_a_generated_electorate`
+
+### `wallet_url_scheme_unregistered`
+
+The wallet claims a different URL scheme from the one the voting application opens, so the hand-off finds nobody and does nothing at all.
+
+Patched in `ios/WalletApp/Info.plist`.
+
+Caught by:
+- `test_each_application_registers_the_scheme_the_other_opens_it_with`
+- `test_every_mutation_still_matches_its_target_exactly_once`
+
+### `voting_application_offers_itself_for_documents`
+
+The voting application declares a document type, which puts it in the share sheet for the signed token request -- the one file it must never receive. No code required.
+
+Patched in `ios/VoterApp/Info.plist`.
+
+Caught by:
+- `test_the_voting_application_declares_no_document_type`
+
+### `a_build_that_registers_nothing_looks_like_one_that_worked`
+
+The wallet stops reading its own CFBundleURLTypes, so a build whose Info.plist setting was never applied shows the same screen as one that works.
+
+Patched in `ios/WalletApp/WalletApp/ContentView.swift`.
+
+Caught by:
+- `test_each_application_says_which_schemes_its_own_build_registers`
+- `test_every_mutation_still_matches_its_target_exactly_once`
 
 ### `hand_off_carries_the_voter_id`
 
@@ -712,5 +793,5 @@ Caught by:
 
 ## Summary
 
-- 51 of 51 mutations were detected.
+- 58 of 58 mutations were detected.
 - 0 were not.

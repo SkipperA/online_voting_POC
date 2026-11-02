@@ -362,6 +362,17 @@ entry is conclusive proof of non-participation — the lever §3.7 spends a
 page keeping out of circulation. It can be published here because the
 citizens are fictional, and that is the only reason.
 
+That publication is `docs/Challenge.md`: the register goes out *with* the
+ledger and the invitation to link a citizen to their ballot, which hands an
+attacker the identifiers and the blinded values together — strictly more
+than any observer of a real poll ever holds. Two separate refusals keep it
+to generated elections, because the mistake cannot be taken back: the close
+writes the register into the public record only when the configuration
+declares a generated electorate, and the publishing tool refuses a directory
+whose configuration does not. The flag is read from the configuration both
+times, so a reloaded election cannot acquire the behaviour by being
+remembered wrongly.
+
 **The label is injected rather than written into any page**
 (`service/apps.py:_page`), and the flag it reads lives in `election.json`,
 inside the digest every client pins. So a surface added later cannot be

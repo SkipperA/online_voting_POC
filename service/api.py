@@ -315,6 +315,49 @@ CLOSED = "closed"
 POLL_STATE = "poll.state.json"
 
 
+def supervision_register(deployment: Deployment) -> dict:
+    """The office's register, as the supervision origin serves it.
+
+    Module level rather than a closure inside `supervisor_app`, because a
+    generated election archives it at the close and must archive *these*
+    bytes. A second rendering here would be a second object: the register
+    a challenge publishes has to be the register a supervisor is shown, or
+    the challenge is about a file this project invented for the occasion.
+    `test_the_archived_register_is_what_the_origin_serves` is the tripwire.
+
+    Raises `ValueError` while the box has not produced a verifiable signed
+    statement that it closed. The caller decides what that means: the
+    endpoint answers 409, and the archive writes nothing.
+    """
+    # The office opens supervision on the box's *signed statement* that it
+    # closed, verified under the key pinned in the published configuration
+    # -- not on the box's memory, which is what reading `published_view()`
+    # from here amounted to. Both run in one process, so the old check was
+    # correct and proved nothing: a separate deployment would have had to
+    # ask, and this is what it would ask for. The statement is also what a
+    # supervisor can be shown, if they want to know on whose word the
+    # register was released.
+    closed = deployment.ebb.closed_at()
+    if closed is None or not verify_phase(
+        deployment.config.ebb_statement_key, deployment.config.election_id,
+        "closed", closed[0], closed[1],
+    ):
+        raise ValueError("supervision opens when the ballot box closes")
+    closed_at, closing_statement = closed
+    return {
+        "format": SUPERVISION_FORMAT,
+        "election_id": deployment.config.election_id,
+        "configuration_digest": deployment.config.digest_hex(),
+        "genesis_hash": deployment.config.genesis_hash.hex(),
+        **deployment.vro.supervision_dump(),
+        "supervisor_downloads": deployment.vro.supervisor_downloads,
+        # On whose word this was released. A supervisor can check it under
+        # the same key, and so can anyone they show it to.
+        "closed_at": closed_at,
+        "closing_statement": b64(closing_statement),
+    }
+
+
 def poll_state(deployment: Deployment) -> dict:
     """Everything a closed poll needs to be shown again, public and not."""
     return {
@@ -357,6 +400,39 @@ def archive_at_close(deployment: Deployment) -> Path | None:
     (folder / "releases.json").write_bytes(canonical_bytes(releases_dump(deployment)))
     (deployment.data_folder / POLL_STATE).write_bytes(
         canonical_bytes(poll_state(deployment)))
+    # The office's register, for a generated election only.
+    #
+    # On a real poll this belongs behind the supervision perimeter and
+    # emphatically not in `closed/`, which is the public record: it names
+    # every citizen who was released a token, which is the participation
+    # register clause §3.7 exists to keep out of public view. On a
+    # generated election there is nobody to protect -- the electorate is
+    # invented, clause S8 -- and publishing it *is* the demonstration:
+    # the challenge hands an attacker the identifiers and the blinded
+    # values together and asks them to find the link anyway.
+    #
+    # Written here rather than fetched from the origin later because the
+    # register is rebuilt from memory and the perimeter is a password: a
+    # challenge whose dataset depended on somebody downloading it through
+    # a gate before the next restart is the race `archive_at_close`
+    # already exists to lose.
+    # Note that this counts as a supervisor download, because it is one:
+    # `supervisor_downloads` exists so the office cannot hand the register
+    # out quietly, and handing it to the public record is the loudest way
+    # there is. The archived file therefore records its own release and
+    # says 1 rather than 0, which is the accurate thing for a file
+    # somebody is holding to say.
+    if deployment.config.generated:
+        try:
+            (folder / "supervision.json").write_bytes(
+                canonical_bytes(supervision_register(deployment)))
+        except ValueError:
+            # The box has not produced a verifiable closing statement.
+            # The poll is still shut and the three public files are still
+            # written; what is missing is the challenge dataset, which is
+            # a generated election's extra and never a condition on the
+            # close.
+            pass
     (folder / "README.md").write_text(
         "# the closed poll\n\n"
         "The three files `tools/verify_election.py` takes, in its order:\n\n"
@@ -365,7 +441,13 @@ def archive_at_close(deployment: Deployment) -> Path | None:
         "the dumps name its digest, and a configuration re-rendered later would not\n"
         "match it. Written once, at the close, and not rewritten afterwards.\n\n"
         "This is the published record, not a durable ballot box: the live registry\n"
-        "is in memory and a restart during a poll still loses it.\n",
+        "is in memory and a restart during a poll still loses it.\n\n"
+        "A **generated** election has a fourth file, `supervision.json`: the\n"
+        "office's release register, which a real poll keeps behind its\n"
+        "supervision perimeter because it names every citizen who was issued a\n"
+        "token. Here the electorate is invented (clause S8) and publishing it is\n"
+        "the point -- it is the challenge dataset. See `docs/Challenge.md` and\n"
+        "`tools/publish_challenge.py`.\n",
         encoding="utf-8",
     )
     return folder
@@ -1197,33 +1279,12 @@ def supervisor_app(deployment: Deployment, base) -> FastAPI:
     app = base(origins.SUPERVISOR)
 
     def _dump() -> dict:
-        # The office opens supervision on the box's *signed statement* that
-        # it closed, verified under the key pinned in the published
-        # configuration -- not on the box's memory, which is what reading
-        # `published_view()` from here amounted to. Both run in one process,
-        # so the old check was correct and proved nothing: a separate
-        # deployment would have had to ask, and this is what it would ask
-        # for. The statement is also what a supervisor can be shown, if
-        # they want to know on whose word the register was released.
-        closed = deployment.ebb.closed_at()
-        if closed is None or not verify_phase(
-            deployment.config.ebb_statement_key, deployment.config.election_id,
-            "closed", closed[0], closed[1],
-        ):
-            raise HTTPException(409, "supervision opens when the ballot box closes")
-        closed_at, closing_statement = closed
-        return {
-            "format": SUPERVISION_FORMAT,
-            "election_id": deployment.config.election_id,
-            "configuration_digest": deployment.config.digest_hex(),
-            "genesis_hash": deployment.config.genesis_hash.hex(),
-            **deployment.vro.supervision_dump(),
-            "supervisor_downloads": deployment.vro.supervisor_downloads,
-            # On whose word this was released. A supervisor can check it
-            # under the same key, and so can anyone they show it to.
-            "closed_at": closed_at,
-            "closing_statement": b64(closing_statement),
-        }
+        # One renderer, shared with the archive a generated election
+        # writes at its close. See `supervision_register`.
+        try:
+            return supervision_register(deployment)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
 
     @app.get("/certificates")
     async def certificates() -> dict:
