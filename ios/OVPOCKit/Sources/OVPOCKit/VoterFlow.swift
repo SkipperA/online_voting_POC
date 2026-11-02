@@ -202,6 +202,13 @@ public final class VoterFlow {
         set(.config, .done, [
             Field("election_id", election.electionID),
             Field("choices", "1..\(election.numChoices)"),
+            // Shown beside the keys because it is pinned beside them: the
+            // wording is inside the digest, so what the ballot asks is
+            // attested exactly as firmly as whose signature a token must
+            // verify under.
+            Field("question", election.question ?? "— none asked"),
+            Field("options", election.options?.joined(separator: " · ")
+                  ?? "— the ballot is numbered"),
             Field("config_digest", election.publishedDigest),
             Field("digest recomputed here", election.computedDigest),
             Field("digest agrees", String(election.digestAgrees)),

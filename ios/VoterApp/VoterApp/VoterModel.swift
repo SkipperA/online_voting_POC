@@ -47,6 +47,25 @@ final class VoterModel {
     }
 
     var election: Election? { flow.election }
+
+    /// What the ballot says about the number now chosen.
+    ///
+    /// The stepper runs past the end of the option list on purpose, and
+    /// this is where that shows: inside the list a selection has a name,
+    /// outside it a selection is a protest ballot and has none. The
+    /// absence of a name is the answer rather than a gap in one -- the
+    /// system records an out-of-range value and never interprets it, so
+    /// nothing here may invent a word for it.
+    var selectionLabel: String {
+        guard let election else { return "" }
+        if let name = election.optionName(selection) {
+            return "\(selection) · \(name)"
+        }
+        if (1 ... election.numChoices).contains(selection) {
+            return "option \(selection)"
+        }
+        return "outside the option list — a protest ballot"
+    }
     var records: [VoterFlow.Record] { flow.records }
 
     /// Which way this voter is asking. Chosen before the one tap, and

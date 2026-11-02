@@ -460,6 +460,19 @@ register is `VRO.register` — a set of ids, and nothing else.
   directions -- the names are in the configuration, and they are in none of
   the four places that would make a word load-bearing.
 
+  **The native client reads the same two fields and shows them the same
+  way.** `Election.question` and `Election.options` are optional, absent
+  and null both meaning a numbered ballot, exactly as `tally_interval_
+  seconds` already works. The stepper on the phone still runs past the end
+  of the option list, because an out-of-range selection is a protest
+  ballot and the design refuses to take that away -- so inside the list a
+  selection has a name and outside it the absence of one *is* the answer.
+  `Election.optionName` returns `nil` for both a numbered ballot and a
+  protest selection, deliberately the same answer: a word invented there
+  would be the client deciding what somebody meant by a number. The
+  wording reaches `PDFRequest.swift` by no route at all, which
+  `test_the_document_renderer_still_names_no_option` is what keeps true.
+
   **There is deliberately no amendment control.** The wording is fixed when
   the election is authored, and correcting a misspelt candidate means
   minting, which replaces all three key pairs. A `set_wording` beside

@@ -353,3 +353,39 @@ def test_the_voting_application_has_no_way_to_hand_a_document_in():
         "no wallet source opens a file picker any more: either the wallet "
         "changed or these patterns have stopped matching anything, and a "
         "tripwire that matches nothing is not protecting the voter app")
+
+
+def test_the_native_client_reads_the_ballot_s_wording():
+    """The phone's half of `tests/test_ballot_wording.py`.
+
+    The names live in `election.json`, which the native client already
+    fetches and whose digest it already pins -- so showing them is reading
+    two more fields rather than trusting a new source. A client that did
+    not read them would show `1…4` where the browser shows candidates,
+    which is the kind of divergence nobody notices until a demonstration.
+    """
+    election = (NATIVE / "OVPOCKit" / "Sources" / "OVPOCKit"
+                / "Election.swift").read_text(encoding="utf-8")
+    assert '"question"' in election and '"options"' in election
+    assert "func optionName(" in election
+
+    app = (NATIVE / "VoterApp" / "VoterApp").glob("*.swift")
+    shown = "".join(path.read_text(encoding="utf-8") for path in app)
+    assert "optionName(" in shown or "selectionLabel" in shown, (
+        "the voting application reads the wording and shows none of it")
+
+
+def test_the_document_renderer_still_names_no_option():
+    """`ő` and `ű` are outside WinAnsiEncoding, and the office rebuilds.
+
+    `pdfrequest.py` renders ASCII with standard-14 fonts and no embedded
+    font deliberately, and the Swift renderer has to agree byte for byte
+    or the office refuses a citizen's own request as "not as rendered".
+    The wording must therefore reach the document by no route at all --
+    the request names the election by identifier and digest.
+    """
+    renderer = (NATIVE / "OVPOCKit" / "Sources" / "OVPOCKit"
+                / "PDFRequest.swift").read_text(encoding="utf-8")
+    for forbidden in ("optionName", "election.question", "election.options"):
+        assert forbidden not in renderer, (
+            f"{forbidden} reaches the token-request document")

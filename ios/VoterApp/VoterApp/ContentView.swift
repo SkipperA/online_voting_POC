@@ -49,6 +49,13 @@ struct ContentView: View {
                     Section("This election") {
                         LabeledContent("identifier", value: election.electionID)
                         LabeledContent("choices", value: "1…\(election.numChoices)")
+                        if let question = election.question {
+                            LabeledContent("question", value: question)
+                        }
+                        if let options = election.options {
+                            LabeledContent("options",
+                                           value: options.joined(separator: " · "))
+                        }
                         LabeledContent("digest",
                                        value: String(election.publishedDigest.prefix(16)) + "…")
                     }
@@ -184,8 +191,18 @@ struct ContentView: View {
 
         case .holdingToken:
             Section {
+                // What the ballot asks, above what it offers. From the
+                // pinned configuration and from nothing else, so the
+                // question a voter answers is the question the digest
+                // covers.
+                if let question = model.election?.question {
+                    Text(question).font(.headline)
+                }
                 Stepper("Selection: \(model.selection)",
                         value: $model.selection, in: -9 ... 9)
+                Text(model.selectionLabel)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                 Button(model.flow.attempt == 0 ? "Cast and submit"
                        : "Cast and submit — attempt \(model.flow.attempt + 1)") {
                     Task { await model.castAndSubmit() }

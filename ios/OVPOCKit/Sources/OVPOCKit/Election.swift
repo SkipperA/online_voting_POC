@@ -19,6 +19,17 @@ public struct Election: Sendable, Equatable {
     /// `k_p^(B)` -- the box's receipts and phase acts.
     public let ebbStatementKey: Data
     public let numChoices: Int
+    /// What the ballot asks, when it asks anything. `nil` for a numbered
+    /// ballot, which is what every election before the wording existed was
+    /// and what an operator who named nothing still gets.
+    public let question: String?
+    /// What the options are called, in order. `nil` for a numbered ballot.
+    ///
+    /// Read from the published configuration and nowhere else, so every
+    /// reader sees the same name: it is inside the digest this client
+    /// already pins, and the name beside a number is worth no more than
+    /// the configuration it came from.
+    public let options: [String]?
     public let genesisHash: Data
     public let tallyIntervalSeconds: Int?
     public let opens: String
@@ -74,6 +85,11 @@ public struct Election: Sendable, Equatable {
         self.vroStatementKey = try binary("vro_statement_key")
         self.ebbStatementKey = try binary("ebb_statement_key")
         self.numChoices = try int("num_choices")
+        // Absent and null both mean a numbered ballot, exactly as absent
+        // and null both mean no running tally above. Neither is a missing
+        // field, so neither throws.
+        self.question = root["question"] as? String
+        self.options = root["options"] as? [String]
         guard let genesis = Data(hexString: try string("genesis_hash")) else {
             throw Failure.malformed("genesis_hash")
         }
@@ -87,6 +103,21 @@ public struct Election: Sendable, Equatable {
         self.publishedDigest = digestLine
             .split(whereSeparator: \.isWhitespace).first.map(String.init) ?? ""
         self.computedDigest = Data(SHA256.hash(data: bytes)).hex
+    }
+
+    /// What option `selection` is called, or `nil` if it has no name.
+    ///
+    /// `nil` for a numbered ballot, and `nil` for a selection outside the
+    /// option list -- deliberately the same answer, because an
+    /// out-of-range selection is a protest ballot. The system records the
+    /// value and never interprets it, so a name invented here would be
+    /// this client deciding what somebody meant by a number.
+    public func optionName(_ selection: Int) -> String? {
+        guard let options,
+              (1 ... numChoices).contains(selection),
+              selection <= options.count
+        else { return nil }
+        return options[selection - 1]
     }
 
     /// The fingerprint of the key as served, recomputed from the SPKI.

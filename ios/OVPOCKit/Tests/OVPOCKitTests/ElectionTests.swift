@@ -42,6 +42,59 @@ final class ElectionTests: XCTestCase {
         XCTAssertNoThrow(try election.pinnedTokenKey())
     }
 
+    /// The committed configuration with wording added, and nothing else.
+    ///
+    /// Built from the served bytes rather than from a fixture of this
+    /// file's own invention, for the reason the helper above gives: a
+    /// fixture would agree with whatever this file assumed. What is added
+    /// is exactly the fields under test, and `num_choices` is moved to
+    /// agree with the list -- the console refuses a list of another
+    /// length, so an election where they disagreed is one that cannot
+    /// exist.
+    private func parsed(question: Any?, options: [String]?) throws -> Election {
+        let served = try committedElection()
+        var root = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: served.bytes) as? [String: Any])
+        root["question"] = question
+        root["options"] = options
+        if let options { root["num_choices"] = options.count }
+        let bytes = try JSONSerialization.data(withJSONObject: root,
+                                               options: [.sortedKeys])
+        return try Election(
+            bytes: bytes,
+            digestLine: "\(Data(SHA256.hash(data: bytes)).hex)  election.json")
+    }
+
+    func testTheWordingOfTheBallotIsReadFromTheConfiguration() throws {
+        let election = try parsed(
+            question: "Ki legyen a képviselő?",
+            options: ["Kovács Ágnes", "Nagy István", "日本語"])
+
+        XCTAssertEqual(election.question, "Ki legyen a képviselő?")
+        XCTAssertEqual(election.optionName(1), "Kovács Ágnes")
+        XCTAssertEqual(election.optionName(3), "日本語")
+    }
+
+    func testANumberedBallotHasNoWordingAndThatIsNotAFailure() throws {
+        let election = try parsed(question: nil, options: nil)
+
+        XCTAssertNil(election.question)
+        XCTAssertNil(election.options)
+        XCTAssertNil(election.optionName(1))
+    }
+
+    func testAProtestSelectionIsNeverNamed() throws {
+        // Outside the list there is no name, and that is the point rather
+        // than a gap: the system records an out-of-range value and never
+        // interprets it, so a word invented here would be this client
+        // deciding what somebody meant by a number.
+        let election = try parsed(question: nil, options: ["Egy", "Kettő"])
+
+        XCTAssertNil(election.optionName(0))
+        XCTAssertNil(election.optionName(-1))
+        XCTAssertNil(election.optionName(3))
+    }
+
     func testADigestThatDoesNotCoverTheBytesIsVisible() throws {
         let served = try committedElection()
         let election = try Election(
