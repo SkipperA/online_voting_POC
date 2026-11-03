@@ -798,9 +798,18 @@ a regulatory requirement, not a preference — and keeps `k_s^(R)` nowhere a
 file can reach. Both files say so about themselves, so neither can be
 mistaken for a deployment artefact by anyone who opens it.
 
-The register ships populated with four invented names so that a clone can be
-voted in at once. Two carry non-ASCII characters, which exercises the
+The register ships populated with invented names so that a clone can be voted
+in at once. Several carry non-ASCII characters, which exercises the
 canonical-JSON agreement the whole wire contract rests on.
+
+**One electorate, and a chosen one.** This argument is about a file a reader
+can open: it does not survive at scale, and it does not survive being applied
+to whatever the last local run happened to leave behind. A generated election
+of ten thousand synthetic citizens was committed here once, with every seed
+and with the answer key to its challenge beside it -- which clause S8's own
+dataset rules forbid and which nothing was checking.
+`tests/test_repository_hygiene.py` checks it now, and `.gitignore` keeps
+locally minted elections out.
 
 **Label:** *Every voter's wallet key is published in this repository. The
 voters are fictional; a deployment's keys never leave hardware.*

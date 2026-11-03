@@ -1136,6 +1136,41 @@ register is `VRO.register` — a set of ids, and nothing else.
   signed under any valid certificate naming the requester. `lookup` returns
   exactly one, which runs the protocol but does not exercise the question.
 
+## What this repository must not carry
+
+- **Only the shipped election is in version control.** `election-data/` is
+  also the default `--data` directory, so `python -m service` mints into
+  the checkout -- and what it mints belongs to that machine. Every
+  numbered directory there, and `current` itself, are ignored.
+
+  This rule arrived after the opposite: a generated election was
+  committed with patch 78 by a working copy nobody looked at. Twenty-six
+  megabytes, ten thousand synthetic citizens, every wallet seed -- and
+  `election-data/answer-keys/008-gen-261102_A.json`, which is the
+  citizen-to-ad-hoc-key mapping that *is* the answer to a challenge of
+  exactly the kind `docs/Challenge.md` publishes. `generate.py` said the
+  rule in its own docstring the whole time: the answer key lives beside
+  the elections "and never inside one, so publishing an election cannot
+  publish its answer". **A rule stated in a docstring and enforced by
+  nothing is a rule the repository will break**, and this one it broke
+  within a week of being written.
+
+  Two halves, because neither can do it alone.
+  `tests/test_repository_hygiene.py` checks the *rule*: it reads
+  `.gitignore` and asserts the patterns would stop an answer key, a
+  generated election and the demo spill, and -- in the other direction --
+  that they do not take the trust anchors or the shipped election with
+  them, which is the failure that would surface as an office quietly
+  offering no qualified-signature route. It may not run git, because the
+  suite depends on what `pyproject.toml` declares and on nothing else. So
+  CI checks the *state*: `git ls-files` for the dangerous paths and for
+  anything over a megabyte, where git is a given.
+
+  Worth keeping in mind for the next one of these: the ignore rule that
+  catches the dangerous thing is almost always wide enough to catch
+  something load-bearing beside it, and that direction fails silently.
+  Both lists in that test are the point of it.
+
 ## Working style
 
 - Tests alongside code, in the same change. The adversarial suite is the point

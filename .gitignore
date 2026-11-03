@@ -25,6 +25,41 @@ ios/**/*.xcodeproj/
 ios/**/*.xcworkspace/
 ios/**/xcuserdata/
 
+# Elections a local run writes. `service/__main__.py` defaults `--data` to
+# `election-data`, so `python -m service` mints into the checkout -- and
+# what it mints is this machine's, not the repository's. The repository
+# ships exactly one election, in the single-election layout at the top of
+# that directory (clause X4: every wallet seed in the clear, deliberately),
+# plus the pinned trust anchors.
+#
+# This is not tidiness. A generated election and its answer key were
+# committed this way: 27 MB, ten thousand synthetic citizens, and the
+# citizen-to-key mapping that *is* the answer to the published challenge.
+# `generate.py` says that file is written beside the elections and never
+# inside one "so that publishing an election cannot publish its answer",
+# and the repository was publishing it anyway.
+election-data/*/
+!election-data/trust-anchors/
+# Rewritten by every mint, so a checkout that minted once has a diff in it
+# forever. Absent, `store.current` falls through to the single-election
+# layout, which is what a clone should serve.
+election-data/current
+
+# What the demos write into the checkout. `demo.py` and `ext_demo.py` are
+# meant to be run from a clone, and their output is evidence of one run on
+# one machine rather than anything a reader needs from git.
+/election.json
+/election.json.sha256
+/ledger-*.json
+/releases-*.json
+/supervision-*.json
+/output_*.txt
+
+# Patch files delivered into the checkout. They are the change; the commit
+# is the record of it, and keeping both means keeping two.
+Claude outputs/
+/0[0-9][0-9][0-9]-*.patch
+
 # A server's own two files, which the repository expects and must never
 # carry. `deploy/.env` is the domain, read by Compose from the compose
 # file's own directory -- untracked and *unignored* it sits in every

@@ -32,6 +32,29 @@ jobs:
       - name: Independent recount of a real election
         run: python -m pytest tests/test_independent_verifier.py -q
 
+      - name: Nothing dangerous is tracked
+        # The state, where `tests/test_repository_hygiene.py` checks the
+        # rule. That test may not run git -- the suite depends on what
+        # `pyproject.toml` declares and on nothing else -- and here git
+        # is a given, so this is the half that can read the index.
+        run: |
+          bad=$(git ls-files \
+            | grep -E '^election-data/answer-keys/.*\.json$|^election-data/[0-9]{3}-|^deploy/election-data/|\.patch$' \
+            || true)
+          if [ -n "$bad" ]; then
+            echo "these are tracked and must not be:"; echo "$bad"
+            echo
+            echo "An answer key is the solution to a published challenge."
+            echo "A locally minted election belongs to the machine that"
+            echo "minted it. See tests/test_repository_hygiene.py."
+            exit 1
+          fi
+          big=$(git ls-files -z | xargs -0 du -k 2>/dev/null \
+                | awk '$1 > 1024 {print $1" KB  "$2}' || true)
+          if [ -n "$big" ]; then
+            echo "tracked files over 1 MB:"; echo "$big"; exit 1
+          fi
+
       - name: Regression anchors
         run: |
           python demo.py > /dev/null

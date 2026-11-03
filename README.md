@@ -79,7 +79,12 @@ python -m service --election 001-… # serve a superseded election again
 ```
 
 `election-data/` holds one directory per election and a `current` file naming
-the one being served. Minting from the setup console writes a new directory
+the one being served. **Only the shipped election is in version control**:
+every directory a local run mints, and `current` itself, are ignored, because
+they belong to the machine that made them. That rule arrived after the
+opposite happened -- a generated election with ten thousand synthetic
+citizens, and the answer key to its challenge, were committed by a working
+copy nobody looked at. Minting from the setup console writes a new directory
 and moves the pointer rather than overwriting, so a superseded election keeps
 its token key — without which a ledger downloaded from it could never be
 checked again. Closing a poll writes its configuration, ledger and release
@@ -89,7 +94,7 @@ directly in `election-data/`; it is read where it lies, and the first mint
 puts a numbered directory beside it.
 
 The repository ships with a demonstration election already in
-`election-data/`: four fictional voters, and every key in the clear. That is
+`election-data/`: twenty-two fictional voters, and every key in the clear. That is
 deliberate — the demo substitutes a file for an eIDAS wallet, and a reader
 should be able to open it and see what the substitution costs rather than take
 it on trust. Nobody named there exists.
@@ -168,9 +173,9 @@ web/            one directory per origin, each its own browser page:
   shared/       the design tokens, injected into each page by its own origin
 interop/        a TypeScript consumer of the golden vectors
 tests/          including the adversarial suite and tests/vectors/
-election-data/  one directory per election, and `current` naming the served
-                one: fictional voters, key material published on purpose,
-                pre-populated so a clone can be voted in
+election-data/  the one shipped election, key material published on
+                purpose, pre-populated so a clone can be voted in. Elections
+                a local run mints land here too and are ignored
 docs/           protocol mapping, wire contract, threat model, scope limits
 ```
 
