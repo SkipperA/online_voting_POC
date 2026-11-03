@@ -768,3 +768,96 @@ def test_the_swift_tests_fixtures_are_all_here():
     # fails in the same place with a worse message.
     for where, name in sorted(wanted):
         json.loads((ROOT / "tests" / where / name).read_text(encoding="utf-8"))
+
+
+# --------------------------------------------------------------------------
+# The package's public surface
+# --------------------------------------------------------------------------
+
+#: Public API that nothing calls, with the argument for keeping it.
+#:
+#: Empty is the goal. An entry here is a claim that a symbol earns its
+#: place without a caller, and the claim has to be written down -- which
+#: is the whole mechanism: it makes keeping dead API a visible edit
+#: rather than the default outcome of nobody looking.
+DELIBERATELY_UNCALLED: dict[str, str] = {
+    # `Origins.checker` is an address to hand somebody, not one these
+    # applications fetch: its own docstring says "not called by these
+    # apps; here because an audience asks where the independent checks
+    # live, and the answer is a URL they can open themselves."
+    #
+    # Written down honestly: no surface shows it yet, so the argument is
+    # for a thing that has not been built. It is kept rather than deleted
+    # because the address is correct and the reason is good, and it is
+    # listed here rather than left silent because an entry that overstates
+    # itself is worse than no list. Showing it on the voting
+    # application's screen would retire this entry.
+    "checker": "an address for a person to open; no surface shows it yet",
+}
+
+
+def test_the_package_exposes_nothing_nobody_calls():
+    """`OVPOCKit` has one consumer, and it is in this repository.
+
+    A library's public surface is normally a promise to strangers, so
+    "unused" means little. This package has exactly two consumers --
+    `VoterApp` and `WalletApp`, both here -- and `CLAUDE.md` is explicit
+    about why the surface is narrow: the seams are "the §3.6 boundary
+    expressed in types", so that a voting application wanting to transmit
+    `[id, c, s]` would have to grow a dependency visible in its
+    initialiser. A boundary expressed in types is only as good as the
+    types, and every unused public member is a hole somebody can reach
+    through without a decision being made.
+
+    Two were found by writing this. `WalletKey.demoSeed` returned the
+    wallet's raw private key -- out of the type that stands for hardware
+    the key never leaves -- so a persona could survive a reinstall, which
+    is not how the wallet ended up remembering anybody. `Receipt
+    .exportable` built a dictionary for a receipt screen that does not
+    exist. Neither had a caller; both read as supported API.
+
+    Narrow on purpose: `public var/let/func`, because those are the
+    members a caller reaches through. Types, initialisers and enum cases
+    are not checked -- a `public struct` with no mention would be a
+    different and louder kind of dead, and protocol conformances make
+    naive matching wrong.
+    """
+    sources = sorted((NATIVE / "OVPOCKit" / "Sources").rglob("*.swift"))
+    assert sources, "no package sources found; this test is reading nothing"
+
+    declared: dict[str, pathlib.Path] = {}
+    for path in sources:
+        for name in re.findall(r"^\s*public\s+(?:var|let|func)\s+([A-Za-z_]\w*)",
+                               strip(path.read_text(encoding="utf-8")), re.M):
+            declared.setdefault(name, path)
+
+    # Every Swift file in ios/, which is every consumer there is -- with
+    # comments and string literals removed, which is not a detail. The
+    # first version of this counted them, and so a symbol was "used" by
+    # the paragraph explaining that it had been deleted. `strip` is the
+    # same one the delimiter test uses, and it exists because a naive
+    # version of it got this class of thing wrong before.
+    everything = "".join(strip(p.read_text(encoding="utf-8"))
+                         for p in sorted(NATIVE.rglob("*.swift"))
+                         if ".build" not in p.parts)
+
+    orphans = {}
+    for name, where in declared.items():
+        mentions = len(re.findall(rf"\b{re.escape(name)}\b", everything))
+        declarations = len(re.findall(
+            rf"^\s*public\s+(?:var|let|func)\s+{re.escape(name)}\b",
+            everything, re.M))
+        if mentions <= declarations and name not in DELIBERATELY_UNCALLED:
+            orphans[name] = where.name
+
+    assert not orphans, (
+        "public API nothing calls:\n  "
+        + "\n  ".join(f"{name}  ({where})" for name, where in sorted(orphans.items()))
+        + "\n\nRemove it, or add it to DELIBERATELY_UNCALLED with the "
+        "argument for keeping it. An unused public member is a hole "
+        "somebody can reach through without a decision being made, which "
+        "is what the narrow surface exists to prevent.")
+
+    stale = sorted(set(DELIBERATELY_UNCALLED) - set(declared))
+    assert not stale, (
+        f"DELIBERATELY_UNCALLED names symbols that no longer exist: {stale}")

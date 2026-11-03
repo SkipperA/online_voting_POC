@@ -71,10 +71,21 @@ public struct WalletKey: Sendable {
 
     public var publicBytes: Data { key.publicKey.rawRepresentation }
 
-    /// Only so the demonstration's persona survives a reinstall. A
-    /// deployment has no such method, and `docs/Demo_Scope_Limits.md`
-    /// clause S1 is where that difference is recorded.
-    public var demoSeed: Data { key.rawRepresentation }
+    // There is deliberately no accessor for the private half.
+    //
+    // There was one -- `demoSeed`, so a persona could survive a
+    // reinstall -- and nothing ever called it: the wallet remembers an
+    // *identifier* and adopts again, which fetches the key from the
+    // demonstration's own endpoint. So the only thing the property did
+    // was publish a signing key out of the type that stands for hardware
+    // the key never leaves.
+    //
+    // Dead code is ordinarily a tidiness question. This one was not: an
+    // unused public getter is a getter the next piece of code can reach
+    // for without anybody deciding it should, and the type's whole job
+    // is to make that a decision. `init(voterID:seed:)` still takes a
+    // seed, because adopting a persona means being handed one, and
+    // clause S1 is where that substitution is recorded.
 
     public func sign(_ data: Data) throws -> Data {
         try key.signature(for: data)

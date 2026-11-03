@@ -1072,6 +1072,32 @@ register is `VRO.register` — a set of ids, and nothing else.
   expressed in types: `RequestTransmitting` is the wallet's and appears in
   no voter-side type, so a voting application that wanted to transmit
   `[id, c, s]` would have to grow a dependency visible in its initialiser.
+- **The package exposes nothing nobody calls.** A library's public
+  surface is usually a promise to strangers, so "unused" means little --
+  but this one has exactly two consumers and both are in this
+  repository, and the surface is narrow on purpose: the four seam
+  protocols are §3.6 expressed in types, so that a voting application
+  wanting to transmit `[id, c, s]` would have to grow a dependency
+  visible in its initialiser. A boundary expressed in types is only as
+  good as the types, and every unused public member is a hole somebody
+  can reach through without a decision being made.
+
+  Two were found this way. `WalletKey.demoSeed` returned the wallet's raw
+  private key -- out of the type that stands for hardware the key never
+  leaves -- so that a persona could survive a reinstall, which is not how
+  the wallet ended up remembering anybody: it stores an identifier and
+  adopts again. `Receipt.exportable` built a dictionary for a receipt
+  screen that does not exist. Neither had a caller and both read as
+  supported API.
+
+  `test_the_package_exposes_nothing_nobody_calls` is the tripwire, with
+  `DELIBERATELY_UNCALLED` for API that earns its place without a caller
+  -- an entry is a written argument, checked for staleness, so keeping
+  dead API is a visible edit rather than what happens when nobody looks.
+  **It counts mentions in stripped source**, and that is not a detail:
+  the first version counted comments, so a symbol was "used" by the
+  paragraph explaining it had been deleted, and the sabotage check passed
+  while proving nothing.
 - **The native clients share `ios/OVPOCKit`, and it holds no interface.**
   What `src/ovpoc` is to the repository, that package is to `ios/`: the
   protocol, testable with `swift test` on a Mac with no simulator, no

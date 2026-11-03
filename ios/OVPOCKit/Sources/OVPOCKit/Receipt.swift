@@ -68,15 +68,9 @@ public struct Receipt: Sendable, Equatable {
             over: payload)
     }
 
-    /// What the voter keeps. Small enough to photograph, which on a phone
-    /// is what people will actually do with it.
-    public var exportable: [String: Any] {
-        [
-            "accepted": accepted,
-            "reason": reason,
-            "index": index as Any,
-            "entry_hash": entryHash.b64url,
-            "signature": signature.b64url,
-        ]
-    }
+    // No `exportable` here either, and for a plainer reason than the one
+    // in `Keys.swift`: it was written for a receipt screen that does not
+    // exist, and the voting application exports a whole transcript
+    // instead. A dictionary nobody builds is a second renderer of this
+    // type waiting to disagree with the first one.
 }
