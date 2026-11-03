@@ -44,8 +44,16 @@ final class HandOffTests: XCTestCase {
         let bytes = try XCTUnwrap(HandOff.request(from: url))
         let body = try XCTUnwrap(
             JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        // Four, not three. `_transport` is a sentence for whoever opens
+        // the file, carried by the browser handover too
+        // (`service/api.py`) and asserted by
+        // `testTheRequestFileMatchesTheBrowsersFields` -- so the
+        // hand-off carrying it is the hand-off carrying the file, which
+        // is the whole property. It names no one.
         XCTAssertEqual(Set(body.keys),
-                       ["blinded_key", "config_digest", "election_id"])
+                       ["_transport", "blinded_key", "config_digest",
+                        "election_id"])
+        XCTAssertFalse((body["_transport"] as? String ?? "").isEmpty)
     }
 
     /// No inbound direction on the other route, so nothing to open.

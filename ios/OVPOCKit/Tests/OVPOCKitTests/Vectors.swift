@@ -34,6 +34,17 @@ enum Vectors {
             .appendingPathComponent("vectors")
     }
 
+    /// `tests/fixtures/`: files a test reads that are not vectors.
+    ///
+    /// Separate from `directory` because that one has a contract --
+    /// every file in it declares a schema version both suites check --
+    /// and a configuration a test merely needs is not conformance
+    /// evidence. See `tests/fixtures/README.md` for what happened the
+    /// last time this distinction was not visible from a path.
+    static var fixtures: URL {
+        directory.deletingLastPathComponent().appendingPathComponent("fixtures")
+    }
+
     static func load(_ suite: String) throws -> [String: Any] {
         let path = directory.appendingPathComponent("\(suite).json")
         guard let data = try? Data(contentsOf: path) else {

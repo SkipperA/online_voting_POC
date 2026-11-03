@@ -711,3 +711,60 @@ def test_each_application_says_which_schemes_its_own_build_registers():
         assert f"HandOff.{scheme}" in source, (
             f"{target} does not check its own registration against the "
             "scheme the other application opens it with")
+
+
+def test_the_swift_tests_fixtures_are_all_here():
+    """Nothing in this suite compiles Swift, so nothing notices a deletion.
+
+    `ElectionTests` reads a published configuration from `tests/vectors/`
+    and checks that the field set the Swift parses is the field set the
+    service writes. That file used to sit at the repository root as
+    `election.json`, where it was indistinguishable from what
+    `python -m service` leaves in a checkout -- and a cleanup removed it
+    as spill. `swift test` broke; `python -m pytest` stayed green, because
+    the gap between the two suites is exactly this.
+
+    The general rule, which this project keeps meeting from new
+    directions: **a file one suite depends on and another cannot see needs
+    the second suite to name it.** `test_native_sources.py` is where the
+    Python half watches the Swift half, so it is where the naming goes.
+
+    It reads literal suite names, which is all a grep can do: a file
+    loaded through a variable is invisible here. That is a limit rather
+    than a hole -- `tests/vectors/` has `tests/test_vectors.py` watching
+    it, and what this adds is cover for the fixtures that belong to no
+    such directory, which is the kind that went missing.
+    """
+    import json
+    import re
+
+    swift = (NATIVE / "OVPOCKit" / "Tests" / "OVPOCKitTests").rglob("*.swift")
+    wanted = set()
+    for path in swift:
+        source = path.read_text(encoding="utf-8")
+        # Vectors.directory / Vectors.fixtures, then a file name.
+        for kind, name in re.findall(
+                r'Vectors\.(directory|fixtures)\s*\n?\s*'
+                r'\.appendingPathComponent\("([^"]+)"\)', source):
+            wanted.add(("vectors" if kind == "directory" else "fixtures", name))
+        # Vectors.load("suite") -> tests/vectors/suite.json
+        wanted |= {("vectors", f"{name}.json")
+                   for name in re.findall(r'Vectors\.load\("([^"]+)"\)', source)}
+
+    assert wanted, (
+        "no Swift test names a file in tests/vectors/, which means this "
+        "test is reading the sources wrongly rather than that the fixtures "
+        "have gone")
+
+    missing = sorted(f"tests/{where}/{name}" for where, name in wanted
+                     if not (ROOT / "tests" / where / name).is_file())
+    assert not missing, (
+        "`swift test` reads these and they are not here: "
+        + ", ".join(missing)
+        + "\nNothing in the Python suite compiles Swift, so a deletion "
+        "shows up on a Mac and nowhere else.")
+
+    # And they parse, because a fixture that is present and malformed
+    # fails in the same place with a worse message.
+    for where, name in sorted(wanted):
+        json.loads((ROOT / "tests" / where / name).read_text(encoding="utf-8"))

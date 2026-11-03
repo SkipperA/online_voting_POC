@@ -11,12 +11,18 @@ final class ElectionTests: XCTestCase {
     /// console, copied out of `election-data/`, so that the field set this
     /// parses is the field set the service writes. A fixture of our own
     /// would agree with whatever this file assumed.
+    ///
+    /// It lives in `tests/fixtures/`, beside the conformance vectors
+    /// but deliberately not among them, and it did not always. It sat at the repository root
+    /// under the name `election.json`, where it was indistinguishable
+    /// from what `python -m service` writes into a checkout -- and a
+    /// cleanup deleted it as spill, which nothing in the Python suite
+    /// could notice because nothing there compiles Swift. A file whose
+    /// purpose is invisible from its location is a file somebody will
+    /// eventually remove.
     private func committedElection() throws -> (bytes: Data, digest: String) {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let path = root.appendingPathComponent("election.json")
+        let path = Vectors.fixtures
+            .appendingPathComponent("published-election.json")
         let bytes = try Data(contentsOf: path)
         return (bytes, Data(SHA256.hash(data: bytes)).hex)
     }

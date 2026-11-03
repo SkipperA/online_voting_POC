@@ -69,6 +69,10 @@ MUST_NOT_BE_IGNORED = [
     ("election-data/vro_token_key.pem", "its token key, likewise"),
     ("election-data/README.md", "what that directory is"),
     ("tests/vectors/keys.json", "a private key published on the same reasoning"),
+    ("tests/fixtures/published-election.json",
+     "the configuration `swift test` parses, which lives here because at "
+     "the repository root it looked like what a local run leaves behind "
+     "-- and was deleted as such"),
 ]
 
 
