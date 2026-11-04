@@ -44,6 +44,13 @@ election-data/*/
 # forever. Absent, `store.current` falls through to the single-election
 # layout, which is what a clone should serve.
 election-data/current
+# Written at the close of a poll, and `election-data/*/` cannot reach the
+# one a poll served from the single-election layout leaves at the top of
+# this directory. The same run's `closed/` and `current` are both caught
+# and this was not, so it sat in every `git status` one `git add -A` from
+# being committed -- which for the office's openings and its signed
+# requests is the habit `deploy/.env` below is also here to prevent.
+election-data/poll.state.json
 
 # What the demos write into the checkout. `demo.py` and `ext_demo.py` are
 # meant to be run from a clone, and their output is evidence of one run on

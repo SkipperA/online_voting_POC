@@ -45,6 +45,8 @@ MUST_BE_IGNORED = [
      "a generated election's ledger, which is megabytes"),
     ("election-data/009-gen-261105_X/poll.state.json",
      "the office's openings and signed requests"),
+    ("election-data/poll.state.json",
+     "the same, left by a poll served from the single-election layout"),
     ("election-data/current",
      "rewritten by every mint, so a checkout that minted has a diff forever"),
     ("deploy/election-data/022-gen-261103_A/election.store.json",
