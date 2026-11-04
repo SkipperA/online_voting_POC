@@ -260,6 +260,11 @@ def test_no_test_pins_a_port_offset():
     The failure was in a test about tally privacy, which is the problem:
     nothing in the symptom points at a port, so it reads as flakiness in
     the thing being tested.
+
+    `Deployment` no longer takes an offset, so this now guards against
+    the argument coming back rather than against its use. That is worth
+    keeping: the argument would return as a convenience, and the day it
+    did the collision would return with it, wearing the same disguise.
     """
     import re
 

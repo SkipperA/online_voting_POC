@@ -135,15 +135,15 @@ def lost_the_port(output: str) -> bool:
 
 
 class Deployment:
-    def __init__(self, offset: int | None = None):
-        #: Whether `start` may draw again. An offset given by hand is a
-        #: caller naming the ports to use, and quietly moving off it
-        #: would answer a different question than the one asked. Nothing
-        #: passes one today and `test_no_test_pins_a_port_offset` is
-        #: there to keep it that way, so this is the argument's promise
-        #: rather than a branch the suite exercises.
-        self.probed = offset is None
-        self.offset = free_offset() if offset is None else offset
+    # There was an `offset` argument here, defaulting to a probe. It had
+    # no caller: `test_no_test_pins_a_port_offset` forbids a test from
+    # passing one, and nothing outside the tests builds a deployment at
+    # all. What it cost was a second answer to "which ports?" that the
+    # retry in `start` then had to ask about before drawing again --
+    # machinery kept honest for a caller who did not exist. The ports
+    # are probed, and that is the only way they are chosen.
+    def __init__(self) -> None:
+        self.offset = free_offset()
         self.http = httpx.Client(timeout=30.0)
         self.proc: subprocess.Popen | None = None
 
@@ -211,7 +211,7 @@ class Deployment:
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
                 said = self.proc.stdout.read()[-2000:]
-                if self.probed and lost_the_port(said):
+                if lost_the_port(said):
                     raise PortRaceLost(said)
                 raise RuntimeError(f"service exited: {said}")
             try:
