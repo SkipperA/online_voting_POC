@@ -100,14 +100,26 @@ no part in the poll itself — the service runs with it stopped.</p>
     <span class="kind">Absent · <code>A4</code></span>
     <b>Recorded, not enforced</b>
     The box starts shut and is opened and closed by its operator; nothing here
-    schedules it. These are the times a reader checks those acts against, which
-    is why correcting them voids no token and disowns no receipt. Only the
-    digest moves.
+    schedules it, and the office does not refuse a token request outside its
+    window either. These are the times a reader checks those acts against,
+    which is why correcting them voids no token and disowns no receipt. Only
+    the digest moves.
   </div>
-  <div class="row"><span class="label">opens</span>
+  <p class="prose" style="margin:0 0 .6rem">Two periods, and the relation
+    between them is the declaration. Closing token requests <i>before</i>
+    voting opens draws the release register and the ledger over disjoint
+    intervals, so their positions carry no correlation; periods that overlap
+    are the relaxation, which costs the late registrant most. Leave both
+    request fields blank to declare no period at all.</p>
+  <div class="row"><span class="label">requests open</span>
+    <input type="text" id="requests-open" placeholder="blank — not stated"></div>
+  <div class="row"><span class="label">requests close</span>
+    <input type="text" id="requests-close" placeholder="blank — not stated"></div>
+  <div class="row"><span class="label">voting opens</span>
     <input type="text" id="opens" placeholder="2026-09-25T08:00:00Z"></div>
-  <div class="row"><span class="label">closes</span>
+  <div class="row"><span class="label">voting closes</span>
     <input type="text" id="closes" placeholder="2026-09-25T20:00:00Z"></div>
+  <div id="period-reading" class="prose" style="margin:.4rem 0 .6rem"></div>
   <button id="set-schedule">Set</button>
 </section>
 
@@ -209,9 +221,13 @@ no part in the poll itself — the service runs with it stopped.</p>
       <option value="3072" selected>3072 — the article's minimum</option>
       <option value="4096">4096</option>
     </select></div>
-  <div class="row"><span class="label">opens</span>
+  <div class="row"><span class="label">requests open</span>
+    <input type="text" id="mint-requests-open" placeholder="blank — not stated"></div>
+  <div class="row"><span class="label">requests close</span>
+    <input type="text" id="mint-requests-close" placeholder="blank — not stated"></div>
+  <div class="row"><span class="label">voting opens</span>
     <input type="text" id="mint-opens" placeholder="2026-09-25T08:00:00Z"></div>
-  <div class="row"><span class="label">closes</span>
+  <div class="row"><span class="label">voting closes</span>
     <input type="text" id="mint-closes" placeholder="2026-09-25T20:00:00Z"></div>
   <div class="row"><span class="label">cadence</span>
     <input type="number" id="mint-interval" min="1" placeholder="seconds — blank for close-only"></div>

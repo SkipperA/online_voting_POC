@@ -1119,6 +1119,12 @@ class TallyIntervalBody(BaseModel):
 class ScheduleBody(BaseModel):
     opens: str
     closes: str
+    #: The token-request period. Empty strings mean *not stated*, which is
+    #: what an administering body that has not decided should be able to
+    #: publish -- and is different from a window nobody is held to, since
+    #: clause A4 means no window is held to anyway.
+    token_requests_open: str = ""
+    token_requests_close: str = ""
 
 
 class GenerateBody(BaseModel):
@@ -1141,6 +1147,8 @@ class GenerateBody(BaseModel):
     bits: int = state.DEFAULT_BITS
     opens: str = state.DEFAULT_OPENS
     closes: str = state.DEFAULT_CLOSES
+    token_requests_open: str = ""
+    token_requests_close: str = ""
     tally_interval_seconds: int | None = None
 
     #: One count per option, in order: `[120, 80]` is a hundred and twenty
@@ -1196,6 +1204,8 @@ class MintBody(BaseModel):
     bits: int = state.DEFAULT_BITS
     opens: str = state.DEFAULT_OPENS
     closes: str = state.DEFAULT_CLOSES
+    token_requests_open: str = ""
+    token_requests_close: str = ""
     tally_interval_seconds: int | None = None
     keep_register: bool = True
 
@@ -1207,6 +1217,39 @@ class MintBody(BaseModel):
 #: a real referendum question fits well inside them.
 LONGEST_QUESTION = 500
 LONGEST_OPTION = 160
+
+
+def _token_request_period(opens: str, closes: str) -> tuple[str | None, str | None]:
+    """The declared token-request period, or neither end of one.
+
+    Clause A4: recorded, never enforced. Nothing here checks the window
+    against a clock, and nothing downstream refuses a request made outside
+    it -- the office would have to consult a time it does not consult, and
+    making it do so would be a protocol change the article does not ask
+    for.
+
+    What *is* checked is that the period has two ends or none. One end is
+    not a period, and a configuration carrying only a close would read as
+    a declaration while being unusable as one: a reader could not tell
+    whether the window opened with the poll, with the configuration, or
+    never. Refusing is better than publishing something nobody can act on.
+
+    The article's rule -- the token-request period closes before the
+    voting period opens -- is deliberately *not* enforced here either, and
+    that is the point of carrying two periods rather than one date: a
+    deployment adopting the relaxation publishes periods that overlap, and
+    this console must be able to author that election too. Which
+    arrangement an election uses is for a reader of the configuration to
+    see, not for this endpoint to permit.
+    """
+    opens, closes = opens.strip(), closes.strip()
+    if bool(opens) != bool(closes):
+        raise HTTPException(
+            422,
+            "a token-request period needs both ends or neither: one end "
+            "alone cannot be read as a window.",
+        )
+    return (opens or None, closes or None)
 
 
 def _ballot_wording(body: "MintBody | GenerateBody") -> tuple[str | None, list[str] | None]:
@@ -1607,10 +1650,15 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
         opens, closes = body.opens.strip(), body.closes.strip()
         if not opens or not closes:
             raise HTTPException(422, "both times are required")
-        deployment.set_schedule(opens, closes)
+        deployment.set_schedule(
+            opens, closes,
+            *_token_request_period(body.token_requests_open,
+                                   body.token_requests_close))
         return {
             "opens": deployment.config.opens,
             "closes": deployment.config.closes,
+            "token_requests_open": deployment.config.token_requests_open,
+            "token_requests_close": deployment.config.token_requests_close,
             "digest": deployment.config.digest_hex(),
         }
 
@@ -1649,6 +1697,8 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
             )
         if not body.opens.strip() or not body.closes.strip():
             raise HTTPException(422, "both times are required")
+        requests_open, requests_close = _token_request_period(
+            body.token_requests_open, body.token_requests_close)
         deployment.mint(
             election_id=election_id,
             num_choices=body.num_choices,
@@ -1657,6 +1707,8 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
             bits=body.bits,
             opens=body.opens.strip(),
             closes=body.closes.strip(),
+            token_requests_open=requests_open,
+            token_requests_close=requests_close,
             tally_interval_seconds=body.tally_interval_seconds,
             keep_register=body.keep_register,
         )
@@ -1728,6 +1780,8 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
                 "2048 bits is the floor this demo will generate; the "
                 "article's minimum for a deployment is 3072")
         question, options = _ballot_wording(body)
+        requests_open, requests_close = _token_request_period(
+            body.token_requests_open, body.token_requests_close)
         if len(body.per_option) != body.num_choices:
             raise HTTPException(
                 422,
@@ -1769,6 +1823,8 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
                 bits=body.bits,
                 opens=body.opens.strip(),
                 closes=body.closes.strip(),
+                token_requests_open=requests_open,
+                token_requests_close=requests_close,
                 tally_interval_seconds=body.tally_interval_seconds,
                 # A generated electorate is this election's own and has no
                 # business outliving it, least of all by joining a real
@@ -1865,6 +1921,8 @@ def setup_app(deployment: Deployment, base) -> FastAPI:
                         else list(deployment.config.options)),
             "opens": deployment.config.opens,
             "closes": deployment.config.closes,
+            "token_requests_open": deployment.config.token_requests_open,
+            "token_requests_close": deployment.config.token_requests_close,
             "token_key_bits": deployment.vro.public_key.key_size,
             "tokens_released": deployment.vro.release_count(),
             "box_opened": deployment.ebb.opened,

@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from ovpoc import ledger, rsabssa
 from ovpoc.messages import b64
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def _swap(path: Path, payload: bytes) -> None:
@@ -52,6 +52,26 @@ class ElectionConfig:
     tally_interval_seconds: int | None
     opens: str
     closes: str
+    #: The token-request period, beside the voting period above.
+    #:
+    #: Two periods rather than one further date, and that is the whole
+    #: point of them: the arrangement the article recommends is that the
+    #: first closes before the second opens, and the relaxation it allows
+    #: is that they overlap. Which of the two an election uses is
+    #: therefore readable from the configuration every client already
+    #: pins, rather than resting on a notice somebody had to write.
+    #:
+    #: Optional, and `None` means *not stated* rather than *unlimited*: an
+    #: election minted before these existed, or one whose operator did not
+    #: decide, is complete without them and must not be read as declaring
+    #: anything. **Nothing consumes them** -- clause A4, which already
+    #: covers `opens` and `closes` for the same reason. The office does
+    #: not refuse a request outside the window and the box does not refuse
+    #: a late ballot; what the fields do is let a reader see what the
+    #: administering body declared, and `scope_limits` says so in the file
+    #: itself.
+    token_requests_open: str | None = None
+    token_requests_close: str | None = None
     #: What the ballot asks, and what it offers by name. Both optional: an
     #: election minted before these existed, or one whose operator did not
     #: name anything, has a numbered ballot and is complete without them.
@@ -90,6 +110,8 @@ class ElectionConfig:
         num_choices: int,
         opens: str,
         closes: str,
+        token_requests_open: str | None = None,
+        token_requests_close: str | None = None,
         tally_interval_seconds: int | None = None,
         question: str | None = None,
         options: Sequence[str] | None = None,
@@ -108,6 +130,8 @@ class ElectionConfig:
             tally_interval_seconds=tally_interval_seconds,
             opens=opens,
             closes=closes,
+            token_requests_open=token_requests_open,
+            token_requests_close=token_requests_close,
             question=question,
             # A tuple, because the dataclass is frozen and a list in it
             # would be a mutable thing inside an object whose whole point
@@ -147,6 +171,13 @@ class ElectionConfig:
             "generated": self.generated,
             "genesis_hash": self.genesis_hash.hex(),
             "tally_interval_seconds": self.tally_interval_seconds,
+            # Before the voting period, which is the order they occur in
+            # when the article's rule is followed. Null rather than absent
+            # when unstated, for the reason `question` is: a reader should
+            # be able to tell a decision left unmade from a file written
+            # before anybody could make it.
+            "token_requests_open": self.token_requests_open,
+            "token_requests_close": self.token_requests_close,
             "opens": self.opens,
             "closes": self.closes,
             "scope_limits": {
@@ -156,8 +187,11 @@ class ElectionConfig:
                     "attributable."
                 ),
                 "schedule": (
-                    "Opening and closing times are recorded, not enforced. The "
-                    "close is an act of the EBB (E1), performed by an operator."
+                    "Clause A4: the token-request and voting periods are "
+                    "recorded, not enforced. The office does not refuse a "
+                    "request outside its window and the box does not refuse a "
+                    "late ballot; the close is an act of the EBB (E1), "
+                    "performed by an operator."
                 ),
             },
         }

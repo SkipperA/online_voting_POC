@@ -168,14 +168,31 @@ already knows whose commitment is whose — the office, a supervisor reading
 the register, or a single operator holding both roles, which in this build is
 clause O1.
 
-Three remedies, none implemented. Voters choose the timing themselves, which
-is not a mechanism but is the reason the two orders decorrelate in a real
-poll — a citizen decides when to ask and when to cast, and the
-qualified-signature route lets the asking happen from a different network and
-a different device. A random delay before submission, drawn per voter. A
-queue at the box, committing submissions in an order of its own. The first
-costs nothing and the other two are deployment work rather than protocol
-work.
+**The remedy is a schedule, and the queue was considered and dropped.** The
+article now carries the analysis; the short form is that a mixing queue at the
+box fails twice. Mixing happens over the submissions resident when one is
+drawn — about λT for arrival rate λ and holding time T — so fifty voters over
+twelve hours (λ ≈ 4/hour) leave a queue that waits for company holding
+nothing, and a shuffle over twenty would need T ≈ 5 hours. The holding time
+must scale *inversely* with turnout rate, which makes the remedy weakest
+exactly where the channel bites hardest. And the draw must be weighted toward
+the oldest entry or an unlucky ballot waits arbitrarily long, which is itself
+a reduction in mixing, degenerating to FIFO at the limit. The cost that is
+easiest to miss is the receipt: a queued submission has no index yet, so
+either the voter cannot check when they care, or the box signs a position it
+has not committed to, or the receipt stops naming a position at all — the
+third is sound and turns §3.7's immediate confirmation into a deferred one.
+
+What is adopted instead is that **token issuance closes before voting opens**,
+so the two orders are drawn over disjoint intervals. It costs no latency and
+no cryptography, it defeats a coercer who watched the request — what they saw
+during the registration window says nothing about an order established
+afterwards — and it is an electoral-process decision a legislator can see.
+`election.json` carries both periods so that the arrangement is readable from
+the pinned configuration, and clause A4 records that this build consumes
+neither. A jurisdiction that will not turn away a late registrant publishes
+periods that overlap; the residual risk then falls on late registrants, and
+the rarer late registration is the more identifiable they become.
 
 It is recorded here because a *generated* election has to reproduce the
 decorrelation deliberately: `service/generate.py` issues every token before

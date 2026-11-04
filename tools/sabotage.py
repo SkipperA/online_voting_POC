@@ -9,15 +9,27 @@ This script breaks one defense at a time and records which tests fail as a
 result. A defense with no failing tests is not defended by the suite, whatever
 the code comments claim.
 
-Run with:  python tools/sabotage.py
-It rewrites docs/sabotage.md from the actual results and always restores the
-source files, including on error or interrupt.
+Run with:  python tools/sabotage.py          (one suite per core)
+           python tools/sabotage.py -j 1     (one at a time)
+
+It rewrites docs/sabotage.md from the actual results. Each worker sabotages
+its own copy of the working tree rather than the checkout, so an interrupted
+run cannot leave your sources mutated -- and the report is the same whatever
+`--jobs` is, because the rows are written in list order rather than in the
+order workers finished.
 """
 
 from __future__ import annotations
 
+import argparse
+import os
+import pathlib
+import queue
+import shutil
 import subprocess
 import sys
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -623,6 +635,18 @@ MUTATIONS = [
         replace='    public static let walletScheme = "ovpoc-wallet-v2"  // SABOTAGE',
     ),
     Mutation(
+        name="half_a_token_request_period_is_published",
+        what=(
+            "The console accepts a token-request period with one end "
+            "missing, so the configuration carries a declaration no "
+            "reader can act on -- a window that might have opened with "
+            "the poll, with the configuration, or never."
+        ),
+        path="service/api.py",
+        find="    if bool(opens) != bool(closes):",
+        replace="    if False:  # SABOTAGE",
+    ),
+    Mutation(
         name="a_real_polls_participation_register_is_published",
         what=(
             "The close archives the office's register into the public "
@@ -772,16 +796,52 @@ def parse_report(stdout: str) -> tuple[list[str], list[str]]:
     return sorted(set(failures)), skips
 
 
-def failing_tests(skipped: list[str] | None = None) -> list[str]:
-    """Which tests fail, and -- if asked -- which did not run at all.
+#: What a worker tree does not need, and what copying it would cost.
+#: `.git` is the big one; the caches would be rebuilt anyway and
+#: `node_modules` is the voter app's build input, not the suite's.
+NOT_COPIED = shutil.ignore_patterns(
+    ".git", "__pycache__", ".pytest_cache", ".venv", "node_modules",
+    ".build", "*.egg-info", ".DS_Store",
+)
+
+
+def worker_tree(into: pathlib.Path) -> pathlib.Path:
+    """A copy of the working tree for one worker to sabotage.
+
+    The **working** tree and not `git worktree add`, deliberately: this
+    tool sabotages what is on disk, including changes not yet committed,
+    and a worktree would silently test `HEAD` instead -- which is the
+    worst kind of difference, since the report would look normal.
+
+    One per worker rather than one per mutation. A copy is about a second
+    and five megabytes; fifty-seven of them would be neither.
+    """
+    shutil.copytree(ROOT, into, ignore=NOT_COPIED, symlinks=True)
+    return into
+
+
+def failing_tests(tree: pathlib.Path,
+                  skipped: list[str] | None = None) -> list[str]:
+    """Which tests fail in this tree, and -- if asked -- which did not run.
 
     `skipped` is filled in rather than returned, because every caller but
     the baseline wants the failures and nothing else. See `main` for why
     anybody wants the skips.
+
+    `PYTHONPATH` is what makes the copy count. The editable install is a
+    `.pth` file, so it appends the *original* `src` to `sys.path`; without
+    this the worker would mutate its own tree and import somebody else's
+    `ovpoc`, and every mutation in `src/ovpoc/` would pass silently.
+    `tests/service_process.py` already pins `PYTHONPATH` for the service
+    subprocess and says why in its own comment -- this is the same hazard
+    one level up.
     """
     result = subprocess.run(
         [sys.executable, "-m", "pytest", *PYTEST_ARGS],
-        cwd=ROOT, capture_output=True, text=True,
+        cwd=tree,
+        env=dict(os.environ,
+                 PYTHONPATH=os.pathsep.join([str(tree / "src"), str(tree)])),
+        capture_output=True, text=True,
     )
     # pytest: 0 = all passed, 1 = tests failed. Anything else means it did not
     # get as far as running the suite (2 interrupted, 3 internal error,
@@ -807,84 +867,146 @@ def failing_tests(skipped: list[str] | None = None) -> list[str]:
     return names
 
 
-def main() -> int:
-    not_run: list[str] = []
+def run_one(mutation: Mutation, trees: "queue.Queue[pathlib.Path]") -> list[str]:
+    """Apply one mutation in a borrowed tree, run the suite, give it back.
+
+    The tree is restored rather than discarded, so a worker pays for its
+    copy once. Restoring in `finally` matters less than it used to --
+    nothing here touches the real checkout, so an interrupted run can no
+    longer leave somebody's working tree sabotaged, which is a property
+    the serial version only had as long as its cleanup actually ran.
+    """
+    tree = trees.get()
     try:
-        baseline = failing_tests(skipped=not_run)
-    except SuiteDidNotRun as exc:
-        print("Cannot run the sabotage suite: the test suite itself did not run.")
-        print("Install the dev extras first:  pip install -e \".[dev]\"\n")
-        print(exc)
-        return 2
-    if baseline:
-        print("Baseline suite is not green; fix that first:", baseline)
-        return 1
-
-    # A skipped test cannot catch anything, so a mutation whose only
-    # defenders are skipped is reported NOT CAUGHT -- truthfully, and about
-    # the environment rather than about the code. That is the worst kind of
-    # true: `docs/sabotage.md` is committed and CI diffs it, so a report
-    # written here with the `pades` extra missing says a defence is
-    # undefended when CI, which installs it, will say the opposite. The
-    # report would describe a suite nobody else runs.
-    #
-    # It happened the first time an optional extra appeared. Three
-    # mutations in `driver/qualified_signature.py` came back NOT CAUGHT on
-    # a machine whose virtual environment predated the extra, and the only
-    # thing distinguishing that from a real coverage gap was knowing which
-    # patch had just landed.
-    if not_run:
-        print("Baseline green, but some tests did not run:\n")
-        for reason in sorted(set(not_run)):
-            print(f"  - {reason}")
-        print("\nRefusing to write a report that describes a different suite")
-        print("from the one CI runs. Each reason above says what is missing;")
-        print("supply it and run again. A missing optional extra is")
-        print('  pip install -e ".[dev]"')
-        print("-- but a skip for anything else is a test that should not have")
-        print("been written to skip, and the fix belongs in the test.")
-        return 1
-
-    print("Baseline green.\n")
-
-    results: list[tuple[Mutation, list[str]]] = []
-    drifted: list[str] = []
-    for mutation in MUTATIONS:
-        target = ROOT / mutation.path
+        target = tree / mutation.path
         original = target.read_text()
-        if mutation.find not in original:
-            # Not an aside. A mutation that cannot be applied tests nothing,
-            # and recording it as caught -- which this did, by appending a
-            # non-empty list -- reports a hole in the suite as a success.
-            # The source moving out from under a mutation is exactly when
-            # the mutation stops being worth anything.
-            print(f"  !! {mutation.name}: pattern not found -- source has drifted")
-            drifted.append(mutation.name)
-            continue
         try:
             target.write_text(original.replace(mutation.find, mutation.replace, 1))
-            caught = failing_tests()
+            return failing_tests(tree)
         finally:
             target.write_text(original)
-        status = f"{len(caught)} test(s)" if caught else "NOT CAUGHT"
-        print(f"  {mutation.name:<34} {status}")
-        results.append((mutation, caught))
+    finally:
+        trees.put(tree)
 
-    write_report(results)
-    uncaught = [m.name for m, c in results if not c]
-    print(f"\nWrote docs/sabotage.md. Undetected mutations: {len(uncaught)}")
-    for name in uncaught:
-        print(f"  - {name}")
-    if drifted:
-        print(f"Mutations that could not be applied: {len(drifted)}")
-        for name in drifted:
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--jobs", "-j", type=int, default=os.cpu_count() or 1,
+        help="how many suites to run at once (default: the core count). "
+             "Each gets its own copy of the working tree; the report is the "
+             "same whatever this is set to.")
+    args = parser.parse_args(argv)
+    jobs = max(1, args.jobs)
+
+    not_run: list[str] = []
+    workspace = tempfile.TemporaryDirectory(prefix="ovpoc-sabotage-")
+    root = pathlib.Path(workspace.name)
+    print(f"Copying the working tree {jobs}× into {root}…")
+    trees: "queue.Queue[pathlib.Path]" = queue.Queue()
+    for n in range(jobs):
+        trees.put(worker_tree(root / f"w{n}"))
+    first = trees.queue[0]
+
+    try:
+        try:
+            baseline = failing_tests(first, skipped=not_run)
+        except SuiteDidNotRun as exc:
+            print("Cannot run the sabotage suite: the test suite itself did not run.")
+            print("Install the dev extras first:  pip install -e \".[dev]\"\n")
+            print(exc)
+            return 2
+        if baseline:
+            print("Baseline suite is not green; fix that first:", baseline)
+            return 1
+
+        # A skipped test cannot catch anything, so a mutation whose only
+        # defenders are skipped is reported NOT CAUGHT -- truthfully, and about
+        # the environment rather than about the code. That is the worst kind of
+        # true: `docs/sabotage.md` is committed and CI diffs it, so a report
+        # written here with the `pades` extra missing says a defence is
+        # undefended when CI, which installs it, will say the opposite. The
+        # report would describe a suite nobody else runs.
+        #
+        # It happened the first time an optional extra appeared. Three
+        # mutations in `driver/qualified_signature.py` came back NOT CAUGHT on
+        # a machine whose virtual environment predated the extra, and the only
+        # thing distinguishing that from a real coverage gap was knowing which
+        # patch had just landed.
+        if not_run:
+            print("Baseline green, but some tests did not run:\n")
+            for reason in sorted(set(not_run)):
+                print(f"  - {reason}")
+            print("\nRefusing to write a report that describes a different suite")
+            print("from the one CI runs. Each reason above says what is missing;")
+            print("supply it and run again. A missing optional extra is")
+            print('  pip install -e ".[dev]"')
+            print("-- but a skip for anything else is a test that should not have")
+            print("been written to skip, and the fix belongs in the test.")
+            return 1
+
+        print("Baseline green.\n")
+
+        drifted: list[str] = []
+        runnable: list[Mutation] = []
+        for mutation in MUTATIONS:
+            # Checked against the real checkout, once, before anything is
+            # dispatched -- so drift is reported in the order it is listed
+            # rather than whenever a worker happened to reach it.
+            #
+            # Not an aside. A mutation that cannot be applied tests nothing,
+            # and recording it as caught -- which this did, by appending a
+            # non-empty list -- reports a hole in the suite as a success. The
+            # source moving out from under a mutation is exactly when the
+            # mutation stops being worth anything.
+            if mutation.find not in (ROOT / mutation.path).read_text():
+                print(f"  !! {mutation.name}: pattern not found -- source has drifted")
+                drifted.append(mutation.name)
+            else:
+                runnable.append(mutation)
+
+        # Threads rather than processes: every one of them spends its life in
+        # `subprocess.run`, which holds no lock worth contending for.
+        #
+        # `Executor.map` yields results in the order it was handed the inputs,
+        # whatever order the workers finished in, so the pairing below is
+        # positional. It was a dict keyed by the mutation until the first real
+        # parallel run, which printed `Baseline green.` and then died on
+        # `unhashable type: 'Mutation'`: a plain `@dataclass` defines `__eq__`
+        # and therefore sets `__hash__` to None. Position is the better answer
+        # anyway -- list order is the property being preserved, and a mapping
+        # is a detour through a key to arrive back at it.
+        with ThreadPoolExecutor(max_workers=jobs) as pool:
+            caught_by = list(pool.map(lambda m: run_one(m, trees), runnable))
+
+        # Reported in list order, not completion order. The file this writes is
+        # committed and CI diffs it, so a report whose rows moved with the
+        # scheduler would show a diff on every run and mean nothing.
+        results: list[tuple[Mutation, list[str]]] = []
+        for mutation, caught in zip(runnable, caught_by):
+            status = f"{len(caught)} test(s)" if caught else "NOT CAUGHT"
+            print(f"  {mutation.name:<34} {status}")
+            results.append((mutation, caught))
+
+        write_report(results)
+        uncaught = [m.name for m, c in results if not c]
+        print(f"\nWrote docs/sabotage.md. Undetected mutations: {len(uncaught)}")
+        for name in uncaught:
             print(f"  - {name}")
+        if drifted:
+            print(f"Mutations that could not be applied: {len(drifted)}")
+            for name in drifted:
+                print(f"  - {name}")
 
-    # Exit status follows, so that a suite which has stopped defending
-    # something says so to whatever runs it rather than only to whoever
-    # reads the output. A mutation nobody caught and a mutation nobody
-    # applied are different failures and both are failures.
-    return 1 if (uncaught or drifted) else 0
+        # Exit status follows, so that a suite which has stopped defending
+        # something says so to whatever runs it rather than only to whoever
+        # reads the output. A mutation nobody caught and a mutation nobody
+        # applied are different failures and both are failures.
+        return 1 if (uncaught or drifted) else 0
+    finally:
+        # The trees are large enough to notice and useless the moment
+        # the run ends, whichever way it ended.
+        workspace.cleanup()
 
 
 def write_report(results: list[tuple[Mutation, list[str]]]) -> None:

@@ -432,21 +432,39 @@ hash belongs in stage 3 alongside the visible key fingerprint.
 **Label (stage 1 only):** *This code was delivered by a web server. On iOS the
 same code arrives as a signed binary independent of every election server.*
 
-### A4 — Scheduled opening and closing
+### A4 — Scheduled periods
 
-The configuration carries opening and closing times (Table 1, footnote a) that
-the implementation does not consume: `open()` and `close()` are both called by
-an operator, not scheduled — the box starts shut and refuses every submission
-until somebody opens it. `election.json` therefore contains two fields nothing
-reads.
+The configuration carries a **token-request period** and a **voting period**
+(Table 1, footnote a), and the implementation consumes neither: `open()` and
+`close()` are both called by an operator, not scheduled — the box starts shut
+and refuses every submission until somebody opens it — and the office does not
+look at the clock before issuing, so a request made long after the declared
+window has shut is answered `ISSUED` exactly as any other.
+`election.json` therefore contains four fields nothing reads.
 
 This touches gap #3 of the action table — the close is treated as a moment,
 and the article does not say whether acceptance turns on arrival at the box or
 on a published cut, nor who attests that the box stopped. Leave the fields in
 the file and label them; removing them would hide the gap.
 
-**Label:** *Opening and closing times are recorded but not enforced. The poll
-is opened and closed by operator actions.*
+The token-request period arrived with the article's rule that token issuance
+should close before voting opens, so that the office's release register and
+the box's ledger are drawn over disjoint intervals and a position in one says
+nothing about a position in the other. Two fields rather than one date, and
+deliberately: the rule is that the first period closes before the second
+opens, and the relaxation the article allows — for a jurisdiction that will
+not turn away a late registrant — is that they overlap. Carrying both ends is
+what makes *which arrangement an election used* readable from the pinned
+configuration rather than dependent on a notice somebody remembered to write.
+
+The console therefore does not refuse overlapping periods either. Refusing
+them would make the relaxation unauthorable and throw away the reason for
+having two periods at all; the configuration page states the relation it finds
+and leaves the judgment where the article leaves it.
+
+**Label:** *The token-request and voting periods are recorded but not
+enforced. The poll is opened and closed by operator actions, and the office
+issues a token whenever it is asked.*
 
 ---
 

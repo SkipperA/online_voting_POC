@@ -131,6 +131,9 @@ async function refresh() {
     : c.box_opened ? 'open — minting now discards this poll' : 'not yet opened';
   if (!$('opens').value) $('opens').value = c.opens;
   if (!$('closes').value) $('closes').value = c.closes;
+  if (!$('requests-open').value) $('requests-open').value = c.token_requests_open || '';
+  if (!$('requests-close').value) $('requests-close').value = c.token_requests_close || '';
+  readPeriods();
   if (!$('mint-confirm').placeholder.includes(c.election_id)) {
     $('mint-confirm').placeholder = `type ${c.election_id} to confirm`;
   }
@@ -184,10 +187,56 @@ $('set-interval').onclick = async () => {
   $('status').textContent = 'Cadence set. The configuration digest has changed.';
 };
 
+/** What the two periods, as typed, declare about this election.
+ *
+ * Says it on the console rather than only on the configuration page,
+ * because the console is where the declaration is made and the reading is
+ * what an operator needs before pressing Set. It compares the strings as
+ * ISO-8601 instants and says nothing at all when it cannot -- the field is
+ * free text, clause A4 means nothing parses it downstream, and a reading
+ * invented from an unparseable value would be worse than none.
+ */
+function readPeriods() {
+  const el = $('period-reading');
+  const close = $('requests-close').value.trim();
+  const open = $('requests-open').value.trim();
+  const votingOpens = $('opens').value.trim();
+  if (!open && !close) {
+    el.textContent = 'No token-request period declared.';
+    return;
+  }
+  if (!open || !close) {
+    el.textContent = 'A period needs both ends or neither.';
+    return;
+  }
+  const t = (v) => { const d = Date.parse(v); return Number.isNaN(d) ? null : d; };
+  const [c, v] = [t(close), t(votingOpens)];
+  if (c === null || v === null) {
+    el.textContent = 'Declared, but these are not times this page can compare.';
+    return;
+  }
+  el.textContent = c <= v
+    ? 'Token requests close before voting opens: the two registers are '
+      + 'drawn over disjoint intervals, and their positions carry no '
+      + 'correlation.'
+    : 'The periods overlap: this is the relaxation. A citizen may still '
+      + 'request a token once voting has begun, and the later they do the '
+      + 'smaller the cohort they join and the more a position in both '
+      + 'registers says about them.';
+}
+for (const id of ['requests-open', 'requests-close', 'opens', 'closes']) {
+  $(id).addEventListener('input', readPeriods);
+}
+
 $('set-schedule').onclick = async () => {
   const response = await fetch('/schedule', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ opens: $('opens').value, closes: $('closes').value }),
+    body: JSON.stringify({
+      opens: $('opens').value,
+      closes: $('closes').value,
+      token_requests_open: $('requests-open').value,
+      token_requests_close: $('requests-close').value,
+    }),
   });
   if (!response.ok) { $('status').textContent = await problem(response); return; }
   await refresh();
@@ -366,6 +415,8 @@ $('mint').onclick = async () => {
     bits: Number($('mint-bits').value),
     opens: $('mint-opens').value.trim() || $('opens').value,
     closes: $('mint-closes').value.trim() || $('closes').value,
+    token_requests_open: $('mint-requests-open').value.trim(),
+    token_requests_close: $('mint-requests-close').value.trim(),
     tally_interval_seconds: raw === '' ? null : Number(raw),
     keep_register: $('mint-keep').checked,
   };
@@ -381,6 +432,7 @@ $('mint').onclick = async () => {
   $('mint-confirm').value = '';
   $('mint-question').value = ''; $('mint-options').value = '';
   $('opens').value = ''; $('closes').value = '';
+  $('requests-open').value = ''; $('requests-close').value = '';
   await refresh();
   $('status').textContent = `Minted ${minted.election_id}. Every page open `
     + 'against the old election must be reloaded, and every token already '

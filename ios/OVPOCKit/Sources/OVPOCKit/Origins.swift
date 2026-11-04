@@ -55,10 +55,10 @@ public struct Origins: Sendable, Equatable {
     public var handIn: URL { vro.appendingPathComponent("upload") }
     /// 8004 — the ballot box. Submission, receipts, the published view.
     public var ebb: URL { origin("ebb") }
-    /// 8005 — the checker. Not called by these apps; here because an
-    /// audience asks where the independent checks live, and the answer is
-    /// a URL they can open themselves.
-    public var checker: URL { origin("checker") }
+    // There is no `checker` accessor. There was one, for an audience
+    // asking where the independent checks live -- and no surface ever
+    // showed it, so the argument was for something not built. `origin
+    // ("checker")` is one line away the day a screen wants it.
 }
 
 public enum TransportError: Error, Equatable {

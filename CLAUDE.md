@@ -428,6 +428,39 @@ register is `VRO.register` — a set of ids, and nothing else.
   in this POC.
 - **`close()` is reversible here.** A real deployment needs it one-way. That is
   an operational property, not a protocol one, and the docstring says so.
+- **The token-request period is carried and not enforced, and the second
+  half is the decision.** `token_requests_open` and `token_requests_close`
+  sit beside `opens`/`closes` in `election.json`, inside the digest every
+  client pins. Clause A4 already covered the voting period on exactly this
+  footing and now covers all four: the office does not consult a clock
+  before issuing, the box is opened by an operator, and
+  `test_a_request_outside_the_declared_window_is_still_issued` asserts the
+  first of those against the office directly rather than through a
+  surface — enforcement, if it is ever wanted, would have to live in
+  `vro.py`, and that should be a deliberate change with that test
+  rewritten rather than a quiet one.
+
+  **Two fields rather than one date, and that is the whole point.** The
+  article's rule is that token issuance closes before voting opens, so
+  that the release register and the ledger are drawn over disjoint
+  intervals and a position in one says nothing about a position in the
+  other. Its relaxation — for a jurisdiction that will not turn away a
+  late registrant — is that the two periods overlap. A single
+  `issuance_closes` would express the rule and leave the relaxation
+  invisible; carrying both ends makes *which arrangement an election
+  used* something a reader computes from the pinned configuration. So
+  neither the console nor the endpoint refuses an overlap: refusing would
+  make the relaxation unauthorable and throw the reason for two periods
+  away. What is refused is one end without the other, because a window
+  with one end cannot be read as a window at all.
+
+  The configuration page and the console both state the relation they
+  find rather than only the four strings, since the strings alone are
+  what a single date would have given. `None` is *not stated* and must
+  never become *unlimited*: `store.read` uses `.get` for these, so an
+  election stored before they existed comes back declaring nothing rather
+  than declaring a window this deployment invented.
+
 - **The ballot's wording lives in the configuration, and nowhere else may
   read it.** `question` and `options` are two fields of `election.json`,
   both optional -- absent is a numbered ballot, which is what every election
@@ -1197,6 +1230,66 @@ register is `VRO.register` — a set of ids, and nothing else.
   something load-bearing beside it, and that direction fails silently.
   Both lists in that test are the point of it.
 
+## Running the sabotage suite in parallel
+
+- **`tools/sabotage.py` runs one suite per core, each in its own copy of
+  the working tree.** `--jobs` defaults to the core count and `-j 1`
+  restores the old serial behaviour; the report is byte-identical either
+  way, because rows are written in `MUTATIONS` order rather than in the
+  order workers finished. Measured on two cores: two mutations took 37.9 s
+  against 76.1 s serial, with identical results.
+
+  Copies rather than one checkout, because a mutation is a file edit and
+  two workers sharing a tree would overwrite each other. The **working**
+  tree and not `git worktree add`: this tool sabotages what is on disk,
+  uncommitted changes included, and a worktree would silently test `HEAD`.
+  A side effect worth having is that the real checkout is never touched,
+  so an interrupted run can no longer leave it mutated.
+
+  `PYTHONPATH` is what makes a copy count. The editable install is a
+  `.pth` file, so it appends the *original* `src` to `sys.path`; without
+  the override a worker would mutate its own tree and import somebody
+  else's `ovpoc`, and every mutation under `src/ovpoc/` would pass
+  silently. `tests/service_process.py` already pinned `PYTHONPATH` for the
+  service subprocess, with a comment naming this exact hazard — it is the
+  same one a level up.
+
+- **Ports are probed, not pinned, and this is where it went wrong.** The
+  live-service tests start a real deployment, because `TestClient` binds
+  no port and the wallet transmits to the office over the wire (§5.3).
+  That deployment used a hardcoded `OFFSET = 320`; running two suites at
+  once put every worker but one on a dead socket, and the failures landed
+  in the tests that need a live service — so a mutation would be recorded
+  as caught by `test_the_ledger_downloads_as_one_canonical_file`. Two
+  unmutated trees run concurrently produced 22 such failures.
+
+  `free_offset` now binds the whole block, holds it, releases it and
+  returns, drawing offsets in random order so two probes rarely agree.
+  **One hardcoded offset was left behind**, in a test that starts a
+  *second* deployment beside the fixture's: safe while both were
+  constants, and a flake in about one run in twenty once the first started
+  choosing, because a probe landing in 331..349 overlapped it. It
+  surfaced as a failure in a test about tally privacy, which is the whole
+  difficulty — nothing in the symptom points at a port.
+  `test_no_test_pins_a_port_offset` is the tripwire, and the general rule
+  is that **two things kept apart by a constant collide the day either one
+  starts choosing**.
+
+- **Every piece was tested and the join was not.** `main` collected the
+  results into a dict keyed by the `Mutation`, which a plain `@dataclass`
+  makes unhashable -- it defines `__eq__` and therefore sets `__hash__` to
+  None. Nothing in the suite called `main`: `parse_report` had tests, the
+  worker tree had tests, `run_one` was exercised by hand, and the join of
+  them was met first by a real run, which printed `Baseline green.` and
+  died after fourteen tree copies and a full baseline suite. `Executor.map`
+  already yields in input order, so the pairing is positional now and the
+  mapping is gone.
+  `test_the_runner_pairs_each_result_with_the_mutation_it_came_from` drives
+  `main` with the suite stubbed out, which is the only way to see a fault
+  in the assembly rather than in a part. The shape is the one the validator
+  and the event loop made one layer down: **when each half is covered in
+  isolation, the thing nobody covers is the context that joins them.**
+
 ## Working style
 
 - Tests alongside code, in the same change. The adversarial suite is the point
@@ -1278,7 +1371,7 @@ pip install -e ".[dev]"
 python -m pytest -q          # full suite
 python demo.py               # narrated end-to-end run
 python ext_demo.py           # narrated end-to-end run with all tests
-python tools/sabotage.py     # regenerate docs/sabotage.md
+python tools/sabotage.py     # regenerate docs/sabotage.md (one suite per core; -j 1 for serial)
 python tools/publish_challenge.py <election> --answer-key <k> --out <dir>
 python tools/score_challenge.py <answer-key> <claim> --expect-digest <sha256>
 python demo_svr.py           # happy path against a live service

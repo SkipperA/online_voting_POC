@@ -14,18 +14,20 @@ import sys
 
 from service_process import ROOT, Deployment
 
-OFFSET = 520
-
 
 def test_the_adversarial_scenarios_all_hold():
-    deployment = Deployment(offset=OFFSET).start()
+    # The offset is whatever the deployment probed for, and the demo script
+    # is told it rather than agreeing on a constant beforehand. Two
+    # constants that must match is how a suite acquires a port collision it
+    # only meets under load.
+    deployment = Deployment().start()
     try:
         result = subprocess.run(
             [sys.executable, "ext_demo_svr.py"],
             cwd=ROOT,
             env=dict(
                 os.environ,
-                OVPOC_PORT_OFFSET=str(OFFSET),
+                OVPOC_PORT_OFFSET=str(deployment.offset),
                 PYTHONPATH=os.pathsep.join([str(ROOT / "src"), str(ROOT)]),
             ),
             capture_output=True, text=True, timeout=300,

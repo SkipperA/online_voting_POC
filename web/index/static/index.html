@@ -72,7 +72,19 @@ key (<code>k<sub>p</sub><sup>(R)</sup></code>):</p>
 <tr><td>choices</td><td class="mono" id="choices">…</td></tr>
 <tr><td>configuration digest</td><td class="mono" id="digest">…</td></tr>
 <tr><td>VRO's statement key <code>k<sub>p</sub><sup>(O)</sup></code></td><td class="mono" id="statement">…</td></tr>
+<tr><td>token-request period</td><td class="mono" id="requests">…</td></tr>
+<tr><td>voting period</td><td class="mono" id="voting">…</td></tr>
 </tbody></table>
+<div class="note note--absent">
+  <span class="kind">Absent · <code>A4</code></span>
+  <b>Both periods are recorded, not enforced</b>
+  <span id="period-reading">…</span>
+  Nothing in this build consumes either one: the box is opened and closed by
+  its operator, and the office does not refuse a token request made outside
+  its window. What the fields give you is what the administering body
+  <i>declared</i>, inside the digest above — so the arrangement an election
+  uses is something you can read rather than something you have to be told.
+</div>
 <p class="prose">The configuration digest is SHA-256
 over the exact bytes served at <code>election.json</code> — the file as
 written, including its indentation and trailing newline, not over a canonical
@@ -169,6 +181,35 @@ for (const o of O) {
   document.getElementById('choices').textContent = `1..${c.num_choices}`;
   document.getElementById('digest').textContent = d.split(/\s+/)[0];
   document.getElementById('statement').textContent = c.vro_statement_key;
+
+  const period = (a, b) => (a && b) ? `${a}  →  ${b}` : 'not stated';
+  document.getElementById('requests').textContent =
+    period(c.token_requests_open, c.token_requests_close);
+  document.getElementById('voting').textContent = period(c.opens, c.closes);
+
+  // The relation between the two periods is the declaration; the periods
+  // themselves are just four strings. Said here because this is the page a
+  // reader comes to in order to find out what the election is.
+  const reading = document.getElementById('period-reading');
+  const at = (v) => { const d = Date.parse(v); return Number.isNaN(d) ? null : d; };
+  const [rc, vo] = [at(c.token_requests_close), at(c.opens)];
+  if (!c.token_requests_open || !c.token_requests_close) {
+    reading.textContent = 'This election declares no token-request period, '
+      + 'so it says nothing about whether requesting and voting overlapped. ';
+  } else if (rc === null || vo === null) {
+    reading.textContent = 'This election declares a token-request period in '
+      + 'a form this page cannot compare with the voting period. ';
+  } else if (rc <= vo) {
+    reading.textContent = 'Token requests closed before voting opened, so '
+      + 'the release register and the ledger were drawn over disjoint '
+      + 'intervals and a position in one says nothing about a position in '
+      + 'the other. ';
+  } else {
+    reading.textContent = 'The two periods overlap. A citizen could still '
+      + 'request a token after voting had begun, and the later they did the '
+      + 'smaller the group they joined — which is the one way a position in '
+      + 'these two registers can start to say something about a person. ';
+  }
 })();
 // Served into the page rather than fetched: it describes the process that
 // served the page, so asking a second endpoint for it would be asking a

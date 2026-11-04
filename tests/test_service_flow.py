@@ -187,8 +187,17 @@ def test_the_tally_is_refused_while_open_when_no_running_tally_is_configured(liv
 
     Runs against its own deployment so the module's shared box, which other
     tests close, cannot make this pass for the wrong reason.
+
+    No offset is given, and that is not a tidy-up: this is the *second*
+    deployment alive at this moment, and it used to carry a hardcoded 340
+    beside the fixture's hardcoded 320 -- two constants kept apart by
+    somebody having checked once. When the fixture started probing, a
+    probe landing anywhere in 331..349 overlapped this block and the test
+    failed about one run in twenty, which is the shape of flake that gets
+    blamed on everything except a port. Probing picks a block that is free
+    *now*, and the first deployment's ports are busy when it looks.
     """
-    private = Deployment(offset=340).start()
+    private = Deployment().start()
     try:
         assert private.http.get(f"{private.ebb}/tally").status_code == 409
     finally:

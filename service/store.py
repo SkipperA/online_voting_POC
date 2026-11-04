@@ -42,7 +42,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 from ovpoc import keys, rsabssa
 from ovpoc.messages import b64, unb64
 
-STORE_VERSION = 6
+STORE_VERSION = 7
 
 # Earlier versions are still readable, and deliberately so. Each difference
 # is a field whose absence means exactly what the older behaviour was:
@@ -59,7 +59,7 @@ STORE_VERSION = 6
 # field that defaults to the old behaviour would lose the token key, the
 # register and every persona for nothing. The next save writes the current
 # version.
-READABLE_STORE_VERSIONS = {1, 2, 3, 4, 5, 6}
+READABLE_STORE_VERSIONS = {1, 2, 3, 4, 5, 6, 7}
 
 # What a store written before the schedule was authored was serving. Not a
 # sensible default for a new election -- the console asks for one -- but the
@@ -198,6 +198,8 @@ def write(path: Path, *, token_private, statement_key, box_statement_key,
           tally_interval_seconds: int | None = None,
           question: str | None = None,
           options: Sequence[str] | None = None,
+          token_requests_open: str | None = None,
+          token_requests_close: str | None = None,
           minted_at: str | None = None,
           generated: bool = False) -> None:
     """Write the durable half. Called by the setup console, never at runtime."""
@@ -261,6 +263,13 @@ def write(path: Path, *, token_private, statement_key, box_statement_key,
                 "question": question,
                 "options": None if options is None else list(options),
                 "tally_interval_seconds": tally_interval_seconds,
+                # The token-request period, clause A4 like the two below.
+                # Written whole rather than inferred at load for the reason
+                # the wording is: this file is what an election *is*
+                # between restarts, and a declaration that came back absent
+                # would be a different election under the same keys.
+                "token_requests_open": token_requests_open,
+                "token_requests_close": token_requests_close,
                 "opens": opens,
                 "closes": closes,
                 "vro_statement_seed": b64(seed_of(statement_key)),
@@ -307,6 +316,11 @@ def read(path: Path) -> dict:
         "tally_interval_seconds": body.get("tally_interval_seconds"),
         "opens": body.get("opens", LEGACY_OPENS),
         "closes": body.get("closes", LEGACY_CLOSES),
+        # `.get` rather than `[]`: a store written before these existed
+        # declared no token-request period, and `None` is what "not
+        # stated" is. It must not become a guessed window.
+        "token_requests_open": body.get("token_requests_open"),
+        "token_requests_close": body.get("token_requests_close"),
         "token_private": private,
         "token_public": private.public_key(),
         "statement_key": pair_from(unb64(body["vro_statement_seed"])),

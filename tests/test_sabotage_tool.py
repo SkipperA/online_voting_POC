@@ -21,9 +21,11 @@ from __future__ import annotations
 import pathlib
 import subprocess
 import sys
+import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "tools"))
 
+import sabotage  # noqa: E402
 from sabotage import MUTATIONS, PYTEST_ARGS, parse_report  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -146,3 +148,150 @@ def test_every_mutation_still_matches_its_target_exactly_once():
 def test_mutation_names_are_unique():
     names = [m.name for m in MUTATIONS]
     assert len(names) == len(set(names))
+
+
+def test_a_worker_tree_carries_everything_the_run_needs(tmp_path):
+    """`--jobs` sabotages copies, so the copy has to be complete.
+
+    Each worker gets its own tree because a mutation is applied to a file
+    and the suite is then run against it; two workers sharing one checkout
+    would overwrite each other's mutations and report nonsense. What makes
+    the copy cheap is leaving things out -- `.git`, the caches,
+    `node_modules` -- and that is exactly where it can go wrong.
+
+    A mutation whose target is excluded fails with *pattern not found --
+    source has drifted*, which reads as the source having moved rather
+    than as the copy being incomplete, and is reported as a mutation that
+    could not be applied rather than as a bug in this tool.
+
+    The files listed beside the mutation targets are ones the suite reads
+    that nothing else here would notice the loss of: `.gitignore` is read
+    by `test_repository_hygiene`, the trust anchors by `conftest`, and
+    `tests/fixtures/` by the Swift tests' Python half.
+    """
+    from sabotage import worker_tree
+
+    tree = worker_tree(tmp_path / "w")
+
+    missing = sorted({m.path for m in MUTATIONS}
+                     - {str(p.relative_to(tree)) for p in tree.rglob("*")})
+    assert not missing, (
+        "a worker tree is missing files mutations target, so those "
+        f"mutations would report as drifted source: {missing}")
+
+    for needed in (".gitignore", "pyproject.toml",
+                   "election-data/trust-anchors",
+                   "tests/fixtures/published-election.json"):
+        assert (tree / needed).exists(), (
+            f"{needed} is not in a worker tree, and the suite reads it")
+
+
+def test_a_worker_tree_leaves_the_weight_behind(tmp_path):
+    """The copy is per worker, so its size is multiplied by the core count.
+
+    Not a performance test: `.git` carries every version of the 27 MB
+    generated election that was once committed, and copying it eight times
+    would be slower than the run it is meant to speed up.
+    """
+    from sabotage import worker_tree
+
+    tree = worker_tree(tmp_path / "w")
+    assert not (tree / ".git").exists()
+    size = sum(f.stat().st_size for f in tree.rglob("*") if f.is_file())
+    assert size < 32 * 1024 * 1024, f"a worker tree is {size / 1e6:.0f} MB"
+
+
+def test_no_test_pins_a_port_offset():
+    """Two deployments alive at once must not agree on a block by hand.
+
+    `tests/service_process.py` probes for a free block, and that only
+    works if everything probes. One test kept a hardcoded `offset=340`
+    beside the fixture's old hardcoded 320 -- safe while both were
+    constants, and a flake in about one run in twenty the moment the
+    first one started probing, because a probe landing in 331..349
+    overlapped the block the constant had claimed.
+
+    The failure was in a test about tally privacy, which is the problem:
+    nothing in the symptom points at a port, so it reads as flakiness in
+    the thing being tested.
+    """
+    import re
+
+    offenders = {}
+    for path in sorted(ROOT.glob("tests/*.py")):
+        found = re.findall(r"Deployment\(\s*offset\s*=", path.read_text(encoding="utf-8"))
+        if found:
+            offenders[path.name] = len(found)
+    assert not offenders, (
+        "these pin a port offset instead of probing for a free block: "
+        + ", ".join(f"{n} ({c})" for n, c in offenders.items())
+        + ". Two deployments that agree on a block by hand collide the "
+        "day either one starts choosing.")
+
+
+def _stub_the_suite(monkeypatch, chosen, finished):
+    """Everything `main` calls that costs a suite run or a tree copy.
+
+    `worker_tree` returns the path it was given without copying: the run
+    below never reaches a tree, because `run_one` is stubbed too. What is
+    left unstubbed is the part this is about -- the argument parsing, the
+    drift check against the real checkout, the pool, and the pairing of
+    results with mutations.
+    """
+    monkeypatch.setattr(sabotage, "MUTATIONS", chosen)
+    monkeypatch.setattr(sabotage, "worker_tree", lambda into: into)
+    monkeypatch.setattr(sabotage, "failing_tests", lambda tree, skipped=None: [])
+
+    def out_of_order(mutation, trees):
+        # Later mutations finish first, so a run that reported in
+        # completion order would report these backwards.
+        time.sleep(0.02 * (len(chosen) - chosen.index(mutation)))
+        return [f"test_{mutation.name}"]
+
+    monkeypatch.setattr(sabotage, "run_one", out_of_order)
+    monkeypatch.setattr(sabotage, "write_report", finished.append)
+
+
+def test_the_runner_pairs_each_result_with_the_mutation_it_came_from(monkeypatch):
+    """Drive `main` with the suite stubbed out, which nothing did.
+
+    Every piece below `main` had a test -- `parse_report` above, the
+    worker tree below, `run_one` exercised by hand -- and `main` is where
+    they are joined. So the first real parallel run printed `Baseline
+    green.` and raised `TypeError: cannot use 'Mutation' as a dict key`,
+    after fourteen tree copies and a full baseline suite: results were
+    collected into a dict keyed by the mutation, and a plain `@dataclass`
+    defines `__eq__`, which sets `__hash__` to None.
+
+    No unit test of a part can see that. The general form is the one this
+    project keeps meeting from different directions: when each half is
+    covered in isolation, the thing nobody covers is the join -- it was
+    the validator and the event loop, and here it is the mutation list
+    and the pool.
+    """
+    chosen = MUTATIONS[:4]
+    finished = []
+    _stub_the_suite(monkeypatch, chosen, finished)
+
+    assert sabotage.main(["-j", "4"]) == 0
+
+    assert [m.name for m, _ in finished[0]] == [m.name for m in chosen]
+    assert all(caught == [f"test_{m.name}"] for m, caught in finished[0]), (
+        "a result was reported against a mutation it did not come from")
+
+
+def test_the_report_does_not_depend_on_how_many_jobs_wrote_it(monkeypatch):
+    """`--jobs` is a speed dial and nothing else.
+
+    `docs/sabotage.md` is committed and CI diffs it, so a report whose
+    rows moved with the scheduler would show a diff on every run and mean
+    nothing -- and nobody reading one can tell which `-j` produced it.
+    """
+    chosen = MUTATIONS[:4]
+    serial, parallel = [], []
+    _stub_the_suite(monkeypatch, chosen, serial)
+    assert sabotage.main(["-j", "1"]) == 0
+    _stub_the_suite(monkeypatch, chosen, parallel)
+    assert sabotage.main(["-j", "4"]) == 0
+
+    assert serial[0] == parallel[0]

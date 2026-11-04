@@ -321,6 +321,8 @@ class Deployment:
         bits: int = DEFAULT_BITS,
         tally_interval_seconds: int | None = None,
         opens: str = DEFAULT_OPENS,
+        token_requests_open: str | None = None,
+        token_requests_close: str | None = None,
         closes: str = DEFAULT_CLOSES,
         document_root: Path = DOCUMENT_ROOT,
         # Explicit, and defaulted rather than reached for. A deployment that
@@ -353,6 +355,8 @@ class Deployment:
             tally_interval_seconds=tally_interval_seconds,
             opens=opens,
             closes=closes,
+            token_requests_open=token_requests_open,
+            token_requests_close=token_requests_close,
             question=question,
             options=options,
             generated=generated,
@@ -385,8 +389,10 @@ class Deployment:
         if self.data_dir is not None:
             self.save(self.data_dir)
 
-    def set_schedule(self, opens: str, closes: str) -> None:
-        """A5. The declared opening and closing times.
+    def set_schedule(self, opens: str, closes: str,
+                     token_requests_open: str | None = None,
+                     token_requests_close: str | None = None) -> None:
+        """A5. The declared token-request and voting periods.
 
         The one configuration field that can be corrected without voiding
         anything. Nothing is signed under it and no token depends on it:
@@ -395,8 +401,16 @@ class Deployment:
         The digest moves, as it must -- a configuration that changed
         without its digest changing is the thing the digest exists to
         prevent.
+
+        All four are set together and `None` clears a request period
+        rather than keeping it. The alternative -- omitted means unchanged
+        -- reads better at a call site and is worse where it matters: the
+        console posts a form, and a form that lost a field would silently
+        withdraw a declaration the administering body had made.
         """
-        self.config = replace(self.config, opens=opens, closes=closes)
+        self.config = replace(self.config, opens=opens, closes=closes,
+                              token_requests_open=token_requests_open,
+                              token_requests_close=token_requests_close)
         self.config.write(self.document_root)
         if self.data_dir is not None:
             self.save(self.data_dir)
@@ -412,6 +426,8 @@ class Deployment:
         bits: int,
         opens: str,
         closes: str,
+        token_requests_open: str | None = None,
+        token_requests_close: str | None = None,
         tally_interval_seconds: int | None = None,
         keep_register: bool = True,
     ) -> None:
@@ -465,6 +481,8 @@ class Deployment:
             tally_interval_seconds=tally_interval_seconds,
             opens=opens,
             closes=closes,
+            token_requests_open=token_requests_open,
+            token_requests_close=token_requests_close,
             document_root=self.document_root,
             # Carried, not re-derived. What this office trusts is a
             # property of the deployment and not of a poll -- the whole
@@ -538,6 +556,8 @@ class Deployment:
             tally_interval_seconds=self.ebb.tally_interval_seconds,
             opens=self.config.opens,
             closes=self.config.closes,
+            token_requests_open=self.config.token_requests_open,
+            token_requests_close=self.config.token_requests_close,
             # From the configuration and not from the box, because the box
             # does not have them and must not: `num_choices` above comes
             # from the box precisely because that is the figure acceptance
@@ -631,6 +651,8 @@ class Deployment:
             tally_interval_seconds=body["tally_interval_seconds"],
             opens=body["opens"],
             closes=body["closes"],
+            token_requests_open=body["token_requests_open"],
+            token_requests_close=body["token_requests_close"],
             question=body["question"],
             options=body["options"],
             generated=body["generated"],

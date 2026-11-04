@@ -780,20 +780,7 @@ def test_the_swift_tests_fixtures_are_all_here():
 #: place without a caller, and the claim has to be written down -- which
 #: is the whole mechanism: it makes keeping dead API a visible edit
 #: rather than the default outcome of nobody looking.
-DELIBERATELY_UNCALLED: dict[str, str] = {
-    # `Origins.checker` is an address to hand somebody, not one these
-    # applications fetch: its own docstring says "not called by these
-    # apps; here because an audience asks where the independent checks
-    # live, and the answer is a URL they can open themselves."
-    #
-    # Written down honestly: no surface shows it yet, so the argument is
-    # for a thing that has not been built. It is kept rather than deleted
-    # because the address is correct and the reason is good, and it is
-    # listed here rather than left silent because an entry that overstates
-    # itself is worse than no list. Showing it on the voting
-    # application's screen would retire this entry.
-    "checker": "an address for a person to open; no surface shows it yet",
-}
+DELIBERATELY_UNCALLED: dict[str, str] = {}
 
 
 def test_the_package_exposes_nothing_nobody_calls():

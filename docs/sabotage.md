@@ -13,12 +13,12 @@ confident the surrounding comments sound.
 |---|---|
 | token_verification_disabled | `test_a_valid_token_cannot_be_reused_with_a_different_key`<br>`test_finalize_rejects_a_dishonest_vro_response`<br>`test_forged_token_is_rejected_by_the_ballot_box`<br>`test_multiplicative_forgery_is_defeated_by_pss_encoding`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_rsabssa_vectors`<br>`test_signature_does_not_transfer_to_another_message`<br>`test_the_adversarial_scenarios_all_hold` |
 | ed25519_verification_disabled | `test_a_bystander_cannot_forge_such_a_proof`<br>`test_a_receipt_is_evidence_about_one_election_only`<br>`test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_a_tampered_receipt_does_not_verify`<br>`test_an_unauthenticated_release_query_is_refused`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_opening_and_closing_leave_signed_statements`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_tampering_with_the_selection_breaks_the_signature`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_box_signs_the_heads_it_publishes`<br>`test_the_nonce_is_covered_by_the_ballot_signature`<br>`test_the_office_console_shows_recorded_beside_disclosed`<br>`test_the_office_signs_the_count_the_audit_depends_on`<br>`test_the_statement_key_signs_statements_and_nothing_else` |
-| eligibility_check_removed | `test_a_real_signature_reaches_the_office_through_the_endpoint`<br>`test_an_identified_person_not_on_the_electoral_register_is_told_so`<br>`test_an_identified_signer_not_on_the_register_is_told_so`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_identifier_never_comes_from_the_document`<br>`test_without_the_clause_an_unknown_signer_is_refused` |
-| one_token_per_voter_removed | `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_second_token_is_refused_for_the_same_voter`<br>`test_a_second_token_request_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold` |
+| eligibility_check_removed | `test_a_real_signature_reaches_the_office_through_the_endpoint`<br>`test_an_identified_person_not_on_the_electoral_register_is_told_so`<br>`test_an_identified_signer_not_on_the_register_is_told_so`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_identifier_never_comes_from_the_document`<br>`test_the_report_does_not_depend_on_how_many_jobs_wrote_it`<br>`test_the_runner_pairs_each_result_with_the_mutation_it_came_from`<br>`test_without_the_clause_an_unknown_signer_is_refused` |
+| one_token_per_voter_removed | `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_second_token_request_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_report_does_not_depend_on_how_many_jobs_wrote_it`<br>`test_the_runner_pairs_each_result_with_the_mutation_it_came_from` |
 | wallet_signature_check_removed | `test_a_revoked_certificate_is_reported_only_after_the_signature`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_impersonation_fails_without_the_wallet_key`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_office_console_shows_recorded_beside_disclosed` |
 | finalize_selfcheck_removed | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_finalize_rejects_a_dishonest_vro_response` |
 | chain_verification_disabled | `test_altering_a_recorded_ballot_breaks_the_hash_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain` |
-| ledger_chaining_removed | `test_a_stranger_can_recompute_the_result_from_the_downloads`<br>`test_an_accented_ballot_runs_the_protocol_unchanged`<br>`test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_every_ballot_verifies_and_the_recount_holds`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_independent_verifier_counts_by_number_and_needs_no_name`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed`<br>`test_the_verifier_reports_a_generated_electorate`<br>`test_the_verifier_service_runs_the_same_checks` |
+| ledger_chaining_removed | `test_a_stranger_can_recompute_the_result_from_the_downloads`<br>`test_an_accented_ballot_runs_the_protocol_unchanged`<br>`test_an_outsider_can_recompute_the_result_from_the_public_ledger`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_deleting_a_ballot_breaks_the_hash_chain`<br>`test_every_ballot_verifies_and_the_recount_holds`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_ledger_vectors`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_independent_verifier_counts_by_number_and_needs_no_name`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed`<br>`test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`<br>`test_the_verifier_reports_a_generated_electorate`<br>`test_the_verifier_service_runs_the_same_checks` |
 | rejected_ballots_supersede | `test_a_rejected_ballot_does_not_supersede_a_genuine_one`<br>`test_the_adversarial_scenarios_all_hold` |
 | selection_range_check_removed | `test_a_protest_ballot_is_counted_as_invalid_not_rejected`<br>`test_a_protest_selection_acquires_no_name`<br>`test_distinct_protest_codes_are_not_merged`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_box_accepts_by_number_and_not_by_name`<br>`test_the_tally_is_the_distribution_that_was_asked_for` |
 | vro_key_pinning_removed | `test_a_substituted_vro_key_is_refused_by_the_voter_app`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
@@ -26,22 +26,22 @@ confident the surrounding comments sound.
 | release_query_auth_removed | `test_an_unauthenticated_release_query_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold` |
 | eligibility_checked_before_identity | `test_an_unknown_id_is_not_identified`<br>`test_an_unregistered_id_and_a_bad_signature_are_indistinguishable`<br>`test_eligibility_is_never_revealed_before_identity`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_audit_log_records_the_true_reason_in_every_case`<br>`test_the_wallet_reaches_the_office_over_the_wire`<br>`test_the_wallet_route_never_enrols_anybody` |
 | revocation_reported_before_identity | `test_a_revoked_certificate_is_reported_only_after_the_signature` |
-| denials_signed_with_the_token_key | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_wallet_can_produce_the_release_query_as_a_file` |
+| denials_signed_with_the_token_key | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_release_denials_are_signed_under_a_separate_office_key`<br>`test_supervision_turns_on_the_signed_statement_not_the_box_s_memory`<br>`test_the_box_statement_key_is_published_and_the_receipt_verifies_under_it`<br>`test_the_dump_needs_no_signature_of_its_own`<br>`test_the_ledger_downloads_as_one_canonical_file`<br>`test_the_office_signs_the_count_the_audit_depends_on`<br>`test_the_release_dump_needs_no_signature_of_its_own`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_wallet_can_produce_the_release_query_as_a_file` |
 | blind_signature_fault_check_removed | `test_a_faulty_blind_signature_is_not_released`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | records_published_while_voting_is_open | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_no_record_is_published_while_voting_is_open`<br>`test_supervision_turns_on_the_signed_statement_not_the_box_s_memory`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_ledger_download_is_refused_while_voting_is_open`<br>`test_the_voter_can_still_find_their_own_ballot_while_the_box_is_shut_to_others`<br>`test_the_whole_path_across_origins` |
 | receipt_signed_with_a_throwaway_key | `test_a_receipt_is_evidence_about_one_election_only`<br>`test_a_receipt_verifies_under_the_published_statement_key`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
-| replayed_ballot_accepted_again | `test_a_replayed_ballot_cannot_annul_a_later_one`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| replayed_ballot_accepted_again | `test_a_replayed_ballot_cannot_annul_a_later_one`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_tally_is_refused_while_open_when_no_running_tally_is_configured` |
 | tally_available_before_the_close | `test_a_running_tally_is_published_only_when_configured`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_tally_endpoint_cannot_read_around_the_cadence`<br>`test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`<br>`test_three_voters_cast_and_verify` |
 | restored_records_not_re-derived | `test_an_altered_ledger_is_refused_rather_than_served`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | cadence_changeable_while_open | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_cadence_is_fixed_once_the_box_is_open`<br>`test_the_console_refuses_the_cadence_once_the_box_is_open` |
 | reservation_publishes_the_commitment | `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`<br>`test_a_closed_poll_comes_back_when_it_is_served_again`<br>`test_a_poll_with_both_routes_survives_being_written_and_read_back`<br>`test_a_reservation_publishes_nothing`<br>`test_both_routes_issue_a_token_and_share_one_chain`<br>`test_supervision_shows_the_identifiers_and_the_refusals`<br>`test_the_release_log_records_exactly_who_took_a_token`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed`<br>`test_the_two_registers_are_not_even_the_same_length` |
 | protest_distribution_collapsed | `test_a_protest_selection_acquires_no_name`<br>`test_distinct_protest_codes_are_not_merged`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_box_accepts_by_number_and_not_by_name`<br>`test_the_tally_is_the_distribution_that_was_asked_for` |
-| submissions_accepted_after_the_close | `test_a_ballot_arriving_after_the_close_is_not_recorded`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold` |
+| submissions_accepted_after_the_close | `test_a_ballot_arriving_after_the_close_is_not_recorded`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_tally_is_refused_while_open_when_no_running_tally_is_configured` |
 | receipt_omits_the_entry_position | `test_a_tampered_receipt_does_not_verify`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold`<br>`test_the_inclusion_check_works_from_the_receipt_alone` |
 | reloaded_register_keeps_the_stored_order | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_reloaded_register_chains_to_the_head_the_office_signed` |
 | document_prefix_check_removed | `test_a_document_that_is_not_what_its_payload_renders_to_is_refused`<br>`test_a_signed_document_whose_page_was_altered_is_refused_by_the_rule`<br>`test_a_swapped_payload_cannot_produce_a_false_accept`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | carrier_disagreement_resolved_by_preference | `test_carriers_that_disagree_are_refused_rather_than_resolved`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
-| document_coverage_check_removed | `test_a_refusal_hands_back_no_payload`<br>`test_a_signature_covering_less_than_the_document_is_refused`<br>`test_a_signature_that_stops_short_of_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
+| document_coverage_check_removed | `test_a_refusal_hands_back_no_payload`<br>`test_a_signature_covering_less_than_the_document_is_refused`<br>`test_a_signature_that_stops_short_of_the_document_is_refused`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_adversarial_scenarios_all_hold` |
 | self_enrolment_not_marked_in_the_register | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_self_enrolment_is_published_and_marked` |
 | unvouched_time_published_as_vouched | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_timestamp_is_judged_under_the_office_s_own_anchors` |
 | unjudged_signatures_published_as_unqualified | `test_an_office_with_no_trust_list_publishes_none_and_not_false`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
@@ -60,7 +60,8 @@ confident the surrounding comments sound.
 | unrecorded_anchors_are_trusted | `test_a_certificate_nobody_recorded_refuses_to_load`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_check_command_notices_a_file_nobody_recorded` |
 | unconfigured_office_blames_the_citizen | `test_an_office_told_nothing_to_trust_says_so`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
 | upload_size_cap_removed | `test_an_office_with_anchors_still_caps_the_upload`<br>`test_an_oversized_upload_is_refused_without_being_read`<br>`test_every_mutation_still_matches_its_target_exactly_once` |
-| hand_off_scheme_renamed_in_code_alone | `test_each_application_registers_the_scheme_the_other_opens_it_with`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_two_applications_agree_on_the_hand_off` |
+| hand_off_scheme_renamed_in_code_alone | `test_each_application_registers_the_scheme_the_other_opens_it_with`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`<br>`test_the_two_applications_agree_on_the_hand_off` |
+| half_a_token_request_period_is_published | `test_every_mutation_still_matches_its_target_exactly_once`<br>`test_one_end_of_a_period_is_refused` |
 | a_real_polls_participation_register_is_published | `test_a_real_poll_archives_no_register`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_the_close_writes_the_three_files`<br>`test_the_office_register_comes_back_with_its_openings`<br>`test_the_written_bytes_are_the_bytes_the_endpoints_serve` |
 | the_challenge_bundle_carries_the_answer | `test_the_answer_is_not_in_the_bundle` |
 | guessing_is_scored_as_a_win | `test_a_claim_padded_with_strangers_does_not_look_better`<br>`test_every_mutation_still_matches_its_target_exactly_once`<br>`test_guessing_is_not_upheld` |
@@ -127,6 +128,8 @@ Caught by:
 - `test_an_identified_signer_not_on_the_register_is_told_so`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 - `test_the_identifier_never_comes_from_the_document`
+- `test_the_report_does_not_depend_on_how_many_jobs_wrote_it`
+- `test_the_runner_pairs_each_result_with_the_mutation_it_came_from`
 - `test_without_the_clause_an_unknown_signer_is_refused`
 
 ### `one_token_per_voter_removed`
@@ -137,10 +140,11 @@ Patched in `src/ovpoc/vro.py`.
 
 Caught by:
 - `test_a_citizen_who_took_a_token_by_one_route_cannot_take_another`
-- `test_a_second_token_is_refused_for_the_same_voter`
 - `test_a_second_token_request_is_refused`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 - `test_the_adversarial_scenarios_all_hold`
+- `test_the_report_does_not_depend_on_how_many_jobs_wrote_it`
+- `test_the_runner_pairs_each_result_with_the_mutation_it_came_from`
 
 ### `wallet_signature_check_removed`
 
@@ -197,6 +201,7 @@ Caught by:
 - `test_the_independent_verifier_counts_by_number_and_needs_no_name`
 - `test_the_release_dump_needs_no_signature_of_its_own`
 - `test_the_reloaded_register_chains_to_the_head_the_office_signed`
+- `test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`
 - `test_the_verifier_reports_a_generated_electorate`
 - `test_the_verifier_service_runs_the_same_checks`
 
@@ -304,6 +309,12 @@ Patched in `src/ovpoc/vro.py`.
 Caught by:
 - `test_every_mutation_still_matches_its_target_exactly_once`
 - `test_release_denials_are_signed_under_a_separate_office_key`
+- `test_supervision_turns_on_the_signed_statement_not_the_box_s_memory`
+- `test_the_box_statement_key_is_published_and_the_receipt_verifies_under_it`
+- `test_the_dump_needs_no_signature_of_its_own`
+- `test_the_ledger_downloads_as_one_canonical_file`
+- `test_the_office_signs_the_count_the_audit_depends_on`
+- `test_the_release_dump_needs_no_signature_of_its_own`
 - `test_the_release_log_records_exactly_who_took_a_token`
 - `test_the_wallet_can_produce_the_release_query_as_a_file`
 
@@ -352,6 +363,7 @@ Patched in `src/ovpoc/ballotbox.py`.
 Caught by:
 - `test_a_replayed_ballot_cannot_annul_a_later_one`
 - `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`
 
 ### `tally_available_before_the_close`
 
@@ -428,6 +440,7 @@ Caught by:
 - `test_a_ballot_arriving_after_the_close_is_not_recorded`
 - `test_every_mutation_still_matches_its_target_exactly_once`
 - `test_the_adversarial_scenarios_all_hold`
+- `test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`
 
 ### `receipt_omits_the_entry_position`
 
@@ -484,6 +497,7 @@ Caught by:
 - `test_a_signature_covering_less_than_the_document_is_refused`
 - `test_a_signature_that_stops_short_of_the_document_is_refused`
 - `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_adversarial_scenarios_all_hold`
 
 ### `self_enrolment_not_marked_in_the_register`
 
@@ -708,7 +722,18 @@ Patched in `ios/OVPOCKit/Sources/OVPOCKit/HandOff.swift`.
 Caught by:
 - `test_each_application_registers_the_scheme_the_other_opens_it_with`
 - `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_the_tally_is_refused_while_open_when_no_running_tally_is_configured`
 - `test_the_two_applications_agree_on_the_hand_off`
+
+### `half_a_token_request_period_is_published`
+
+The console accepts a token-request period with one end missing, so the configuration carries a declaration no reader can act on -- a window that might have opened with the poll, with the configuration, or never.
+
+Patched in `service/api.py`.
+
+Caught by:
+- `test_every_mutation_still_matches_its_target_exactly_once`
+- `test_one_end_of_a_period_is_refused`
 
 ### `a_real_polls_participation_register_is_published`
 
@@ -793,5 +818,5 @@ Caught by:
 
 ## Summary
 
-- 58 of 58 mutations were detected.
+- 59 of 59 mutations were detected.
 - 0 were not.
