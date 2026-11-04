@@ -22,7 +22,13 @@ subject to the thing they are stating.
 
 from __future__ import annotations
 
-from service_process import BLOCK, OFFSET_RANGE, PORTS, lost_the_port
+import pathlib
+import re
+
+from service_process import (BLOCK, OFFSET_RANGE, PORTS, lost_the_port,
+                             offsets_for_this_process)
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 def test_no_two_offsets_name_the_same_port():
@@ -62,3 +68,64 @@ def test_a_lost_race_is_recognised_in_the_service_s_own_words():
                  "ValueError: the electoral register is empty",
                  ""):
         assert not lost_the_port(said), said
+
+
+def test_each_worker_draws_from_a_share_no_other_worker_has(monkeypatch):
+    """The runner divides the ports, because the runner divides the work.
+
+    A probe answers "free *now*", and two processes asking together can
+    both be told yes. Losing that race is not a flake in the ordinary
+    sense: the module that lost runs against the winner's deployment,
+    fails nearly every test it has, and `tools/sabotage.py` reads all of
+    them as the mutation being caught. It happened once and put
+    thirty-nine tests from `test_service_flow.py` into one row of
+    `docs/sabotage.md`.
+
+    Shares make it impossible rather than unlikely, so what is checked
+    here is that they partition: no offset in two shares, none dropped,
+    and none of them empty.
+    """
+    workers = 14
+    shares = []
+    for worker in range(workers):
+        monkeypatch.setenv("OVPOC_PORT_WORKER", str(worker))
+        monkeypatch.setenv("OVPOC_PORT_WORKERS", str(workers))
+        shares.append(offsets_for_this_process())
+
+    drawn = [offset for share in shares for offset in share]
+    assert len(drawn) == len(set(drawn)), "two workers may draw one block"
+    assert sorted(drawn) == sorted(OFFSET_RANGE), "offsets went missing"
+    assert all(shares), "a worker with no offsets cannot start anything"
+
+
+def test_a_suite_run_by_hand_draws_from_the_whole_range(monkeypatch):
+    """Nobody to share with, and the same for an answer that makes no sense.
+
+    Falling back to the whole range is right when the names are absent,
+    and it is also the safe reading of a share that cannot be parsed: a
+    worker that drew from nothing would fail every test needing a
+    deployment, which is the outcome this is all here to avoid.
+    """
+    monkeypatch.delenv("OVPOC_PORT_WORKER", raising=False)
+    monkeypatch.delenv("OVPOC_PORT_WORKERS", raising=False)
+    assert offsets_for_this_process() == list(OFFSET_RANGE)
+
+    for worker, workers in (("nonsense", "14"), ("14", "14"), ("-1", "14")):
+        monkeypatch.setenv("OVPOC_PORT_WORKER", worker)
+        monkeypatch.setenv("OVPOC_PORT_WORKERS", workers)
+        assert offsets_for_this_process() == list(OFFSET_RANGE), (worker, workers)
+
+
+def test_the_runner_and_the_harness_agree_on_the_names():
+    """Two files joined by a string, where a rename is silent.
+
+    `tools/sabotage.py` writes the share into the environment and this
+    module reads it. Spelled differently on one side, every worker draws
+    from the whole range again and the collision comes back -- with no
+    error anywhere, because an absent name is exactly how a suite run by
+    hand announces that it has nobody to share with.
+    """
+    runner = (ROOT / "tools" / "sabotage.py").read_text(encoding="utf-8")
+    for name in ("OVPOC_PORT_WORKER", "OVPOC_PORT_WORKERS"):
+        assert re.search(rf'{name}"', runner), (
+            f"{name} is read by service_process and set by nobody")

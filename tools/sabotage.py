@@ -897,12 +897,23 @@ def failing_tests(tree: pathlib.Path,
     subprocess and says why in its own comment -- this is the same hazard
     one level up.
     """
+    env = dict(os.environ,
+               PYTHONPATH=os.pathsep.join([str(tree / "src"), str(tree)]))
+
+    # Which share of the port offsets this worker may draw from. Ports are
+    # the only thing these suites share, and probing for a free block is
+    # an answer about the instant it was asked: two workers can be told
+    # the same block is free, and the one that loses then runs its whole
+    # module against the other's deployment and fails nearly every test
+    # it has -- which this tool reads as the mutation being caught. The
+    # tree is the worker, so its name is the share. See
+    # `offsets_for_this_process` in `tests/service_process.py`.
+    if tree.name.startswith("w") and tree.name[1:].isdigit():
+        env["OVPOC_PORT_WORKER"] = tree.name[1:]
+
     result = subprocess.run(
         [sys.executable, "-m", "pytest", *PYTEST_ARGS],
-        cwd=tree,
-        env=dict(os.environ,
-                 PYTHONPATH=os.pathsep.join([str(tree / "src"), str(tree)])),
-        capture_output=True, text=True,
+        cwd=tree, env=env, capture_output=True, text=True,
     )
     # pytest: 0 = all passed, 1 = tests failed. Anything else means it did not
     # get as far as running the suite (2 interrupted, 3 internal error,
@@ -963,6 +974,8 @@ def main(argv: list[str] | None = None) -> int:
     not_run: list[str] = []
     workspace = tempfile.TemporaryDirectory(prefix="ovpoc-sabotage-")
     root = pathlib.Path(workspace.name)
+    # Read back by every worker through `os.environ`; see `failing_tests`.
+    os.environ["OVPOC_PORT_WORKERS"] = str(jobs)
     print(f"Copying the working tree {jobs}× into {root}…")
     trees: "queue.Queue[pathlib.Path]" = queue.Queue()
     for n in range(jobs):

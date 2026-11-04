@@ -61,6 +61,39 @@ BLOCK = max(PORTS) - min(PORTS) + 1
 OFFSET_RANGE = range(300, 8000, BLOCK)
 
 
+def offsets_for_this_process() -> list[int]:
+    """The offsets this process may draw from, which may be a share.
+
+    Probing answers "is this block free *now*", and two processes asking
+    at the same instant can both be told yes: the window between the
+    probe releasing a port and the service binding it is not zero. Under
+    `tools/sabotage.py` that window is reached often enough to matter,
+    and what comes out of it is not a flake in the usual sense -- the
+    module that drew the same block as another worker runs against *that
+    worker's deployment*, fails nearly every test it has, and the tool
+    records all of them as the mutation being caught.
+
+    Detecting it afterwards is possible and beside the point. The runner
+    is what creates the parallelism, so the runner divides the resource:
+    it names each worker and how many there are, and each draws from its
+    own stride. Two workers then cannot draw the same block, rather than
+    being unlikely to. Within one process the probe is enough, because a
+    deployment this process already started is bound when the next one
+    looks.
+
+    No names in the environment means nobody is sharing -- a suite run by
+    hand draws from the whole range, as it always did.
+    """
+    try:
+        worker = int(os.environ["OVPOC_PORT_WORKER"])
+        workers = int(os.environ["OVPOC_PORT_WORKERS"])
+    except (KeyError, ValueError):
+        return list(OFFSET_RANGE)
+    if not 0 <= worker < workers:
+        return list(OFFSET_RANGE)
+    return list(OFFSET_RANGE)[worker::workers]
+
+
 def free_offset() -> int:
     """An offset at which every origin's port is free, right now.
 
@@ -84,7 +117,8 @@ def free_offset() -> int:
     distinguished from, and the report said a defence held because a
     worker had lost a port. `start` re-probes instead.
     """
-    for offset in random.sample(OFFSET_RANGE, k=len(OFFSET_RANGE)):
+    mine = offsets_for_this_process()
+    for offset in random.sample(mine, k=len(mine)):
         held: list[socket.socket] = []
         try:
             for port in PORTS:
@@ -102,9 +136,10 @@ def free_offset() -> int:
                 sock.close()
         return offset
     raise RuntimeError(
-        f"no free block of {len(PORTS)} ports in {OFFSET_RANGE}. Something "
-        "is listening across the whole range, or a previous run left "
-        "services behind.")
+        f"no free block of {len(PORTS)} ports in the {len(mine)} offsets "
+        f"this process may draw from, out of {OFFSET_RANGE}. Something is "
+        "listening across the whole share, or a previous run left services "
+        "behind.")
 
 
 #: What losing the race looks like in the service's own words, whatever
