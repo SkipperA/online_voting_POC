@@ -201,6 +201,52 @@ def test_a_worker_tree_leaves_the_weight_behind(tmp_path):
     assert size < 32 * 1024 * 1024, f"a worker tree is {size / 1e6:.0f} MB"
 
 
+def test_a_worker_tree_leaves_out_what_the_repository_ignores(tmp_path,
+                                                               monkeypatch):
+    """The size above is the symptom; this is the rule that produces it.
+
+    `test_a_worker_tree_leaves_the_weight_behind` passes on a checkout
+    nobody has run anything in, and starts failing the first time
+    somebody does, because what pushes a worker tree over the limit is
+    whatever the last local run left lying about. That makes it a good
+    alarm and a poor specification: it cannot say which files had no
+    business being copied, only that they came to too much.
+
+    So state the rule, against a repository built to state it against.
+    What git ignores is this machine's and stays behind; what git tracks
+    is the repository's and is copied; and work that is merely
+    uncommitted is neither, and still reaches the worker -- which is the
+    whole reason this tool copies the working tree rather than `HEAD`.
+    """
+    from sabotage import worker_tree
+
+    repo = tmp_path / "repo"
+    (repo / "election-data" / "001-gen-local").mkdir(parents=True)
+    (repo / "election-data" / "001-gen-local" / "poll.state.json").write_text(
+        "{}", encoding="utf-8")
+    (repo / ".gitignore").write_text("election-data/*/\n", encoding="utf-8")
+    (repo / "tracked.py").write_text("# committed\n", encoding="utf-8")
+    (repo / "uncommitted.py").write_text("# written since\n", encoding="utf-8")
+
+    git = ("git", "-C", str(repo), "-c", "user.name=t",
+           "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false")
+    subprocess.run([*git, "init", "-q"], check=True)
+    subprocess.run([*git, "add", ".gitignore", "tracked.py"], check=True)
+    subprocess.run([*git, "commit", "-qm", "one"], check=True)
+
+    monkeypatch.setattr(sabotage, "ROOT", repo)
+    tree = worker_tree(tmp_path / "w")
+
+    assert not (tree / "election-data" / "001-gen-local").exists(), (
+        "a generated election is this machine's and `.gitignore` says so, "
+        "and a worker tree copied it once per core")
+    assert (tree / "tracked.py").exists(), (
+        "a tracked file is the repository's however it is named")
+    assert (tree / "uncommitted.py").exists(), (
+        "uncommitted work is what this tool exists to sabotage; a copy "
+        "without it would test `HEAD` while reporting on the checkout")
+
+
 def test_no_test_pins_a_port_offset():
     """Two deployments alive at once must not agree on a block by hand.
 

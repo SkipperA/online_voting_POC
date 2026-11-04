@@ -796,13 +796,59 @@ def parse_report(stdout: str) -> tuple[list[str], list[str]]:
     return sorted(set(failures)), skips
 
 
-#: What a worker tree does not need, and what copying it would cost.
-#: `.git` is the big one; the caches would be rebuilt anyway and
-#: `node_modules` is the voter app's build input, not the suite's.
+#: What no worker tree needs, whatever machine it is cut on, and what
+#: copying it would cost. `.git` is the big one; the caches would be
+#: rebuilt anyway and `node_modules` is the voter app's build input, not
+#: the suite's.
+#:
+#: A floor rather than the whole answer: the files that actually make a
+#: checkout heavy arrive later, under names this list could not have been
+#: written knowing. See `ignored_by_git`.
 NOT_COPIED = shutil.ignore_patterns(
     ".git", "__pycache__", ".pytest_cache", ".venv", "node_modules",
     ".build", "*.egg-info", ".DS_Store",
 )
+
+
+def ignored_by_git() -> set[str] | None:
+    """What `.gitignore` calls this machine's, as paths relative to `ROOT`.
+
+    The list above names artefacts. The expensive ones are named by
+    whoever ran what last: `python -m service` mints an election into
+    `election-data/` -- twelve megabytes of this machine's, which is what
+    that entry in `.gitignore` exists to say -- and a patch delivered
+    into `Claude outputs/` is twenty-eight more. Multiplied by the core
+    count that is half a gigabyte of copying, to run a suite that reads
+    none of it. Pattern-matching them one at a time would be a list that
+    is correct until the next local run.
+
+    So ask the repository rather than guess. `--others --ignored` lists
+    only *untracked* ignored paths, and that distinction is what makes
+    this safe to do: a tracked file is the repository's and is copied
+    however it is named, while uncommitted work is untracked but not
+    ignored, so it still reaches the worker -- which is the whole reason
+    this copies the working tree instead of `HEAD`.
+
+    `None` where there is no repository to ask. Not a corner case: a
+    worker tree has no `.git`, and the suite it runs copies itself again.
+    `NOT_COPIED` carries that second copy, and everything this would have
+    dropped is already missing from it.
+    """
+    try:
+        top = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, check=True).stdout.strip()
+        # `-C` searches upwards. Without this, a tree that merely sits
+        # inside somebody else's checkout is told what that one ignores.
+        if not top or Path(top).resolve() != Path(ROOT).resolve():
+            return None
+        listed = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-files", "--others", "--ignored",
+             "--exclude-standard", "--directory", "-z"],
+            capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return {entry.rstrip("/") for entry in listed.split("\0") if entry}
 
 
 def worker_tree(into: pathlib.Path) -> pathlib.Path:
@@ -813,10 +859,25 @@ def worker_tree(into: pathlib.Path) -> pathlib.Path:
     and a worktree would silently test `HEAD` instead -- which is the
     worst kind of difference, since the report would look normal.
 
+    What stays behind is `NOT_COPIED` plus whatever the repository
+    ignores. Two lists because they answer two questions: the first is
+    what no checkout needs, the second is what this one happens to have
+    lying in it.
+
     One per worker rather than one per mutation. A copy is about a second
     and five megabytes; fifty-seven of them would be neither.
     """
-    shutil.copytree(ROOT, into, ignore=NOT_COPIED, symlinks=True)
+    root = Path(ROOT).resolve()
+    ignored = ignored_by_git()
+
+    def not_copied(directory: str, names: list[str]) -> set[str]:
+        skip = set(NOT_COPIED(directory, names))
+        if ignored is not None:
+            here = Path(directory).resolve().relative_to(root)
+            skip.update(name for name in names if str(here / name) in ignored)
+        return skip
+
+    shutil.copytree(ROOT, into, ignore=not_copied, symlinks=True)
     return into
 
 
